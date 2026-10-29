@@ -55,7 +55,7 @@
 让 AI 先把户型图读成方案：
 
 - **有能跑程序的 Agent**（Claude Code、Codex 等）：装 see-your-home Skill，https://github.com/ai-azhou/see-your-home 。
-- **只有网页 Chat**（含手机 App）：用 see-your-home 仓库 `chat/` 里的提示词，说明在 https://github.com/ai-azhou/see-your-home/blob/main/chat/guide.md 。Chat 能联网时，上传户型图再发一句：「请先读取 https://raw.githubusercontent.com/ai-azhou/see-your-home/main/chat/read-prompt.md ，按里面的说明处理我上传的户型图；打不开就读 https://raw.giteeusercontent.com/gevoll/see-your-home/main/chat/read-prompt.md 」。
+- **只有网页 Chat**（含手机 App）：用 see-your-home 仓库 `chat/` 里的提示词，说明在 https://github.com/ai-azhou/see-your-home/blob/main/chat/guide.md 。Chat 能联网时，上传户型图再发一句：「请先读取 https://raw.githubusercontent.com/ai-azhou/see-your-home/main/chat/read-prompt.md ，按里面的说明处理我上传的户型图；打不开就读 https://raw.giteeusercontent.com/gevoll/see-your-home/raw/main/chat/read-prompt.md 」。
 - 也可以在工具里导入户型图当底图，自己描墙。
 
 ## 8. 和 Agent 实时同步（可选，要 Node）
