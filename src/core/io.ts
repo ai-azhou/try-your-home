@@ -1,0 +1,102 @@
+import { fromLegacyFurniture } from './decor/legacy.ts'
+import { createDecor } from './decor/presets.ts'
+import { decorItems } from './decor/resolve.ts'
+import type { Plan } from './types.ts'
+import { validatePlanFile } from './schema.ts'
+import { validatePlan } from './validate.ts'
+import { emptyPlan, fromLegacy, importReport } from './legacy.ts'
+export { emptyPlan } from './legacy.ts'
+export function newId(plan: Plan, prefix: string): string {
+  const ids = new Set([...plan.walls, ...plan.openings, ...plan.beams, ...plan.rooms, ...plan.questions, ...plan.changes, ...(plan.levels ?? []), ...(plan.columns ?? []), ...(plan.shafts ?? []), ...(plan.stairs ?? []), ...(plan.voids ?? [])].flatMap(x => [x.id, ...('data' in x && x.data && typeof x.data.id === 'string' ? [x.data.id] : []), ...('group' in x && x.group ? [x.group] : [])]))
+  if (plan.decor) for (const item of [...decorItems(plan.decor), ...plan.decor.materials, ...(plan.decor.presets ?? [])]) ids.add(item.id)
+  let i = 1; while (ids.has(`${prefix}${i}`)) i++; return `${prefix}${i}`
+}
+function stable(value: any): any {
+  if (Array.isArray(value)) return value.map(stable)
+  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().filter(k => value[k] !== undefined).map(k => [k, stable(value[k])]))
+  return value
+}
+/** Decimal exponent shift avoids introducing binary multiplication noise at file boundaries. */
+export function lengthUnit(value: number, exponent = 3): number {
+  const [coefficient, power = '0'] = String(value).split('e')
+  return Number(`${coefficient}e${Number(power) + exponent}`)
+}
+/** Only explicit metre quantities in prose; pixel values, areas, IDs and unlabelled numbers stay intact. */
+export function agentUnits(text: string): string {
+  return text.replace(/([+−-]?\d+(?:\.\d+)?(?:\s*[–—~～至到-]\s*[+−-]?\d+(?:\.\d+)?)*)\s*(?:m(?![a-zA-Z²³^\d])|米(?![²³]|平方|立方))/g, (_, values: string) => values.replace(/[+−-]?\d+(?:\.\d+)?/g, n => String(lengthUnit(Number(n.replace('−', '-'))))) + ' mm')
+}
+/** Persisted length paths whose in-memory representation is metres. Never recurse by bare key names. */
+export const METRE_PATHS = [
+  'ceiling', 'walls.*.height', 'walls.*.lowHeight', 'openings.*.sill', 'openings.*.head',
+  'beams.*.bottom', 'rooms.*.ceiling', 'rooms.*.floorOffset', 'levels.*.elevation', 'levels.*.ceiling',
+  'decor.furniture.*.height', 'decor.furniture.*.z', 'decor.cabinets.*.z.*', 'decor.cabinets.*.plinth',
+  'decor.cabinets.*.columns.*.cells.*.h', 'decor.cabinets.*.columns.*.cells.*.void.top.z',
+  'decor.cabinets.*.columns.*.cells.*.appliance.size.2', 'decor.cabinets.*.cuts.*.z.*',
+  'decor.panels.*.span.z.*', 'decor.recesses.*.rect.z.*', 'decor.recesses.*.shelves.*',
+  'decor.surfaces.*.target.z.*', 'decor.presets.*.trims.skirting.height', 'decor.cache.*.pose.z',
+] as const
+const ELEMENT_METRES: Record<string, string[]> = { wall: ['height', 'lowHeight'], opening: ['sill', 'head'], beam: ['bottom'], room: ['ceiling', 'floorOffset'] }
+function shiftPath(value: any, path: string[], exponent: number) {
+  if (!value || typeof value !== 'object') return
+  const [key, ...rest] = path
+  for (const k of key === '*' ? Object.keys(value) : [key]) {
+    if (rest.length) shiftPath(value[k], rest, exponent)
+    else if (typeof value[k] === 'number') value[k] = lengthUnit(value[k], exponent)
+  }
+}
+function shiftPlan(plan: any, exponent: number) {
+  for (const path of METRE_PATHS) shiftPath(plan, path.split('.'), exponent)
+  for (const c of Array.isArray(plan.changes) ? plan.changes : [])
+    for (const key of ELEMENT_METRES[c?.type] ?? []) shiftPath(c?.data, [key], exponent)
+}
+export function planFileValue(plan: Plan): any {
+  const value = structuredClone(plan)
+  if (value.legacy) delete value.legacy.__structureReplayFrame
+  shiftPlan(value, 3)
+  value.version = 3
+  for (const q of value.questions ?? []) if (q) {
+    if (typeof q.text === 'string') q.text = agentUnits(q.text)
+    if (typeof q.answer === 'string') q.answer = agentUnits(q.answer)
+    if (Array.isArray(q.options)) q.options = q.options.map(v => typeof v === 'string' ? agentUnits(v) : v)
+  }
+  return value
+}
+export function serializePlan(plan: Plan): string { return JSON.stringify(stable(planFileValue(plan)), null, 2) + '\n' }
+export function parsePlanText(text: string) {
+  try {
+    const value = JSON.parse(text.replace(/^\uFEFF/, ''))
+    if (value?.format === 'floorplan-structure' || [2, 3].includes(value?.version)) {
+      const report = importReport('v2')
+      if (value.format !== 'floorplan-structure' || ![2, 3].includes(value.version) || !['walls', 'openings', 'beams', 'rooms', 'questions', 'changes'].every(k => Array.isArray(value[k]))) throw new Error('v2/v3 方案标记或构件数组不完整')
+      if (value.version === 3) shiftPlan(value, -3)
+      value.version = 2 // Runtime contract stays mixed-unit v2; serialization always upgrades to v3.
+      if (Array.isArray(value.decor?.furniture)) for (const f of value.decor.furniture) {
+        if (f && typeof f.in === 'string' && f.at !== undefined) {
+          delete f.at
+          report.approximations.push(`家具 ${f.id} 已迁移为仅随宿主定位，移除旧 at`)
+        }
+      }
+      if (value.legacy) delete value.legacy.__structureReplayFrame
+      const schemaIssues = validatePlanFile(planFileValue(value as Plan))
+      if (schemaIssues.length) return { plan: emptyPlan(), report, issues: schemaIssues }
+      report.counts = Object.fromEntries(['walls', 'openings', 'beams', 'rooms', 'questions', 'changes'].map(k => [k, value[k].length]))
+      return { plan: value as Plan, report, issues: validatePlan(value as Plan) }
+    }
+    const converted = fromLegacy(value)
+    const furniture = fromLegacyFurniture(converted.plan)
+    if (furniture.furniture.length || furniture.style) {
+      converted.plan.decor = { ...createDecor(furniture.style ?? 'cream'), furniture: furniture.furniture, presets: furniture.presets }
+      converted.plan.decor.materials.push(...furniture.materials)
+      converted.report.counts.furniture = furniture.furniture.length
+      converted.report.approximations.push(`家具 ${furniture.furniture.length} 件已转入装修层；未识别类型使用占位块和 1 m 参考高度`)
+      converted.report.warnings.push(...furniture.warnings)
+    }
+    if (converted.plan.legacy) delete converted.plan.legacy.__structureReplayFrame
+    const schemaIssues = validatePlanFile(planFileValue(converted.plan))
+    if (schemaIssues.length) return { plan: emptyPlan(), report: converted.report, issues: schemaIssues }
+    const issues = validatePlan(converted.plan)
+    return { ...converted, issues }
+  } catch (e) {
+    return { plan: emptyPlan(), report: importReport('v2'), issues: [{ level: 'error' as const, code: 'parse', message: `无法读取方案：${e instanceof Error ? e.message : String(e)}` }] }
+  }
+}

@@ -1,0 +1,286 @@
+@import "tailwindcss";
+
+/* 只打包 Manrope 的拉丁子集（约 25KB），中文走系统字体栈；运行时不发任何网络请求。 */
+@font-face {
+  font-family: "Manrope Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("../../node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2") format("woff2-variations");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ───────── 设计令牌（说明见 docs/design.md §2） ───────── */
+@theme {
+  --font-sans: "Manrope Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif;
+  --font-num: "Manrope Variable", "SF Pro Text", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* 中性：冷灰，带一点蓝 */
+  --color-ink-950: #0f1115;
+  --color-ink-900: #16191e;
+  --color-ink-800: #262a31;
+  --color-ink-700: #3b4048;
+  --color-ink-600: #545a63;
+  --color-ink-500: #6c727c;
+  --color-ink-400: #8e949d;
+  --color-ink-300: #b3b8c0;
+  --color-ink-200: #d3d7dd;
+  --color-ink-150: #e1e4e9;
+  --color-ink-100: #eceef2;
+  --color-ink-50: #f5f6f8;
+  --color-canvas: #e6e9ee;
+  --color-paper: #ffffff;
+
+  /* 选中：薄荷 */
+  --color-mint-50: #ecfbf4;
+  --color-mint-100: #d4f6e7;
+  --color-mint-200: #b4eed6;
+  --color-mint-300: #86e3bf;
+  --color-mint-400: #55d3a5;
+  --color-mint-500: #2dbf8c;
+  --color-mint-600: #1ea377;
+  --color-mint-700: #12825e;
+  --color-mint-900: #0a4a37;
+
+  /* 问题 / 把握不足：柠檬 */
+  --color-lemon-50: #fbfde8;
+  --color-lemon-100: #f5f9c6;
+  --color-lemon-200: #ecf49a;
+  --color-lemon-300: #e2ee6e;
+  --color-lemon-400: #d4e348;
+  --color-lemon-600: #8f9a17;
+  --color-lemon-800: #4f560c;
+
+  /* Agent：淡紫 */
+  --color-lav-50: #f4f2ff;
+  --color-lav-100: #ebe7fe;
+  --color-lav-200: #dcd4fd;
+  --color-lav-300: #c3b6fb;
+  --color-lav-400: #a693f6;
+  --color-lav-500: #8a72ef;
+  --color-lav-600: #6f55e2;
+  --color-lav-800: #3e2c9c;
+
+  /* 拆除 / 危险：珊瑚 */
+  --color-coral-50: #fff1ef;
+  --color-coral-100: #fde2de;
+  --color-coral-200: #fac3bc;
+  --color-coral-300: #f59d93;
+  --color-coral-400: #f07d71;
+  --color-coral-500: #e8604f;
+  --color-coral-700: #b23a2c;
+
+  /* 新增 / 修改：钴蓝 */
+  --color-cobalt-50: #eef3ff;
+  --color-cobalt-100: #dfe8ff;
+  --color-cobalt-200: #c1d3ff;
+  --color-cobalt-300: #97b5ff;
+  --color-cobalt-400: #6d93fb;
+  --color-cobalt-500: #4b76f2;
+  --color-cobalt-700: #2a4fc4;
+  /* 测量（S2a，⌥ 悬停测距）：洋红，和选中薄荷、拆除珊瑚、新增钴蓝都分得开 */
+  --color-magenta-100: #fbe1f1;
+  --color-magenta-500: #d633a0;
+  --color-magenta-700: #9e1f74;
+  /* 装修构件身份（检查器头像盘、「你加的」标签）：不上画布，不是提醒色 */
+  --color-sand-50: #f3eadc;
+  --color-sand-100: #efe3d2;
+  --color-sand-700: #6b5338;
+
+  /* 玻璃构件：天青（区别于新增的钴蓝） */
+  --color-sky-glass: #c7e6f8;
+  --color-sky-line: #4fa3d8;
+
+  --radius-pill: 999px;
+  --radius-xl2: 28px;
+  --radius-card: 22px;
+  --radius-tile: 16px;
+  --radius-chip: 11px;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+:root {
+  /*
+   * 磨砂玻璃配方（D3，说明见 docs/design.md §2.3）：
+   *  填充 = 白色斜向渐变（左上 66% → 中段 40% → 右下 50%）+ 左上角一片镜面高光，让底下的柔光和画布透出来；
+   *  背景模糊 26px 提饱和（柔光透过来是「有颜色的雾」，不是灰）；
+   *  边 = 左上更亮的 1px 内高光（主光从左上来，和 3D 主光、画布亮区同向）+ 一圈 0.5px 墨色发丝线（白底上也有边界）；
+   *  投影 = 近处 2px 实 + 远处 52px 带一点淡紫的柔光（浮起来，且和底色同族，不脏）。
+   */
+  --glass-fill:
+    radial-gradient(120% 90% at 0% 0%, rgb(255 255 255 / 0.42) 0%, rgb(255 255 255 / 0) 46%),
+    linear-gradient(158deg, rgb(255 255 255 / 0.58) 0%, rgb(255 255 255 / 0.30) 52%, rgb(255 255 255 / 0.40) 100%);
+  --glass-fill-strong:
+    radial-gradient(120% 90% at 0% 0%, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0) 46%),
+    linear-gradient(158deg, rgb(255 255 255 / 0.9) 0%, rgb(255 255 255 / 0.78) 100%);
+  --glass-fill-chip: linear-gradient(160deg, rgb(255 255 255 / 0.82) 0%, rgb(255 255 255 / 0.56) 100%);
+  --glass-blur: blur(26px) saturate(185%) brightness(1.04);
+  --glass-blur-chip: blur(14px) saturate(170%) brightness(1.04);
+  --glass-edge: inset 1px 1px 0 rgb(255 255 255 / 0.85), inset -1px -1px 0 rgb(255 255 255 / 0.28), inset 0 0 0 1px rgb(255 255 255 / 0.22);
+  --glass-ring: 0 0 0 0.5px rgb(40 38 80 / 0.10);
+  --shadow-float: 0 26px 52px -24px rgb(48 44 104 / 0.30), 0 2px 6px -2px rgb(28 32 52 / 0.08);
+  --shadow-lift: 0 36px 72px -28px rgb(48 44 104 / 0.38), 0 6px 16px -8px rgb(28 32 52 / 0.12);
+  --shadow-btn: 0 10px 22px -12px rgb(48 44 104 / 0.38), 0 1px 2px rgb(28 32 52 / 0.07);
+  /* 卡片里的实心白块（不是玻璃）：更实、只有一层极淡的内描，避免「玻璃套玻璃」 */
+  --tile-bg: rgb(255 255 255 / 0.62);
+  --tile-ring: inset 0 1px 0 rgb(255 255 255 / 0.85), inset 0 0 0 1px rgb(255 255 255 / 0.35), 0 1px 2px rgb(40 38 80 / 0.05);
+}
+
+/* 手机：backdrop-filter 每帧都要重算，模糊半径减半、填充更实；热点和小按钮不模糊（见 design.md §2.3 降级） */
+@media (max-width: 767px) {
+  :root {
+    --glass-blur: blur(14px) saturate(160%);
+    --glass-blur-chip: none;
+    --glass-fill:
+      radial-gradient(120% 90% at 0% 0%, rgb(255 255 255 / 0.4) 0%, rgb(255 255 255 / 0) 46%),
+      linear-gradient(158deg, rgb(255 255 255 / 0.8) 0%, rgb(255 255 255 / 0.64) 100%);
+    --glass-fill-chip: linear-gradient(160deg, rgb(255 255 255 / 0.94) 0%, rgb(255 255 255 / 0.84) 100%);
+    /* 底部抽屉盖在平面上，下面的问题针、薄荷选中会透成一团色斑：抽屉更实 */
+    --glass-fill-strong: linear-gradient(158deg, rgb(255 255 255 / 0.97) 0%, rgb(255 255 255 / 0.92) 100%);
+  }
+}
+/* 系统要求「降低透明度」或浏览器不支持背景模糊：退成实心的浅白卡，配方其余部分不变 */
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --glass-blur: none; --glass-blur-chip: none;
+    --glass-fill: linear-gradient(158deg, #fdfdfe 0%, #f6f6fa 100%);
+    --glass-fill-strong: linear-gradient(158deg, #ffffff 0%, #f8f8fb 100%);
+    --glass-fill-chip: linear-gradient(160deg, #ffffff 0%, #f6f6fa 100%);
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root {
+    --glass-fill: linear-gradient(158deg, rgb(253 253 254 / 0.97) 0%, rgb(246 246 250 / 0.95) 100%);
+    --glass-fill-strong: linear-gradient(158deg, #ffffff 0%, #f8f8fb 100%);
+    --glass-fill-chip: linear-gradient(160deg, #ffffff 0%, #f6f6fa 100%);
+  }
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    color: var(--color-ink-900);
+    background: var(--color-canvas);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    overflow: hidden;
+    overscroll-behavior: none;
+    font-feature-settings: "ss01" on;
+  }
+  button { cursor: pointer; font: inherit; color: inherit; }
+  button:disabled { cursor: default; }
+  :focus-visible { outline: 2px solid var(--color-mint-400); outline-offset: 2px; }
+  ::selection { background: var(--color-mint-200); }
+}
+
+@layer components {
+  /* 一级：浮卡和浮条（右侧卡、顶栏、工具栏、下一步条、缩放条、画中画框） */
+  .glass {
+    background: var(--glass-fill);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-edge), var(--glass-ring), var(--shadow-float);
+  }
+  /* 弹层（菜单、问题卡、交给 Agent、确认卡）：内容密，更实一点保证可读，投影更远 */
+  .glass-strong {
+    background: var(--glass-fill-strong);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    box-shadow: var(--glass-edge), var(--glass-ring), var(--shadow-lift);
+  }
+  /* 二级：单独浮在画布上的小圆钮、热点白环。同一套高光和发丝线，模糊半径小一半 */
+  .glass-chip {
+    background: var(--glass-fill-chip);
+    backdrop-filter: var(--glass-blur-chip);
+    -webkit-backdrop-filter: var(--glass-blur-chip);
+    box-shadow: var(--glass-edge), var(--glass-ring), var(--shadow-btn);
+  }
+  /* 卡片内部的实心小块：比玻璃更实，用来放分组内容（不模糊，避免玻璃套玻璃） */
+  .tile {
+    background: var(--tile-bg);
+    box-shadow: var(--tile-ring);
+  }
+  .tile-sunken {
+    background: rgb(36 34 72 / 0.05);
+    box-shadow: inset 0 1px 2px rgb(36 34 72 / 0.06), inset 0 -1px 0 rgb(255 255 255 / 0.5);
+  }
+  .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .kbd {
+    font-family: var(--font-num);
+    font-size: 10.5px; font-weight: 600; line-height: 1;
+    padding: 3px 5px; border-radius: 6px;
+    color: var(--color-ink-500);
+    background: rgb(255 255 255 / 0.7);
+    box-shadow: inset 0 0 0 1px rgb(22 27 36 / 0.08), 0 1px 0 rgb(22 27 36 / 0.06);
+  }
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: rgb(22 27 36 / 0.14) transparent; }
+  .hatch-coral {
+    background-image: repeating-linear-gradient(135deg, rgb(232 96 79 / 0.22) 0 2px, transparent 2px 7px);
+  }
+  .hatch-lav {
+    background-image: repeating-linear-gradient(135deg, rgb(138 114 239 / 0.20) 0 2px, transparent 2px 8px);
+  }
+}
+
+/*
+ * 画布底色：冷白底 + 三团有方向的柔光。
+ *  左上：白色主光（和 3D 主光、玻璃高光同向）；右上：淡紫（参考图 3 的底，降到很淡）；左下：淡薄荷；右下：一点淡紫回光。
+ *  柔光明度和底色接近（L 差 < 5），平面图外面才看得到颜色，墙、尺寸、房间名的对比度不变。
+ */
+.app-bg {
+  background:
+    radial-gradient(52% 58% at 4% 0%, rgb(255 255 255 / 0.95) 0%, rgb(255 255 255 / 0) 70%),
+    radial-gradient(46% 78% at 100% 30%, rgb(204 193 252 / 0.85) 0%, rgb(204 193 252 / 0) 72%),
+    radial-gradient(44% 60% at 0% 100%, rgb(182 234 212 / 0.85) 0%, rgb(182 234 212 / 0) 72%),
+    radial-gradient(40% 44% at 92% 104%, rgb(214 206 252 / 0.7) 0%, rgb(214 206 252 / 0) 72%),
+    linear-gradient(162deg, #f1f2f6 0%, #e7e8ef 100%);
+}
+/* 改造 / 对比：整体偏淡紫一档，薄荷退掉。不用横幅也能感到「现在不是原始结构」 */
+.app-bg.mode-renovation {
+  background:
+    radial-gradient(52% 58% at 4% 0%, rgb(255 255 255 / 0.9) 0%, rgb(255 255 255 / 0) 70%),
+    radial-gradient(54% 86% at 100% 30%, rgb(198 186 252 / 0.92) 0%, rgb(198 186 252 / 0) 74%),
+    radial-gradient(44% 60% at 0% 100%, rgb(208 200 250 / 0.75) 0%, rgb(208 200 250 / 0) 72%),
+    radial-gradient(40% 44% at 92% 104%, rgb(210 200 252 / 0.8) 0%, rgb(210 200 252 / 0) 72%),
+    linear-gradient(162deg, #f0f0f7 0%, #e6e5f0 100%);
+}
+
+/* 装修：右上淡紫保留（略淡），左下薄荷换成很淡的杏色，右下一点淡粉紫回光（docs/decor/设计规范.md §1） */
+.app-bg.mode-decor {
+  background:
+    radial-gradient(52% 58% at 4% 0%, rgb(255 255 255 / 0.95) 0%, rgb(255 255 255 / 0) 70%),
+    radial-gradient(46% 78% at 100% 30%, rgb(206 196 250 / 0.78) 0%, rgb(206 196 250 / 0) 72%),
+    radial-gradient(46% 62% at 0% 100%, rgb(246 222 196 / 0.80) 0%, rgb(246 222 196 / 0) 72%),
+    radial-gradient(40% 44% at 92% 104%, rgb(232 214 236 / 0.66) 0%, rgb(232 214 236 / 0) 72%),
+    linear-gradient(162deg, #f3f2f5 0%, #e9e7ec 100%);
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.85); opacity: 0.55; }
+  70% { transform: scale(1.55); opacity: 0; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+.pulse-ring { animation: pulse-ring 2.4s var(--ease-out) infinite; }
+
+@keyframes dash-flow { to { stroke-dashoffset: -24; } }
+.dash-flow { animation: dash-flow 1.2s linear infinite; }
+
+@keyframes shimmer-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring, .dash-flow { animation: none; }
+}
+
+/* 玻璃按钮的悬停：提亮填充（填充是渐变，不能靠 bg-white） */
+.glass-hover:hover { --glass-fill: linear-gradient(158deg, rgb(255 255 255 / 0.86) 0%, rgb(255 255 255 / 0.7) 100%); --glass-fill-chip: linear-gradient(160deg, rgb(255 255 255 / 0.97) 0%, rgb(255 255 255 / 0.82) 100%); }
+
+/* The brand wordmark stays live system text; the mark is an inline local SVG. */
+.app-mark > svg { display: block; width: 100%; height: 100%; }
+[data-testid="file-menu"] { font-family: system-ui, "PingFang SC", "Microsoft YaHei", sans-serif; }

@@ -1,0 +1,2725 @@
+{
+  "source": "Vite/Rolldown generateBundle: rendered chunk.modules; CSS asset bytes verified in emitted output",
+  "modules": [
+    {
+      "id": "fixtures/example-drawing.png?inline",
+      "renderedLength": 4991
+    },
+    {
+      "id": "fixtures/example-v2.json",
+      "renderedLength": 10876
+    },
+    {
+      "id": "node_modules/@babel/runtime/helpers/esm/arrayLikeToArray.js",
+      "renderedLength": 265
+    },
+    {
+      "id": "node_modules/@babel/runtime/helpers/esm/arrayWithHoles.js",
+      "renderedLength": 174
+    },
+    {
+      "id": "node_modules/@babel/runtime/helpers/esm/extends.js",
+      "renderedLength": 344
+    },
+    {
+      "id": "node_modules/@babel/runtime/helpers/esm/iterableToArrayLimit.js",
+      "renderedLength": 709
+    },
+    {
+      "id": "node_modules/@babel/runtime/helpers/esm/nonIterableRest.js",
+      "renderedLength": 306
+    },
+    {
+      "id": "node_modules/@babel/runtime/helpers/esm/slicedToArray.js",
+      "renderedLength": 375
+    },
+    {
+      "id": "node_modules/@babel/runtime/helpers/esm/typeof.js",
+      "renderedLength": 418
+    },
+    {
+      "id": "node_modules/@babel/runtime/helpers/esm/unsupportedIterableToArray.js",
+      "renderedLength": 547
+    },
+    {
+      "id": "node_modules/@floating-ui/core/dist/floating-ui.core.mjs",
+      "renderedLength": 20075
+    },
+    {
+      "id": "node_modules/@floating-ui/dom/dist/floating-ui.dom.mjs",
+      "renderedLength": 18644
+    },
+    {
+      "id": "node_modules/@floating-ui/react-dom/dist/floating-ui.react-dom.mjs",
+      "renderedLength": 7406
+    },
+    {
+      "id": "node_modules/@floating-ui/utils/dist/floating-ui.utils.dom.mjs",
+      "renderedLength": 4843
+    },
+    {
+      "id": "node_modules/@floating-ui/utils/dist/floating-ui.utils.mjs",
+      "renderedLength": 3845
+    },
+    {
+      "id": "node_modules/@radix-ui/primitive/dist/index.mjs",
+      "renderedLength": 1883
+    },
+    {
+      "id": "node_modules/@radix-ui/primitive/dist/internal/is-development.false.mjs",
+      "renderedLength": 129
+    },
+    {
+      "id": "node_modules/@radix-ui/react-collection/dist/index.mjs",
+      "renderedLength": 19408
+    },
+    {
+      "id": "node_modules/@radix-ui/react-compose-refs/dist/index.mjs",
+      "renderedLength": 1185
+    },
+    {
+      "id": "node_modules/@radix-ui/react-context/dist/index.mjs",
+      "renderedLength": 4398
+    },
+    {
+      "id": "node_modules/@radix-ui/react-dialog/dist/index.mjs",
+      "renderedLength": 11146
+    },
+    {
+      "id": "node_modules/@radix-ui/react-direction/dist/index.mjs",
+      "renderedLength": 748
+    },
+    {
+      "id": "node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs",
+      "renderedLength": 12676
+    },
+    {
+      "id": "node_modules/@radix-ui/react-dropdown-menu/dist/index.mjs",
+      "renderedLength": 6547
+    },
+    {
+      "id": "node_modules/@radix-ui/react-focus-guards/dist/index.mjs",
+      "renderedLength": 1480
+    },
+    {
+      "id": "node_modules/@radix-ui/react-focus-scope/dist/index.mjs",
+      "renderedLength": 10228
+    },
+    {
+      "id": "node_modules/@radix-ui/react-id/dist/index.mjs",
+      "renderedLength": 776
+    },
+    {
+      "id": "node_modules/@radix-ui/react-menu/dist/index.mjs",
+      "renderedLength": 22432
+    },
+    {
+      "id": "node_modules/@radix-ui/react-popover/dist/index.mjs",
+      "renderedLength": 11330
+    },
+    {
+      "id": "node_modules/@radix-ui/react-popper/dist/index.mjs",
+      "renderedLength": 9752
+    },
+    {
+      "id": "node_modules/@radix-ui/react-portal/dist/index.mjs",
+      "renderedLength": 1112
+    },
+    {
+      "id": "node_modules/@radix-ui/react-presence/dist/index.mjs",
+      "renderedLength": 5944
+    },
+    {
+      "id": "node_modules/@radix-ui/react-primitive/dist/index.mjs",
+      "renderedLength": 1450
+    },
+    {
+      "id": "node_modules/@radix-ui/react-roving-focus/dist/index.mjs",
+      "renderedLength": 9474
+    },
+    {
+      "id": "node_modules/@radix-ui/react-slot/dist/index.mjs",
+      "renderedLength": 6310
+    },
+    {
+      "id": "node_modules/@radix-ui/react-tooltip/dist/index.mjs",
+      "renderedLength": 19757
+    },
+    {
+      "id": "node_modules/@radix-ui/react-use-callback-ref/dist/index.mjs",
+      "renderedLength": 907
+    },
+    {
+      "id": "node_modules/@radix-ui/react-use-controllable-state/dist/index.mjs",
+      "renderedLength": 4878
+    },
+    {
+      "id": "node_modules/@radix-ui/react-use-effect-event/dist/index.mjs",
+      "renderedLength": 1134
+    },
+    {
+      "id": "node_modules/@radix-ui/react-use-is-hydrated/dist/index.mjs",
+      "renderedLength": 1224
+    },
+    {
+      "id": "node_modules/@radix-ui/react-use-layout-effect/dist/index.mjs",
+      "renderedLength": 297
+    },
+    {
+      "id": "node_modules/@radix-ui/react-use-size/dist/index.mjs",
+      "renderedLength": 1547
+    },
+    {
+      "id": "node_modules/@radix-ui/react-visually-hidden/dist/index.mjs",
+      "renderedLength": 1053
+    },
+    {
+      "id": "node_modules/@react-three/drei/core/ContactShadows.js",
+      "renderedLength": 4185
+    },
+    {
+      "id": "node_modules/@react-three/drei/core/OrbitControls.js",
+      "renderedLength": 2229
+    },
+    {
+      "id": "node_modules/@react-three/fiber/dist/events-e51d7528.esm.js",
+      "renderedLength": 259548
+    },
+    {
+      "id": "node_modules/@react-three/fiber/dist/react-three-fiber.esm.js",
+      "renderedLength": 4407
+    },
+    {
+      "id": "node_modules/ajv/dist/2020.js",
+      "renderedLength": 2835
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/codegen/code.js",
+      "renderedLength": 4167
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/codegen/index.js",
+      "renderedLength": 18970
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/codegen/scope.js",
+      "renderedLength": 4594
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/errors.js",
+      "renderedLength": 5422
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/index.js",
+      "renderedLength": 7968
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/names.js",
+      "renderedLength": 953
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/ref_error.js",
+      "renderedLength": 601
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/resolve.js",
+      "renderedLength": 4278
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/rules.js",
+      "renderedLength": 1024
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/util.js",
+      "renderedLength": 6412
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/validate/applicability.js",
+      "renderedLength": 921
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/validate/boolSchema.js",
+      "renderedLength": 1344
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/validate/dataType.js",
+      "renderedLength": 7238
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/validate/defaults.js",
+      "renderedLength": 1270
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/validate/index.js",
+      "renderedLength": 17600
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/validate/keyword.js",
+      "renderedLength": 5158
+    },
+    {
+      "id": "node_modules/ajv/dist/compile/validate/subschema.js",
+      "renderedLength": 3293
+    },
+    {
+      "id": "node_modules/ajv/dist/core.js",
+      "renderedLength": 20219
+    },
+    {
+      "id": "node_modules/ajv/dist/refs/data.json",
+      "renderedLength": 989
+    },
+    {
+      "id": "node_modules/ajv/dist/refs/json-schema-2020-12/index.js",
+      "renderedLength": 1278
+    },
+    {
+      "id": "node_modules/ajv/dist/refs/json-schema-2020-12/meta/applicator.json",
+      "renderedLength": 2133
+    },
+    {
+      "id": "node_modules/ajv/dist/refs/json-schema-2020-12/meta/content.json",
+      "renderedLength": 1155
+    },
+    {
+      "id": "node_modules/ajv/dist/refs/json-schema-2020-12/meta/core.json",
+      "renderedLength": 1964
+    },
+    {
+      "id": "node_modules/ajv/dist/refs/json-schema-2020-12/meta/format-annotation.json",
+      "renderedLength": 1154
+    },
+    {
+      "id": "node_modules/ajv/dist/refs/json-schema-2020-12/meta/meta-data.json",
+      "renderedLength": 1380
+    },
+    {
+      "id": "node_modules/ajv/dist/refs/json-schema-2020-12/meta/unevaluated.json",
+      "renderedLength": 1173
+    },
+    {
+      "id": "node_modules/ajv/dist/refs/json-schema-2020-12/meta/validation.json",
+      "renderedLength": 2752
+    },
+    {
+      "id": "node_modules/ajv/dist/refs/json-schema-2020-12/schema.json",
+      "renderedLength": 2834
+    },
+    {
+      "id": "node_modules/ajv/dist/runtime/equal.js",
+      "renderedLength": 304
+    },
+    {
+      "id": "node_modules/ajv/dist/runtime/ucs2length.js",
+      "renderedLength": 618
+    },
+    {
+      "id": "node_modules/ajv/dist/runtime/uri.js",
+      "renderedLength": 285
+    },
+    {
+      "id": "node_modules/ajv/dist/runtime/validation_error.js",
+      "renderedLength": 406
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/additionalItems.js",
+      "renderedLength": 1845
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js",
+      "renderedLength": 3385
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/allOf.js",
+      "renderedLength": 739
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/anyOf.js",
+      "renderedLength": 389
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/contains.js",
+      "renderedLength": 3041
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/dependencies.js",
+      "renderedLength": 2883
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/dependentSchemas.js",
+      "renderedLength": 436
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/if.js",
+      "renderedLength": 2070
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/index.js",
+      "renderedLength": 1426
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/items.js",
+      "renderedLength": 1861
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/items2020.js",
+      "renderedLength": 986
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/not.js",
+      "renderedLength": 742
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/oneOf.js",
+      "renderedLength": 1635
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/patternProperties.js",
+      "renderedLength": 2322
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/prefixItems.js",
+      "renderedLength": 429
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/properties.js",
+      "renderedLength": 1836
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/propertyNames.js",
+      "renderedLength": 1072
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/applicator/thenElse.js",
+      "renderedLength": 488
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/code.js",
+      "renderedLength": 5604
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/core/id.js",
+      "renderedLength": 334
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/core/index.js",
+      "renderedLength": 409
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/core/ref.js",
+      "renderedLength": 4363
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/discriminator/index.js",
+      "renderedLength": 3984
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/discriminator/types.js",
+      "renderedLength": 393
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/draft2020.js",
+      "renderedLength": 788
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/dynamic/dynamicAnchor.js",
+      "renderedLength": 1295
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/dynamic/dynamicRef.js",
+      "renderedLength": 1343
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/dynamic/index.js",
+      "renderedLength": 534
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/dynamic/recursiveAnchor.js",
+      "renderedLength": 550
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/dynamic/recursiveRef.js",
+      "renderedLength": 402
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/format/format.js",
+      "renderedLength": 3567
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/format/index.js",
+      "renderedLength": 261
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/metadata.js",
+      "renderedLength": 485
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/next.js",
+      "renderedLength": 468
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/unevaluated/index.js",
+      "renderedLength": 432
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/unevaluated/unevaluatedItems.js",
+      "renderedLength": 1474
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/unevaluated/unevaluatedProperties.js",
+      "renderedLength": 2174
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/const.js",
+      "renderedLength": 794
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/dependentRequired.js",
+      "renderedLength": 472
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/enum.js",
+      "renderedLength": 1682
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/index.js",
+      "renderedLength": 1010
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/limitContains.js",
+      "renderedLength": 528
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/limitItems.js",
+      "renderedLength": 868
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/limitLength.js",
+      "renderedLength": 1108
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/limitNumber.js",
+      "renderedLength": 1101
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/limitProperties.js",
+      "renderedLength": 917
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/multipleOf.js",
+      "renderedLength": 933
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/pattern.js",
+      "renderedLength": 1247
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/required.js",
+      "renderedLength": 2585
+    },
+    {
+      "id": "node_modules/ajv/dist/vocabularies/validation/uniqueItems.js",
+      "renderedLength": 2638
+    },
+    {
+      "id": "node_modules/aria-hidden/dist/es2015/index.js",
+      "renderedLength": 3856
+    },
+    {
+      "id": "node_modules/clsx/dist/clsx.mjs",
+      "renderedLength": 555
+    },
+    {
+      "id": "node_modules/earcut/src/earcut.js",
+      "renderedLength": 15298
+    },
+    {
+      "id": "node_modules/fast-deep-equal/index.js",
+      "renderedLength": 1150
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/helpers/applyUnfilter.js",
+      "renderedLength": 762
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/helpers/crc.js",
+      "renderedLength": 921
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/helpers/decodeInterlaceAdam7.js",
+      "renderedLength": 2262
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/helpers/decodeInterlaceNull.js",
+      "renderedLength": 1741
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/helpers/signature.js",
+      "renderedLength": 518
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/helpers/text.js",
+      "renderedLength": 1069
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/helpers/unfilter.js",
+      "renderedLength": 2006
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/index.js",
+      "renderedLength": 244
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/internalTypes.js",
+      "renderedLength": 608
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/PngDecoder.js",
+      "renderedLength": 13307
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/PngEncoder.js",
+      "renderedLength": 155
+    },
+    {
+      "id": "node_modules/fast-png/lib-esm/types.js",
+      "renderedLength": 370
+    },
+    {
+      "id": "node_modules/fast-uri/index.js",
+      "renderedLength": 16414
+    },
+    {
+      "id": "node_modules/fast-uri/lib/schemes.js",
+      "renderedLength": 5066
+    },
+    {
+      "id": "node_modules/fast-uri/lib/utils.js",
+      "renderedLength": 15530
+    },
+    {
+      "id": "node_modules/fflate/esm/browser.js",
+      "renderedLength": 12409
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/components/AnimatePresence/index.mjs",
+      "renderedLength": 3702
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/components/AnimatePresence/PopChild.mjs",
+      "renderedLength": 4133
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/components/AnimatePresence/PresenceChild.mjs",
+      "renderedLength": 2025
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/components/AnimatePresence/use-presence.mjs",
+      "renderedLength": 660
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/components/AnimatePresence/utils.mjs",
+      "renderedLength": 331
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/components/MotionConfig/index.mjs",
+      "renderedLength": 693
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/context/LayoutGroupContext.mjs",
+      "renderedLength": 150
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/context/LazyContext.mjs",
+      "renderedLength": 151
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/context/MotionConfigContext.mjs",
+      "renderedLength": 226
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/context/MotionContext/create.mjs",
+      "renderedLength": 468
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/context/MotionContext/index.mjs",
+      "renderedLength": 146
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/context/MotionContext/utils.mjs",
+      "renderedLength": 396
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/context/PresenceContext.mjs",
+      "renderedLength": 146
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/context/SwitchLayoutGroupContext.mjs",
+      "renderedLength": 162
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/gestures/drag/index.mjs",
+      "renderedLength": 1015
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/gestures/focus.mjs",
+      "renderedLength": 811
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/gestures/hover.mjs",
+      "renderedLength": 771
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/gestures/pan/index.mjs",
+      "renderedLength": 1218
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/gestures/press.mjs",
+      "renderedLength": 742
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/animation/exit.mjs",
+      "renderedLength": 1468
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/animation/index.mjs",
+      "renderedLength": 685
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/animations.mjs",
+      "renderedLength": 175
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/definitions.mjs",
+      "renderedLength": 986
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/drag.mjs",
+      "renderedLength": 200
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/gestures.mjs",
+      "renderedLength": 235
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/layout.mjs",
+      "renderedLength": 147
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/layout/MeasureLayout.mjs",
+      "renderedLength": 3757
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/load-features.mjs",
+      "renderedLength": 326
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/viewport/index.mjs",
+      "renderedLength": 1765
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/features/viewport/observers.mjs",
+      "renderedLength": 1124
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/index.mjs",
+      "renderedLength": 2820
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/utils/symbol.mjs",
+      "renderedLength": 143
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/utils/use-motion-ref.mjs",
+      "renderedLength": 943
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/utils/use-visual-element.mjs",
+      "renderedLength": 4114
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/utils/use-visual-state.mjs",
+      "renderedLength": 2223
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/motion/utils/valid-prop.mjs",
+      "renderedLength": 860
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/components/create-proxy.mjs",
+      "renderedLength": 788
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/components/motion/feature-bundle.mjs",
+      "renderedLength": 182
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/components/motion/proxy.mjs",
+      "renderedLength": 160
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/dom/create-visual-element.mjs",
+      "renderedLength": 311
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/dom/use-render.mjs",
+      "renderedLength": 806
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/dom/utils/filter-props.mjs",
+      "renderedLength": 703
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/dom/utils/is-svg-component.mjs",
+      "renderedLength": 304
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/html/use-html-visual-state.mjs",
+      "renderedLength": 243
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/html/use-props.mjs",
+      "renderedLength": 1286
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/html/utils/create-render-state.mjs",
+      "renderedLength": 181
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/svg/lowercase-elements.mjs",
+      "renderedLength": 355
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/svg/use-props.mjs",
+      "renderedLength": 611
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/svg/use-svg-visual-state.mjs",
+      "renderedLength": 208
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/render/svg/utils/create-render-state.mjs",
+      "renderedLength": 159
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/utils/is-browser.mjs",
+      "renderedLength": 108
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/utils/is-ref-object.mjs",
+      "renderedLength": 188
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/utils/use-composed-ref.mjs",
+      "renderedLength": 789
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/utils/use-constant.mjs",
+      "renderedLength": 210
+    },
+    {
+      "id": "node_modules/framer-motion/dist/es/utils/use-isomorphic-effect.mjs",
+      "renderedLength": 179
+    },
+    {
+      "id": "node_modules/get-nonce/dist/es2015/index.js",
+      "renderedLength": 265
+    },
+    {
+      "id": "node_modules/iobuffer/lib-esm/IOBuffer.js",
+      "renderedLength": 8098
+    },
+    {
+      "id": "node_modules/iobuffer/lib-esm/text.js",
+      "renderedLength": 274
+    },
+    {
+      "id": "node_modules/its-fine/dist/index.js",
+      "renderedLength": 4281
+    },
+    {
+      "id": "node_modules/json-schema-traverse/index.js",
+      "renderedLength": 2405
+    },
+    {
+      "id": "node_modules/jspdf/dist/jspdf.es.min.js",
+      "renderedLength": 473755
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/context.mjs",
+      "renderedLength": 337
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/createLucideIcon.mjs",
+      "renderedLength": 730
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/Icon.mjs",
+      "renderedLength": 1589
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/app-window.mjs",
+      "renderedLength": 578
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/arrow-left-right.mjs",
+      "renderedLength": 566
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/arrow-left.mjs",
+      "renderedLength": 403
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/arrow-right.mjs",
+      "renderedLength": 407
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/arrow-up-down.mjs",
+      "renderedLength": 551
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/box.mjs",
+      "renderedLength": 559
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/brick-wall.mjs",
+      "renderedLength": 808
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/check.mjs",
+      "renderedLength": 329
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/chevron-down.mjs",
+      "renderedLength": 359
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/chevron-left.mjs",
+      "renderedLength": 361
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/chevron-right.mjs",
+      "renderedLength": 365
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/circle-question-mark.mjs",
+      "renderedLength": 616
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/clipboard-paste.mjs",
+      "renderedLength": 742
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/columns-2.mjs",
+      "renderedLength": 465
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/columns-3.mjs",
+      "renderedLength": 552
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/copy.mjs",
+      "renderedLength": 477
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/corner-down-left.mjs",
+      "renderedLength": 445
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/crosshair.mjs",
+      "renderedLength": 752
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/door-open.mjs",
+      "renderedLength": 669
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/download.mjs",
+      "renderedLength": 501
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/eye.mjs",
+      "renderedLength": 478
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/file-braces-corner.mjs",
+      "renderedLength": 817
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/file-braces.mjs",
+      "renderedLength": 795
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/file-down.mjs",
+      "renderedLength": 647
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/file-plus-corner.mjs",
+      "renderedLength": 695
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/focus.mjs",
+      "renderedLength": 649
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/image-down.mjs",
+      "renderedLength": 645
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/image-up.mjs",
+      "renderedLength": 637
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/inbox.mjs",
+      "renderedLength": 506
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/languages.mjs",
+      "renderedLength": 652
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/layers-2.mjs",
+      "renderedLength": 563
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/layers.mjs",
+      "renderedLength": 711
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/list-checks.mjs",
+      "renderedLength": 600
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/loader-circle.mjs",
+      "renderedLength": 404
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/lock.mjs",
+      "renderedLength": 447
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/map.mjs",
+      "renderedLength": 678
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/maximize.mjs",
+      "renderedLength": 583
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/message-square-text.mjs",
+      "renderedLength": 676
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/minus.mjs",
+      "renderedLength": 322
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/mouse-pointer-2.mjs",
+      "renderedLength": 492
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/mouse-pointer-click.mjs",
+      "renderedLength": 765
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/paint-roller.mjs",
+      "renderedLength": 635
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/palette.mjs",
+      "renderedLength": 889
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/pencil.mjs",
+      "renderedLength": 500
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/plus.mjs",
+      "renderedLength": 369
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/redo-2.mjs",
+      "renderedLength": 429
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/rotate-cw.mjs",
+      "renderedLength": 435
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/rows-2.mjs",
+      "renderedLength": 447
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/ruler.mjs",
+      "renderedLength": 697
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/save.mjs",
+      "renderedLength": 580
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/scan-eye.mjs",
+      "renderedLength": 803
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/scan.mjs",
+      "renderedLength": 563
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/scissors.mjs",
+      "renderedLength": 646
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/search.mjs",
+      "renderedLength": 408
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/settings-2.mjs",
+      "renderedLength": 572
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/shapes.mjs",
+      "renderedLength": 614
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/sofa.mjs",
+      "renderedLength": 692
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/sparkles.mjs",
+      "renderedLength": 818
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/square-dashed-mouse-pointer.mjs",
+      "renderedLength": 1147
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/square.mjs",
+      "renderedLength": 372
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/trash.mjs",
+      "renderedLength": 645
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/triangle-alert.mjs",
+      "renderedLength": 583
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/triangles-centerline-dashed-horizontal.mjs",
+      "renderedLength": 953
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/triangles-centerline-dashed-vertical.mjs",
+      "renderedLength": 942
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/undo-2.mjs",
+      "renderedLength": 426
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/unlink.mjs",
+      "renderedLength": 920
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/upload.mjs",
+      "renderedLength": 487
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/wallpaper.mjs",
+      "renderedLength": 682
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/x.mjs",
+      "renderedLength": 350
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/lucide-react.mjs",
+      "renderedLength": 1535
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs",
+      "renderedLength": 503
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs",
+      "renderedLength": 2700
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/shared/src/build/defaultAttributes.mjs",
+      "renderedLength": 390
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs",
+      "renderedLength": 292
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/shared/src/utils/mergeClasses.mjs",
+      "renderedLength": 331
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs",
+      "renderedLength": 476
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs",
+      "renderedLength": 223
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs",
+      "renderedLength": 427
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/shared/src/utils/toPascalCase.mjs",
+      "renderedLength": 302
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/animate/single-value.mjs",
+      "renderedLength": 317
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/AsyncMotionValueAnimation.mjs",
+      "renderedLength": 4018
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/drivers/frame.mjs",
+      "renderedLength": 363
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/generators/inertia.mjs",
+      "renderedLength": 1787
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/generators/keyframes.mjs",
+      "renderedLength": 1470
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/generators/spring.mjs",
+      "renderedLength": 9237
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/generators/utils/calc-duration.mjs",
+      "renderedLength": 508
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/generators/utils/create-generator-easing.mjs",
+      "renderedLength": 637
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/generators/utils/is-generator.mjs",
+      "renderedLength": 174
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/generators/utils/velocity.mjs",
+      "renderedLength": 534
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/interfaces/motion-value.mjs",
+      "renderedLength": 2119
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/interfaces/visual-element-target.mjs",
+      "renderedLength": 2903
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/interfaces/visual-element-variant.mjs",
+      "renderedLength": 1333
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/interfaces/visual-element.mjs",
+      "renderedLength": 604
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/JSAnimation.mjs",
+      "renderedLength": 8100
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/keyframes/DOMKeyframesResolver.mjs",
+      "renderedLength": 3560
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/keyframes/get-final.mjs",
+      "renderedLength": 475
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/keyframes/KeyframesResolver.mjs",
+      "renderedLength": 4081
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/keyframes/offsets/default.mjs",
+      "renderedLength": 181
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/keyframes/offsets/fill.mjs",
+      "renderedLength": 302
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/keyframes/offsets/time.mjs",
+      "renderedLength": 165
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/keyframes/utils/fill-wildcards.mjs",
+      "renderedLength": 213
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/keyframes/utils/is-none.mjs",
+      "renderedLength": 267
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/keyframes/utils/make-none-animatable.mjs",
+      "renderedLength": 795
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/keyframes/utils/unit-conversion.mjs",
+      "renderedLength": 2041
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/NativeAnimation.mjs",
+      "renderedLength": 3258
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/NativeAnimationExtended.mjs",
+      "renderedLength": 1509
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/optimized-appear/data-id.mjs",
+      "renderedLength": 134
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/optimized-appear/get-appear-id.mjs",
+      "renderedLength": 188
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/calc-child-stagger.mjs",
+      "renderedLength": 549
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/can-animate.mjs",
+      "renderedLength": 817
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/css-variables-conversion.mjs",
+      "renderedLength": 806
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/default-transitions.mjs",
+      "renderedLength": 732
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/get-value-transition.mjs",
+      "renderedLength": 327
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/is-animatable.mjs",
+      "renderedLength": 348
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/is-css-variable.mjs",
+      "renderedLength": 719
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/is-transition-defined.mjs",
+      "renderedLength": 416
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/make-animation-instant.mjs",
+      "renderedLength": 173
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/notify-inspector.mjs",
+      "renderedLength": 776
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/replace-transition-type.mjs",
+      "renderedLength": 317
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/resolve-start-time.mjs",
+      "renderedLength": 235
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/resolve-transition.mjs",
+      "renderedLength": 303
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/utils/WithPromise.mjs",
+      "renderedLength": 573
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/easing/cubic-bezier.mjs",
+      "renderedLength": 159
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/easing/map-easing.mjs",
+      "renderedLength": 545
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/easing/supported.mjs",
+      "renderedLength": 510
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/start-waapi-animation.mjs",
+      "renderedLength": 787
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/supports/waapi.mjs",
+      "renderedLength": 1108
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/transforms/groups.mjs",
+      "renderedLength": 126
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/transforms/TransformAnimation.mjs",
+      "renderedLength": 16672
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/utils/accelerated-values.mjs",
+      "renderedLength": 183
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/utils/apply-generator.mjs",
+      "renderedLength": 343
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/utils/is-browser-color.mjs",
+      "renderedLength": 362
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/utils/linear.mjs",
+      "renderedLength": 392
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/animation/waapi/utils/unsupported-easing.mjs",
+      "renderedLength": 421
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/events/add-dom-event.mjs",
+      "renderedLength": 268
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/events/add-pointer-event.mjs",
+      "renderedLength": 204
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/events/event-info.mjs",
+      "renderedLength": 267
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/frameloop/batcher.mjs",
+      "renderedLength": 1851
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/frameloop/frame-data.mjs",
+      "renderedLength": 128
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/frameloop/frame.mjs",
+      "renderedLength": 256
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/frameloop/microtask.mjs",
+      "renderedLength": 174
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/frameloop/order.mjs",
+      "renderedLength": 181
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/frameloop/render-step.mjs",
+      "renderedLength": 1468
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/frameloop/sync-time.mjs",
+      "renderedLength": 362
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/drag/state/is-active.mjs",
+      "renderedLength": 178
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/drag/state/set-active.mjs",
+      "renderedLength": 436
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/drag/utils/constraints.mjs",
+      "renderedLength": 2607
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/drag/VisualElementDragControls.mjs",
+      "renderedLength": 13597
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/hover.mjs",
+      "renderedLength": 1866
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/pan/PanSession.mjs",
+      "renderedLength": 6430
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/press/index.mjs",
+      "renderedLength": 2022
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/press/utils/is-keyboard-accessible.mjs",
+      "renderedLength": 555
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/press/utils/keyboard.mjs",
+      "renderedLength": 1085
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/press/utils/state.mjs",
+      "renderedLength": 114
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/utils/is-node-or-child.mjs",
+      "renderedLength": 240
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/utils/is-primary-pointer.mjs",
+      "renderedLength": 250
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/gestures/utils/setup.mjs",
+      "renderedLength": 383
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/animation/mix-values.mjs",
+      "renderedLength": 1835
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/geometry/conversion.mjs",
+      "renderedLength": 692
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/geometry/copy.mjs",
+      "renderedLength": 484
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/geometry/delta-apply.mjs",
+      "renderedLength": 2723
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/geometry/delta-calc.mjs",
+      "renderedLength": 1883
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/geometry/delta-remove.mjs",
+      "renderedLength": 1475
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/geometry/models.mjs",
+      "renderedLength": 342
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/geometry/utils.mjs",
+      "renderedLength": 844
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/node/create-projection-node.mjs",
+      "renderedLength": 39272
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/node/DocumentProjectionNode.mjs",
+      "renderedLength": 438
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/node/HTMLProjectionNode.mjs",
+      "renderedLength": 720
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/node/root.mjs",
+      "renderedLength": 106
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/node/state.mjs",
+      "renderedLength": 148
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/shared/stack.mjs",
+      "renderedLength": 2207
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/styles/default-scale-correctors.mjs",
+      "renderedLength": 452
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/styles/scale-border-radius.mjs",
+      "renderedLength": 511
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/styles/scale-box-shadow.mjs",
+      "renderedLength": 788
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/styles/scale-correction.mjs",
+      "renderedLength": 100
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/styles/transform.mjs",
+      "renderedLength": 1243
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/utils/compare-by-depth.mjs",
+      "renderedLength": 123
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/utils/each-axis.mjs",
+      "renderedLength": 138
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/utils/flat-tree.mjs",
+      "renderedLength": 455
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/utils/has-transform.mjs",
+      "renderedLength": 826
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/projection/utils/measure.mjs",
+      "renderedLength": 549
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/dom/DOMVisualElement.mjs",
+      "renderedLength": 831
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/dom/is-css-var.mjs",
+      "renderedLength": 109
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/dom/parse-transform.mjs",
+      "renderedLength": 1989
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/dom/style-set.mjs",
+      "renderedLength": 192
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/dom/utils/camel-to-dash.mjs",
+      "renderedLength": 171
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/Feature.mjs",
+      "renderedLength": 162
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/html/HTMLVisualElement.mjs",
+      "renderedLength": 1155
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/html/utils/build-styles.mjs",
+      "renderedLength": 1074
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/html/utils/build-transform.mjs",
+      "renderedLength": 1338
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/html/utils/render.mjs",
+      "renderedLength": 358
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/html/utils/scrape-motion-values.mjs",
+      "renderedLength": 513
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/store.mjs",
+      "renderedLength": 108
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/svg/SVGVisualElement.mjs",
+      "renderedLength": 1492
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/svg/utils/build-attrs.mjs",
+      "renderedLength": 1214
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/svg/utils/camel-case-attrs.mjs",
+      "renderedLength": 515
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/svg/utils/is-svg-tag.mjs",
+      "renderedLength": 147
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/svg/utils/path.mjs",
+      "renderedLength": 454
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/svg/utils/render.mjs",
+      "renderedLength": 327
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/svg/utils/scrape-motion-values.mjs",
+      "renderedLength": 533
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/animation-state.mjs",
+      "renderedLength": 7062
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/is-animation-controls.mjs",
+      "renderedLength": 188
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/is-controlling-variants.mjs",
+      "renderedLength": 390
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/is-forced-motion-value.mjs",
+      "renderedLength": 280
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/is-keyframes-target.mjs",
+      "renderedLength": 134
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/is-variant-label.mjs",
+      "renderedLength": 151
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/keys-position.mjs",
+      "renderedLength": 199
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/keys-transform.mjs",
+      "renderedLength": 414
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/motion-values.mjs",
+      "renderedLength": 928
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/reduced-motion/index.mjs",
+      "renderedLength": 583
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/reduced-motion/state.mjs",
+      "renderedLength": 170
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/resolve-dynamic-variants.mjs",
+      "renderedLength": 345
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/resolve-variants.mjs",
+      "renderedLength": 679
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/setters.mjs",
+      "renderedLength": 657
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/shallow-compare.mjs",
+      "renderedLength": 320
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/utils/variant-props.mjs",
+      "renderedLength": 268
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/render/VisualElement.mjs",
+      "renderedLength": 10122
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/resize/handle-element.mjs",
+      "renderedLength": 1653
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/resize/handle-window.mjs",
+      "renderedLength": 808
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/resize/index.mjs",
+      "renderedLength": 163
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/scope/active.mjs",
+      "renderedLength": 261
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/stats/buffer.mjs",
+      "renderedLength": 117
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/border-radius.mjs",
+      "renderedLength": 191
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/delay.mjs",
+      "renderedLength": 418
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/distance.mjs",
+      "renderedLength": 250
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/interpolate.mjs",
+      "renderedLength": 1389
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/is-html-element.mjs",
+      "renderedLength": 190
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/is-svg-element.mjs",
+      "renderedLength": 154
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/is-svg-svg-element.mjs",
+      "renderedLength": 162
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/mix/color.mjs",
+      "renderedLength": 1007
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/mix/complex.mjs",
+      "renderedLength": 2113
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/mix/immediate.mjs",
+      "renderedLength": 121
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/mix/index.mjs",
+      "renderedLength": 716
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/mix/number.mjs",
+      "renderedLength": 142
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/mix/visibility.mjs",
+      "renderedLength": 290
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/resolve-elements.mjs",
+      "renderedLength": 604
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/supports/flags.mjs",
+      "renderedLength": 84
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/supports/linear-easing.mjs",
+      "renderedLength": 290
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/supports/memo.mjs",
+      "renderedLength": 202
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/utils/supports/scroll-timeline.mjs",
+      "renderedLength": 187
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/index.mjs",
+      "renderedLength": 4503
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/auto.mjs",
+      "renderedLength": 117
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/color/hex.mjs",
+      "renderedLength": 572
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/color/hsla-to-rgba.mjs",
+      "renderedLength": 861
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/color/hsla.mjs",
+      "renderedLength": 452
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/color/index.mjs",
+      "renderedLength": 523
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/color/rgba.mjs",
+      "renderedLength": 518
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/color/utils.mjs",
+      "renderedLength": 568
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/complex/filter.mjs",
+      "renderedLength": 768
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/complex/index.mjs",
+      "renderedLength": 2724
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/complex/mask.mjs",
+      "renderedLength": 302
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/dimensions.mjs",
+      "renderedLength": 225
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/int.mjs",
+      "renderedLength": 105
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/maps/defaults.mjs",
+      "renderedLength": 440
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/maps/number.mjs",
+      "renderedLength": 1263
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/maps/transform.mjs",
+      "renderedLength": 547
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/numbers/index.mjs",
+      "renderedLength": 267
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/numbers/units.mjs",
+      "renderedLength": 660
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/test.mjs",
+      "renderedLength": 107
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/utils/animatable-none.mjs",
+      "renderedLength": 389
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/utils/color-regex.mjs",
+      "renderedLength": 204
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/utils/float-regex.mjs",
+      "renderedLength": 117
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/utils/get-as-type.mjs",
+      "renderedLength": 187
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/utils/is-nullish.mjs",
+      "renderedLength": 113
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/utils/sanitize.mjs",
+      "renderedLength": 115
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/types/utils/single-color-regex.mjs",
+      "renderedLength": 218
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/utils/as-number.mjs",
+      "renderedLength": 126
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/utils/is-motion-value.mjs",
+      "renderedLength": 135
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/utils/resolve-motion-value.mjs",
+      "renderedLength": 163
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/will-change/add-will-change.mjs",
+      "renderedLength": 464
+    },
+    {
+      "id": "node_modules/motion-dom/dist/es/value/will-change/is.mjs",
+      "renderedLength": 156
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/array.mjs",
+      "renderedLength": 242
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/clamp.mjs",
+      "renderedLength": 146
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/easing/anticipate.mjs",
+      "renderedLength": 167
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/easing/back.mjs",
+      "renderedLength": 220
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/easing/circ.mjs",
+      "renderedLength": 208
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/easing/cubic-bezier.mjs",
+      "renderedLength": 719
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/easing/ease.mjs",
+      "renderedLength": 227
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/easing/modifiers/mirror.mjs",
+      "renderedLength": 191
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/easing/modifiers/reverse.mjs",
+      "renderedLength": 151
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/easing/utils/is-bezier-definition.mjs",
+      "renderedLength": 195
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/easing/utils/is-easing-array.mjs",
+      "renderedLength": 192
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/easing/utils/map.mjs",
+      "renderedLength": 541
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/global-config.mjs",
+      "renderedLength": 84
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/is-numerical-string.mjs",
+      "renderedLength": 132
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/is-object.mjs",
+      "renderedLength": 122
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/is-zero-value-string.mjs",
+      "renderedLength": 116
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/memo.mjs",
+      "renderedLength": 197
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/noop.mjs",
+      "renderedLength": 100
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/pipe.mjs",
+      "renderedLength": 125
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/progress.mjs",
+      "renderedLength": 188
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/subscription-manager.mjs",
+      "renderedLength": 715
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/time-conversion.mjs",
+      "renderedLength": 233
+    },
+    {
+      "id": "node_modules/motion-utils/dist/es/velocity-per-second.mjs",
+      "renderedLength": 195
+    },
+    {
+      "id": "node_modules/motion/dist/es/react.mjs",
+      "renderedLength": 64
+    },
+    {
+      "id": "node_modules/pako/dist/pako.esm.mjs",
+      "renderedLength": 98449
+    },
+    {
+      "id": "node_modules/polygon-clipping/dist/polygon-clipping.umd.js",
+      "renderedLength": 57605
+    },
+    {
+      "id": "node_modules/radix-ui/dist/index.mjs",
+      "renderedLength": 143
+    },
+    {
+      "id": "node_modules/react-dom/cjs/react-dom-client.production.js",
+      "renderedLength": 529536
+    },
+    {
+      "id": "node_modules/react-dom/cjs/react-dom.production.js",
+      "renderedLength": 6250
+    },
+    {
+      "id": "node_modules/react-dom/client.js",
+      "renderedLength": 453
+    },
+    {
+      "id": "node_modules/react-dom/index.js",
+      "renderedLength": 448
+    },
+    {
+      "id": "node_modules/react-remove-scroll-bar/dist/es2015/component.js",
+      "renderedLength": 2878
+    },
+    {
+      "id": "node_modules/react-remove-scroll-bar/dist/es2015/constants.js",
+      "renderedLength": 412
+    },
+    {
+      "id": "node_modules/react-remove-scroll-bar/dist/es2015/index.js",
+      "renderedLength": 123
+    },
+    {
+      "id": "node_modules/react-remove-scroll-bar/dist/es2015/utils.js",
+      "renderedLength": 1061
+    },
+    {
+      "id": "node_modules/react-remove-scroll/dist/es2015/aggresiveCapture.js",
+      "renderedLength": 570
+    },
+    {
+      "id": "node_modules/react-remove-scroll/dist/es2015/Combination.js",
+      "renderedLength": 509
+    },
+    {
+      "id": "node_modules/react-remove-scroll/dist/es2015/handleScroll.js",
+      "renderedLength": 3357
+    },
+    {
+      "id": "node_modules/react-remove-scroll/dist/es2015/index.js",
+      "renderedLength": 121
+    },
+    {
+      "id": "node_modules/react-remove-scroll/dist/es2015/medium.js",
+      "renderedLength": 168
+    },
+    {
+      "id": "node_modules/react-remove-scroll/dist/es2015/sidecar.js",
+      "renderedLength": 242
+    },
+    {
+      "id": "node_modules/react-remove-scroll/dist/es2015/SideEffect.js",
+      "renderedLength": 6771
+    },
+    {
+      "id": "node_modules/react-remove-scroll/dist/es2015/UI.js",
+      "renderedLength": 2146
+    },
+    {
+      "id": "node_modules/react-style-singleton/dist/es2015/component.js",
+      "renderedLength": 362
+    },
+    {
+      "id": "node_modules/react-style-singleton/dist/es2015/hook.js",
+      "renderedLength": 485
+    },
+    {
+      "id": "node_modules/react-style-singleton/dist/es2015/index.js",
+      "renderedLength": 156
+    },
+    {
+      "id": "node_modules/react-style-singleton/dist/es2015/singleton.js",
+      "renderedLength": 1093
+    },
+    {
+      "id": "node_modules/react-use-measure/dist/index.js",
+      "renderedLength": 4067
+    },
+    {
+      "id": "node_modules/react/cjs/react-jsx-runtime.production.js",
+      "renderedLength": 851
+    },
+    {
+      "id": "node_modules/react/cjs/react.production.js",
+      "renderedLength": 15979
+    },
+    {
+      "id": "node_modules/react/index.js",
+      "renderedLength": 156
+    },
+    {
+      "id": "node_modules/react/jsx-runtime.js",
+      "renderedLength": 180
+    },
+    {
+      "id": "node_modules/scheduler/cjs/scheduler.production.js",
+      "renderedLength": 9044
+    },
+    {
+      "id": "node_modules/scheduler/index.js",
+      "renderedLength": 168
+    },
+    {
+      "id": "node_modules/suspend-react/index.js",
+      "renderedLength": 1922
+    },
+    {
+      "id": "node_modules/tailwind-merge/dist/bundle-mjs.mjs",
+      "renderedLength": 59965
+    },
+    {
+      "id": "node_modules/three-stdlib/controls/EventDispatcher.js",
+      "renderedLength": 1567
+    },
+    {
+      "id": "node_modules/three-stdlib/controls/OrbitControls.js",
+      "renderedLength": 26672
+    },
+    {
+      "id": "node_modules/three-stdlib/shaders/HorizontalBlurShader.js",
+      "renderedLength": 1196
+    },
+    {
+      "id": "node_modules/three-stdlib/shaders/VerticalBlurShader.js",
+      "renderedLength": 1162
+    },
+    {
+      "id": "node_modules/three/build/three.core.js",
+      "renderedLength": 679641
+    },
+    {
+      "id": "node_modules/three/build/three.module.js",
+      "renderedLength": 564031
+    },
+    {
+      "id": "node_modules/three/examples/jsm/environments/RoomEnvironment.js",
+      "renderedLength": 3559
+    },
+    {
+      "id": "node_modules/three/examples/jsm/utils/BufferGeometryUtils.js",
+      "renderedLength": 6341
+    },
+    {
+      "id": "node_modules/tslib/tslib.es6.mjs",
+      "renderedLength": 1102
+    },
+    {
+      "id": "node_modules/use-callback-ref/dist/es2015/assignRef.js",
+      "renderedLength": 229
+    },
+    {
+      "id": "node_modules/use-callback-ref/dist/es2015/index.js",
+      "renderedLength": 169
+    },
+    {
+      "id": "node_modules/use-callback-ref/dist/es2015/useMergeRef.js",
+      "renderedLength": 1147
+    },
+    {
+      "id": "node_modules/use-callback-ref/dist/es2015/useRef.js",
+      "renderedLength": 609
+    },
+    {
+      "id": "node_modules/use-sidecar/dist/es2015/exports.js",
+      "renderedLength": 679
+    },
+    {
+      "id": "node_modules/use-sidecar/dist/es2015/index.js",
+      "renderedLength": 146
+    },
+    {
+      "id": "node_modules/use-sidecar/dist/es2015/medium.js",
+      "renderedLength": 1819
+    },
+    {
+      "id": "node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js",
+      "renderedLength": 1804
+    },
+    {
+      "id": "node_modules/use-sync-external-store/cjs/use-sync-external-store-shim/with-selector.production.js",
+      "renderedLength": 2331
+    },
+    {
+      "id": "node_modules/use-sync-external-store/shim/index.js",
+      "renderedLength": 201
+    },
+    {
+      "id": "node_modules/use-sync-external-store/shim/with-selector.js",
+      "renderedLength": 203
+    },
+    {
+      "id": "node_modules/zustand/esm/index.mjs",
+      "renderedLength": 108
+    },
+    {
+      "id": "node_modules/zustand/esm/react.mjs",
+      "renderedLength": 817
+    },
+    {
+      "id": "node_modules/zustand/esm/traditional.mjs",
+      "renderedLength": 989
+    },
+    {
+      "id": "node_modules/zustand/esm/vanilla.mjs",
+      "renderedLength": 1090
+    },
+    {
+      "id": "\u0000rolldown/runtime.js",
+      "renderedLength": 1751
+    },
+    {
+      "id": "schema/plan.schema.json",
+      "renderedLength": 38805
+    },
+    {
+      "id": "src/assets/try-mark.svg?raw",
+      "renderedLength": 1153
+    },
+    {
+      "id": "src/core/changes.ts",
+      "renderedLength": 15296
+    },
+    {
+      "id": "src/core/decor/cabinets.ts",
+      "renderedLength": 5824
+    },
+    {
+      "id": "src/core/decor/elevation-context.ts",
+      "renderedLength": 5422
+    },
+    {
+      "id": "src/core/decor/elevation.ts",
+      "renderedLength": 8467
+    },
+    {
+      "id": "src/core/decor/embed.ts",
+      "renderedLength": 7040
+    },
+    {
+      "id": "src/core/decor/faces.ts",
+      "renderedLength": 4749
+    },
+    {
+      "id": "src/core/decor/furniture.ts",
+      "renderedLength": 5881
+    },
+    {
+      "id": "src/core/decor/integration.ts",
+      "renderedLength": 2955
+    },
+    {
+      "id": "src/core/decor/legacy.ts",
+      "renderedLength": 2742
+    },
+    {
+      "id": "src/core/decor/math.ts",
+      "renderedLength": 1555
+    },
+    {
+      "id": "src/core/decor/mirror.ts",
+      "renderedLength": 3166
+    },
+    {
+      "id": "src/core/decor/panels.ts",
+      "renderedLength": 4047
+    },
+    {
+      "id": "src/core/decor/presets.ts",
+      "renderedLength": 7604
+    },
+    {
+      "id": "src/core/decor/resolve.ts",
+      "renderedLength": 15867
+    },
+    {
+      "id": "src/core/decor/solids.ts",
+      "renderedLength": 7598
+    },
+    {
+      "id": "src/core/decor/surfaces.ts",
+      "renderedLength": 14142
+    },
+    {
+      "id": "src/core/decor/validate.ts",
+      "renderedLength": 14024
+    },
+    {
+      "id": "src/core/decor/wall-skins.ts",
+      "renderedLength": 4949
+    },
+    {
+      "id": "src/core/edit.ts",
+      "renderedLength": 11970
+    },
+    {
+      "id": "src/core/geometry.ts",
+      "renderedLength": 11519
+    },
+    {
+      "id": "src/core/handoff.ts",
+      "renderedLength": 5618
+    },
+    {
+      "id": "src/core/history.ts",
+      "renderedLength": 638
+    },
+    {
+      "id": "src/core/io.ts",
+      "renderedLength": 6039
+    },
+    {
+      "id": "src/core/legacy.ts",
+      "renderedLength": 16113
+    },
+    {
+      "id": "src/core/levels.ts",
+      "renderedLength": 1387
+    },
+    {
+      "id": "src/core/measure.ts",
+      "renderedLength": 4161
+    },
+    {
+      "id": "src/core/mirror-frame.ts",
+      "renderedLength": 836
+    },
+    {
+      "id": "src/core/opening-symbol.ts",
+      "renderedLength": 2947
+    },
+    {
+      "id": "src/core/pagination.ts",
+      "renderedLength": 7899
+    },
+    {
+      "id": "src/core/persistence.ts",
+      "renderedLength": 1803
+    },
+    {
+      "id": "src/core/protection.ts",
+      "renderedLength": 191
+    },
+    {
+      "id": "src/core/schema.ts",
+      "renderedLength": 648
+    },
+    {
+      "id": "src/core/solids.ts",
+      "renderedLength": 12112
+    },
+    {
+      "id": "src/core/summary.ts",
+      "renderedLength": 3538
+    },
+    {
+      "id": "src/core/types.ts",
+      "renderedLength": 838
+    },
+    {
+      "id": "src/core/validate.ts",
+      "renderedLength": 11466
+    },
+    {
+      "id": "src/core/walls.ts",
+      "renderedLength": 3373
+    },
+    {
+      "id": "src/lib/empty-module.ts",
+      "renderedLength": 249
+    },
+    {
+      "id": "src/lib/utils.ts",
+      "renderedLength": 152
+    },
+    {
+      "id": "src/main.tsx",
+      "renderedLength": 300
+    },
+    {
+      "id": "src/styles/index.css",
+      "renderedLength": 159
+    },
+    {
+      "id": "src/three/ao.ts",
+      "renderedLength": 7754
+    },
+    {
+      "id": "src/three/decor-pick.ts",
+      "renderedLength": 1906
+    },
+    {
+      "id": "src/three/decor3d.ts",
+      "renderedLength": 9452
+    },
+    {
+      "id": "src/three/DecorOverlay3D.tsx",
+      "renderedLength": 7196
+    },
+    {
+      "id": "src/three/geometry.ts",
+      "renderedLength": 1573
+    },
+    {
+      "id": "src/three/materials.ts",
+      "renderedLength": 5968
+    },
+    {
+      "id": "src/three/Overlay3D.tsx",
+      "renderedLength": 1019
+    },
+    {
+      "id": "src/three/pieces.ts",
+      "renderedLength": 8276
+    },
+    {
+      "id": "src/three/Scene3D.tsx",
+      "renderedLength": 45983
+    },
+    {
+      "id": "src/three/snapshot.ts",
+      "renderedLength": 6946
+    },
+    {
+      "id": "src/ui/actions.ts",
+      "renderedLength": 19219
+    },
+    {
+      "id": "src/ui/App.tsx",
+      "renderedLength": 13342
+    },
+    {
+      "id": "src/ui/canvas2d/labels.ts",
+      "renderedLength": 6022
+    },
+    {
+      "id": "src/ui/canvas2d/PlanCanvas.tsx",
+      "renderedLength": 54584
+    },
+    {
+      "id": "src/ui/canvas2d/PlanLayers.tsx",
+      "renderedLength": 43869
+    },
+    {
+      "id": "src/ui/canvas2d/style.ts",
+      "renderedLength": 3148
+    },
+    {
+      "id": "src/ui/chat-text.ts",
+      "renderedLength": 14988
+    },
+    {
+      "id": "src/ui/chat.ts",
+      "renderedLength": 4692
+    },
+    {
+      "id": "src/ui/data.ts",
+      "renderedLength": 620
+    },
+    {
+      "id": "src/ui/decor/actions.ts",
+      "renderedLength": 14306
+    },
+    {
+      "id": "src/ui/decor/Cards.tsx",
+      "renderedLength": 87781
+    },
+    {
+      "id": "src/ui/decor/Chrome.tsx",
+      "renderedLength": 17939
+    },
+    {
+      "id": "src/ui/decor/dstore.ts",
+      "renderedLength": 1317
+    },
+    {
+      "id": "src/ui/decor/elev-model.ts",
+      "renderedLength": 1723
+    },
+    {
+      "id": "src/ui/decor/ElevationCanvas.tsx",
+      "renderedLength": 20974
+    },
+    {
+      "id": "src/ui/decor/ElevDrawing.tsx",
+      "renderedLength": 37063
+    },
+    {
+      "id": "src/ui/decor/furniture.tsx",
+      "renderedLength": 11527
+    },
+    {
+      "id": "src/ui/decor/model.ts",
+      "renderedLength": 13558
+    },
+    {
+      "id": "src/ui/decor/plan-ctl.ts",
+      "renderedLength": 4892
+    },
+    {
+      "id": "src/ui/decor/PlanDecor.tsx",
+      "renderedLength": 20550
+    },
+    {
+      "id": "src/ui/decor/PlanOverlays.tsx",
+      "renderedLength": 4447
+    },
+    {
+      "id": "src/ui/export/badges.ts",
+      "renderedLength": 1769
+    },
+    {
+      "id": "src/ui/export/canvas.ts",
+      "renderedLength": 8237
+    },
+    {
+      "id": "src/ui/export/decor.ts",
+      "renderedLength": 35725
+    },
+    {
+      "id": "src/ui/export/elev-draw.ts",
+      "renderedLength": 12404
+    },
+    {
+      "id": "src/ui/export/entry.tsx",
+      "renderedLength": 2478
+    },
+    {
+      "id": "src/ui/export/ExportPanel.tsx",
+      "renderedLength": 16470
+    },
+    {
+      "id": "src/ui/export/GlobalExport.tsx",
+      "renderedLength": 11404
+    },
+    {
+      "id": "src/ui/export/model.ts",
+      "renderedLength": 10198
+    },
+    {
+      "id": "src/ui/export/pages.ts",
+      "renderedLength": 29568
+    },
+    {
+      "id": "src/ui/export/pdf.ts",
+      "renderedLength": 1782
+    },
+    {
+      "id": "src/ui/export/plan-draw.ts",
+      "renderedLength": 19651
+    },
+    {
+      "id": "src/ui/export/strings.ts",
+      "renderedLength": 5910
+    },
+    {
+      "id": "src/ui/geom.ts",
+      "renderedLength": 1091
+    },
+    {
+      "id": "src/ui/i18n.ts",
+      "renderedLength": 28059
+    },
+    {
+      "id": "src/ui/kit/extra-icons.tsx",
+      "renderedLength": 2412
+    },
+    {
+      "id": "src/ui/kit/index.tsx",
+      "renderedLength": 19306
+    },
+    {
+      "id": "src/ui/layout.ts",
+      "renderedLength": 2478
+    },
+    {
+      "id": "src/ui/levels-ui.ts",
+      "renderedLength": 1293
+    },
+    {
+      "id": "src/ui/mock.ts",
+      "renderedLength": 18352
+    },
+    {
+      "id": "src/ui/model.ts",
+      "renderedLength": 2204
+    },
+    {
+      "id": "src/ui/panels/AgentSheet.tsx",
+      "renderedLength": 14013
+    },
+    {
+      "id": "src/ui/panels/ChatSheet.tsx",
+      "renderedLength": 20678
+    },
+    {
+      "id": "src/ui/panels/Compass.tsx",
+      "renderedLength": 4589
+    },
+    {
+      "id": "src/ui/panels/Context.tsx",
+      "renderedLength": 34519
+    },
+    {
+      "id": "src/ui/panels/Diagrams.tsx",
+      "renderedLength": 12194
+    },
+    {
+      "id": "src/ui/panels/EmptyState.tsx",
+      "renderedLength": 6327
+    },
+    {
+      "id": "src/ui/panels/Inspector.tsx",
+      "renderedLength": 58732
+    },
+    {
+      "id": "src/ui/panels/Levels.tsx",
+      "renderedLength": 6023
+    },
+    {
+      "id": "src/ui/panels/Questions.tsx",
+      "renderedLength": 14827
+    },
+    {
+      "id": "src/ui/panels/Stage.tsx",
+      "renderedLength": 4834
+    },
+    {
+      "id": "src/ui/panels/ToolRail.tsx",
+      "renderedLength": 21514
+    },
+    {
+      "id": "src/ui/panels/TopBar.tsx",
+      "renderedLength": 24671
+    },
+    {
+      "id": "src/ui/render-plan.ts",
+      "renderedLength": 1374
+    },
+    {
+      "id": "src/ui/store.ts",
+      "renderedLength": 15242
+    },
+    {
+      "id": "src/ui/underlay-art.ts",
+      "renderedLength": 4722
+    },
+    {
+      "id": "src/ui/underlay-check.ts",
+      "renderedLength": 2440
+    },
+    {
+      "id": "\u0000vite/modulepreload-polyfill.js",
+      "renderedLength": 1185
+    },
+    {
+      "id": "\u0000vite/preload-helper.js",
+      "renderedLength": 3201
+    }
+  ],
+  "assets": [
+    {
+      "id": "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
+      "bytes": 24836,
+      "sha256": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972"
+    }
+  ],
+  "embeddedFontCount": 1
+}

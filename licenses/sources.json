@@ -1,0 +1,13 @@
+{
+  "@react-three/fiber": {
+    "version": "9.8.2",
+    "file": "licenses/react-three-fiber-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/pmndrs/react-three-fiber/v9.8.2/LICENSE"
+  },
+  "react-remove-scroll-bar": {
+    "version": "2.3.8",
+    "file": "licenses/react-remove-scroll-bar-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/theKashey/react-remove-scroll-bar/8ca9ba5ea52de03308fe8ced94f7b159a44d28ff/LICENSE",
+    "note": "npm 2.3.8 and its gitHead omit LICENSE. Upstream license captured at this later immutable commit; package.json itself declares MIT."
+  }
+}

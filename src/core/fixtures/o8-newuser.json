@@ -1,0 +1,513 @@
+{
+  "beams": [],
+  "ceiling": 2800,
+  "changes": [
+    {
+      "by": "agent",
+      "confirm": {
+        "at": "2026-10-29",
+        "by": "业主"
+      },
+      "group": "g-open",
+      "id": "ch-1",
+      "note": "拆掉厨房和客厅之间的实体墙（中间墙北段 0–2000 mm）；南段连同带细线的洞口保留。用户已二次确认，只为看效果，可行性待专业确认",
+      "op": "remove",
+      "range": [
+        0,
+        2000
+      ],
+      "status": "confirmed",
+      "target": "w-mid",
+      "type": "wall"
+    },
+    {
+      "by": "agent",
+      "data": {
+        "name": "客厅（含原厨房）",
+        "poly": [
+          [
+            100,
+            100
+          ],
+          [
+            6900,
+            100
+          ],
+          [
+            6900,
+            4900
+          ],
+          [
+            3500,
+            4900
+          ],
+          [
+            3500,
+            2000
+          ],
+          [
+            3300,
+            2000
+          ],
+          [
+            3300,
+            2400
+          ],
+          [
+            100,
+            2400
+          ]
+        ]
+      },
+      "group": "g-open",
+      "id": "ch-2",
+      "note": "厨房和客厅打通后合并成一个房间",
+      "op": "update",
+      "status": "confirmed",
+      "target": "r-living",
+      "type": "room"
+    },
+    {
+      "by": "agent",
+      "group": "g-open",
+      "id": "ch-3",
+      "op": "remove",
+      "status": "confirmed",
+      "target": "r-kitchen",
+      "type": "room"
+    }
+  ],
+  "format": "floorplan-structure",
+  "north": 0,
+  "openings": [
+    {
+      "evidence": {
+        "basis": "墙洞内四条平行细线的窗符号；窗台、窗顶高图上没有，用缺省 900 / 2400",
+        "certainty": "inferred",
+        "pixelBox": [
+          260,
+          60,
+          420,
+          80
+        ]
+      },
+      "head": 2400,
+      "id": "o-win",
+      "kind": "window",
+      "name": "北窗",
+      "offset": 1900,
+      "sill": 900,
+      "wall": "w-n",
+      "width": 1600
+    },
+    {
+      "entry": true,
+      "evidence": {
+        "basis": "门扇线在 x=600 px 竖直伸进室内，圆弧落在 x=690 px 门框；门扇线所在门框靠 a(西)端，向北(墙法向反侧)开；门高缺省 2100；是否入户为推断",
+        "certainty": "seen",
+        "pixelBox": [
+          600,
+          470,
+          690,
+          580
+        ]
+      },
+      "head": 2100,
+      "id": "o-entry",
+      "kind": "door",
+      "name": "入户门",
+      "offset": 5300,
+      "sill": 0,
+      "swing": {
+        "hinge": "start",
+        "side": -1
+      },
+      "wall": "w-s",
+      "width": 900
+    },
+    {
+      "evidence": {
+        "basis": "门扇线在 x=210 px 竖直向上，圆弧落在 x=300 px 门框；铰链在靠 a 端门框，向北开；门高缺省 2100",
+        "certainty": "seen",
+        "pixelBox": [
+          210,
+          220,
+          300,
+          330
+        ]
+      },
+      "head": 2100,
+      "id": "o-door",
+      "kind": "door",
+      "name": "左侧两间之间的门",
+      "offset": 1400,
+      "sill": 0,
+      "swing": {
+        "hinge": "start",
+        "side": -1
+      },
+      "wall": "w-p",
+      "width": 900
+    },
+    {
+      "evidence": {
+        "basis": "中间墙洞内只有两条平行细线，无弧线、无错开线；可能是窗、推拉门或空洞，暂按窗画（缺省窗台 900、窗顶 2400）",
+        "certainty": "inferred",
+        "pixelBox": [
+          400,
+          270,
+          420,
+          360
+        ]
+      },
+      "head": 2400,
+      "id": "o-pass",
+      "kind": "window",
+      "name": "中间墙上的洞口",
+      "offset": 2000,
+      "sill": 900,
+      "wall": "w-mid",
+      "width": 900
+    }
+  ],
+  "questions": [
+    {
+      "answer": "不确定，你按图上最可能的理解来",
+      "answeredAt": "2026-10-29",
+      "answeredBy": "业主",
+      "category": "original",
+      "certainty": "inferred",
+      "id": "q-scale",
+      "targets": [
+        "w-n",
+        "w-e",
+        "w-s",
+        "w-w"
+      ],
+      "text": "图上没有尺寸链、房间面积和比例尺，我只能按「门洞宽约 900 mm、整图外墙中心线约 7000×5000 mm」假设比例（10 mm/像素）。你家这套的外墙长宽、或任意一间的面积大概是多少？"
+    },
+    {
+      "answer": "不确定，你按图上最可能的理解来",
+      "answeredAt": "2026-10-29",
+      "answeredBy": "业主",
+      "category": "original",
+      "certainty": "inferred",
+      "id": "q-rooms",
+      "targets": [
+        "r-kitchen",
+        "r-room2",
+        "r-living"
+      ],
+      "text": "图上没标房间名。我按「右侧大间=客厅，左上间=厨房，左下间=用途不明」来读。对吗？左上、左下哪一间是厨房？"
+    },
+    {
+      "answer": "不确定，你按图上最可能的理解来",
+      "answeredAt": "2026-10-29",
+      "answeredBy": "业主",
+      "category": "original",
+      "certainty": "unknown",
+      "id": "q-bearing",
+      "options": [
+        "是承重墙",
+        "不是",
+        "不知道"
+      ],
+      "targets": [
+        "w-mid",
+        "w-p"
+      ],
+      "text": "图上没有标哪些墙承重。厨房和客厅之间这面墙、左侧两间之间的横墙，是承重墙吗？现在都按非承重隔墙画。"
+    },
+    {
+      "answer": "不确定，你按图上最可能的理解来",
+      "answeredAt": "2026-10-29",
+      "answeredBy": "业主",
+      "bbox": [
+        3200,
+        1800,
+        3600,
+        3100
+      ],
+      "category": "original",
+      "certainty": "inferred",
+      "id": "q-pass",
+      "targets": [
+        "o-pass"
+      ],
+      "text": "中间那面墙上两条细线围出的洞口（宽约 900 mm），是窗、推拉门还是什么都没有的开口？现在按窗画（窗台 900）。"
+    },
+    {
+      "answer": "不确定，你按图上最可能的理解来",
+      "answeredAt": "2026-10-29",
+      "answeredBy": "业主",
+      "category": "original",
+      "certainty": "inferred",
+      "id": "q-heights",
+      "text": "层高、窗台高、门高图上都没有，我暂按 2800 / 900 / 2100 mm 画，和你家一样吗？"
+    }
+  ],
+  "rooms": [
+    {
+      "evidence": {
+        "basis": "图上没有房间名；左上间有窗、与右侧大间相邻，推测为厨房",
+        "certainty": "inferred"
+      },
+      "id": "r-kitchen",
+      "name": "厨房",
+      "poly": [
+        [
+          100,
+          100
+        ],
+        [
+          3300,
+          100
+        ],
+        [
+          3300,
+          2400
+        ],
+        [
+          100,
+          2400
+        ]
+      ]
+    },
+    {
+      "evidence": {
+        "basis": "图上没有房间名，用途不明，只能经左上间的门进入",
+        "certainty": "unknown"
+      },
+      "id": "r-room2",
+      "name": "左下间",
+      "poly": [
+        [
+          100,
+          2600
+        ],
+        [
+          3300,
+          2600
+        ],
+        [
+          3300,
+          4900
+        ],
+        [
+          100,
+          4900
+        ]
+      ]
+    },
+    {
+      "evidence": {
+        "basis": "图上没有房间名；右侧最大一间且有入户门，推测为客厅",
+        "certainty": "inferred"
+      },
+      "id": "r-living",
+      "name": "客厅",
+      "poly": [
+        [
+          3500,
+          100
+        ],
+        [
+          6900,
+          100
+        ],
+        [
+          6900,
+          4900
+        ],
+        [
+          3500,
+          4900
+        ]
+      ]
+    }
+  ],
+  "title": "我家户型（虚构，按图读出）",
+  "underlay": {
+    "calibrations": [
+      {
+        "length": 900,
+        "note": "入户门洞口宽，假设 900 mm（图上无尺寸，非实测）",
+        "p1": [
+          600,
+          570
+        ],
+        "p2": [
+          690,
+          570
+        ]
+      },
+      {
+        "length": 900,
+        "note": "室内门洞口宽，假设 900 mm（图上无尺寸，非实测）",
+        "p1": [
+          210,
+          320
+        ],
+        "p2": [
+          300,
+          320
+        ]
+      }
+    ],
+    "mmPerPx": 10,
+    "opacity": 50,
+    "origin": [
+      70,
+      70
+    ],
+    "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA0gAAAKACAIAAAApSc/hAAAOHUlEQVR4nO3d7U7bShRAUVzl/V/ZVy2ISymEQByPvWetn0RCoygfW+c4ybKu6xMAAOf3a/QBAADYhrADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABGXpxNalmX0EQha13X0EXggrxvADO8LJnYAABHCDgAg4pSrWHgEqzoAzk7YwYmvpeB2wh2YgVUsAECEsAMAiLCKhRdWdQCcnbCDF66xaxPuwAysYgEAIoQdAECEsAMAiHCNHbxwDRYAZyfs4IUPT7QJd2AGVrEAABHCDgAgwioWXljVAXB2wg5euMauTbgDM7CKBQCIEHYAABHTrWKt22DOdarnPsxpueN144xM7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIuIw+ADNaluXKreu67ngWAOgQdoxxpd4+zD61BwBfEnYczocN9672dB4A/EvYcQ7vSu618xQeALwSdpzSa8+9neSJPAAmJ+w4t7cx9xx58g6AaQk7Op6TzpYWgGkJO+JbWgM8AOYh7MgywANgNsKOOAM8AOYh7JhxgGc/C0CSsGMu8g6AsF+jDwADrH9c/8laADgdYce8nttO3gGQIeyYmtEdACXCDozuAIgQdvCb0R0AAcIO/ueqOwBOTdjBX4zuADgvYQcf8GUoAJyRsIOPWcsCcDrCDj5lLQvAuQg7+IK1LABnIezga9oOgFMQdnATbQfA8Qk7uJW2A+DghB18g7YD4MiEHXyPtgPgsIQdfJu2A+CYhB38hLYD4ICEHfyQtgPgaIQd/Jy2A+BQhB3cRdsBcBzCDu6l7QA4CGEHABAh7GADhnYAHIGwg21oOwCGE3awGW0HwFjCDgAgQtjBlgztABhI2MHGtB0Aowg7AIAIYQfbM7QDYAhhBw+h7QDYn7ADAIgQdvAohnYA7EzYwQNpOwD2JOwAACKEHTyWoR0AuxF2AAARl9EHgFmGduu6jj7I6b27D6/fq+5zYEImdgAAEcIO9uBKOwB2IOwAACKEHQBAhLCDndjGAvBowg4AIELYwX4M7QB4KGEHABAh7AAAIoQd7Mo2FoDHEXYAABHCDvZmaAfAgwg7AIAIYQcAECHsAAAihB0M4DI7AB5B2AEARAg7AIAIYQdj2MYCsDlhBwAQIewAACKEHQBAhLADAIgQdjCMz08AsC1hBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2MFIvvEEgA0JOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBEXJ4msyzL6CPAex6WN1rX1aMH4AoTOwbw9gwAjyDsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAxOVpMuu6jj4C/MVjEoCtmNgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAEDEZfQBAG61LMuXf/ns1nVd3dFAnokdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARFxGHwAARlqW5cqt67rueBa4l7ADYHZX6u3D7FN7HJawA4BPfdhw72pP53Ecwg4Avuddyb12nsJjOGEHAHd57bm3kzyRxxDCDgC28TbmniNP3rEzYQcA23tOOltadibsAGCnLa0BHo8m7ADg4Qzw2IewA4CdGODxaMIOAEYO8Oxn2ZCwA4Ax5B2b+7X9vwQAbrb+cf0na+FGwg4AxntuO3nHnYQdAByC0R33E3YAcCBGd9xD2AHAsRjd8WPCDgCOyOiOHxB2AHBQRnd8l7ADgEPzZSjcTtgBwNFZy3IjYQcAJ2Atyy2EHQCchrUs1wk7ADgTbccVwg4ATkbb8RlhBwDno+34kLADgFPSdvxL2AHAWWk73hF2AHBi2o63hB0AnJu245WwA4DT03Y8E3YAUKDtEHYA0KHtMLEDgA5tNzlhBwAQIewAIMXQbmbCDgBqtN20hB0ABGm7OQk7AIAIYQcATYZ2ExJ2AJCl7WYj7AAAIoQdAJQZ2k1F2AFAnLabh7ADAIgQdgDQZ2g3CWEHAFPQdjMQdgAAEcIOAGZhaJcn7AAAIoQdAEzE0K5N2AEARAg7AJiLoV2YsAMAiBB2AAARwg4ApmMbWyXsAAAihB0AzMjQLknYAQBECDsAgAhhBwCTso3tEXYAABHCDgDmZWgXI+wAACKEHQBAhLADAIgQdgAwNZfZlQg7AIAIYQcAECHsAGB2trEZwg4AIELYAQBECDsAgAhhBwAQIewAAJ+fiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQDwm1+MDRB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIi4PE1mWZbRRwAG8NwHT5YZmNgBMLV1XUcfATYj7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQMSyruvoMwAAsAETOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAACKEHQBAhLADAIgQdgAAEcIOACBC2AEARAg7AIAIYQcAECHsAAAihB0AQISwAwCIEHYAABHCDgAgQtgBAEQIOwCACGEHABAh7AAAIoQdAECEsAMAiBB2AAARwg4AIELYAQBECDsAgAhhBwAQIewAAJ4a/gMTuOUaqyRuIAAAAABJRU5ErkJggg==",
+    "visible": true
+  },
+  "version": 3,
+  "walls": [
+    {
+      "a": [
+        0,
+        0
+      ],
+      "b": [
+        7000,
+        0
+      ],
+      "evidence": {
+        "basis": "黑色实心粗墙带，约 20 px；按 10 mm/px 假设为 200 mm",
+        "certainty": "seen",
+        "pixelBox": [
+          60,
+          60,
+          780,
+          80
+        ]
+      },
+      "id": "w-n",
+      "kind": "exterior",
+      "name": "北外墙",
+      "thickness": 200
+    },
+    {
+      "a": [
+        7000,
+        0
+      ],
+      "b": [
+        7000,
+        5000
+      ],
+      "evidence": {
+        "basis": "黑色实心粗墙带",
+        "certainty": "seen",
+        "pixelBox": [
+          760,
+          60,
+          780,
+          580
+        ]
+      },
+      "id": "w-e",
+      "kind": "exterior",
+      "name": "东外墙",
+      "thickness": 200
+    },
+    {
+      "a": [
+        0,
+        5000
+      ],
+      "b": [
+        7000,
+        5000
+      ],
+      "evidence": {
+        "basis": "黑色实心粗墙带，中段有入户门洞",
+        "certainty": "seen",
+        "pixelBox": [
+          60,
+          560,
+          780,
+          580
+        ]
+      },
+      "id": "w-s",
+      "kind": "exterior",
+      "name": "南外墙",
+      "thickness": 200
+    },
+    {
+      "a": [
+        0,
+        0
+      ],
+      "b": [
+        0,
+        5000
+      ],
+      "evidence": {
+        "basis": "黑色实心粗墙带",
+        "certainty": "seen",
+        "pixelBox": [
+          60,
+          60,
+          80,
+          580
+        ]
+      },
+      "id": "w-w",
+      "kind": "exterior",
+      "name": "西外墙",
+      "thickness": 200
+    },
+    {
+      "a": [
+        3400,
+        0
+      ],
+      "b": [
+        3400,
+        5000
+      ],
+      "evidence": {
+        "basis": "黑色实心墙带，上下两段，中间一个带两条细线的洞口；图上无承重信息，按隔墙画",
+        "certainty": "unknown",
+        "pixelBox": [
+          400,
+          80,
+          420,
+          560
+        ]
+      },
+      "id": "w-mid",
+      "kind": "partition",
+      "name": "左侧两间与客厅之间的墙",
+      "thickness": 200
+    },
+    {
+      "a": [
+        0,
+        2500
+      ],
+      "b": [
+        3300,
+        2500
+      ],
+      "evidence": {
+        "basis": "黑色实心墙带，中间有门洞；东端停在中间墙的西面；图上无承重信息，按隔墙画",
+        "certainty": "unknown",
+        "pixelBox": [
+          80,
+          310,
+          400,
+          330
+        ]
+      },
+      "id": "w-p",
+      "kind": "partition",
+      "name": "左侧上下两间之间的墙",
+      "thickness": 200
+    }
+  ]
+}

@@ -1,0 +1,3573 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:floorplan-structure:v3",
+  "title": "户型结构方案 v3（全部长度 mm）",
+  "description": "所有长度含高度均为 mm；像素坐标为 px、角度为度、面积为 m²、panes.width 为比例。legacy 是不透明旧格式快照，不参与 v3 换算。",
+  "type": "object",
+  "properties": {
+    "decor": {
+      "$ref": "#/$defs/Decor"
+    },
+    "format": {
+      "const": "floorplan-structure"
+    },
+    "version": {
+      "const": 3
+    },
+    "title": {
+      "type": "string"
+    },
+    "ceiling": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "north": {
+      "type": "number"
+    },
+    "levels": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Level"
+      },
+      "minItems": 1
+    },
+    "columns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Column"
+      }
+    },
+    "shafts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Shaft"
+      }
+    },
+    "stairs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Stair"
+      }
+    },
+    "voids": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Void"
+      }
+    },
+    "levelUnderlays": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Underlay"
+      }
+    },
+    "walls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Wall"
+      }
+    },
+    "openings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Opening"
+      }
+    },
+    "beams": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Beam"
+      }
+    },
+    "rooms": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Room"
+      }
+    },
+    "underlay": {
+      "$ref": "#/$defs/Underlay"
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Question"
+      }
+    },
+    "changes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Change"
+      }
+    },
+    "legacy": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "planFile": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "title",
+    "ceiling",
+    "walls",
+    "openings",
+    "beams",
+    "rooms",
+    "questions",
+    "changes"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "Vec2": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "Box": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "Certainty": {
+      "type": "string",
+      "enum": [
+        "seen",
+        "inferred",
+        "unknown"
+      ]
+    },
+    "WallKind": {
+      "type": "string",
+      "enum": [
+        "exterior",
+        "bearing",
+        "partition",
+        "glass",
+        "half",
+        "half-glass"
+      ]
+    },
+    "OpeningKind": {
+      "type": "string",
+      "enum": [
+        "door",
+        "sliding",
+        "doorway",
+        "window",
+        "floor-window",
+        "bay-window",
+        "open-balcony"
+      ]
+    },
+    "PaneKind": {
+      "type": "string",
+      "enum": [
+        "fixed",
+        "casement",
+        "sliding"
+      ]
+    },
+    "Evidence": {
+      "type": "object",
+      "properties": {
+        "certainty": {
+          "$ref": "#/$defs/Certainty"
+        },
+        "basis": {
+          "type": "string"
+        },
+        "pixelBox": {
+          "$ref": "#/$defs/Box"
+        },
+        "confirmed": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "type": "string",
+              "minLength": 1
+            },
+            "at": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "certainty"
+      ],
+      "additionalProperties": false
+    },
+    "Wall": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "a": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "b": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "thickness": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "kind": {
+          "$ref": "#/$defs/WallKind"
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "长度单位 mm"
+        },
+        "lowHeight": {
+          "type": "number",
+          "minimum": 0,
+          "description": "长度单位 mm"
+        },
+        "bulge": {
+          "type": "number"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "a",
+        "b",
+        "thickness",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "Opening": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "wall": {
+          "type": "string",
+          "minLength": 1
+        },
+        "offset": {
+          "type": "number",
+          "minimum": 0
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "kind": {
+          "$ref": "#/$defs/OpeningKind"
+        },
+        "sill": {
+          "type": "number",
+          "minimum": 0,
+          "description": "长度单位 mm"
+        },
+        "head": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "长度单位 mm"
+        },
+        "swing": {
+          "type": "object",
+          "properties": {
+            "hinge": {
+              "type": "string",
+              "enum": [
+                "start",
+                "end"
+              ]
+            },
+            "side": {
+              "enum": [
+                1,
+                -1
+              ]
+            }
+          },
+          "required": [
+            "hinge",
+            "side"
+          ],
+          "additionalProperties": false
+        },
+        "panes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "kind": {
+                "$ref": "#/$defs/PaneKind"
+              }
+            },
+            "required": [
+              "width",
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1
+        },
+        "entry": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "wall",
+        "offset",
+        "width",
+        "kind",
+        "sill",
+        "head"
+      ],
+      "additionalProperties": false
+    },
+    "Beam": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "a": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "b": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "bottom": {
+          "type": "number",
+          "minimum": 0,
+          "description": "长度单位 mm"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "a",
+        "b",
+        "width",
+        "bottom"
+      ],
+      "additionalProperties": false
+    },
+    "Room": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "poly": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Vec2"
+          },
+          "minItems": 3
+        },
+        "ceiling": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "长度单位 mm"
+        },
+        "floorOffset": {
+          "type": "number",
+          "description": "长度单位 mm"
+        },
+        "use": {
+          "type": "string"
+        },
+        "counted": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "poly"
+      ],
+      "additionalProperties": false
+    },
+    "Level": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "elevation": {
+          "type": "number",
+          "description": "长度单位 mm"
+        },
+        "ceiling": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "长度单位 mm"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "elevation"
+      ],
+      "additionalProperties": false
+    },
+    "Column": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "center": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "shape": {
+          "type": "string",
+          "enum": [
+            "rect",
+            "round"
+          ]
+        },
+        "size": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "bearing",
+            "decorative"
+          ]
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "center",
+        "shape",
+        "size",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "Shaft": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "poly": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Vec2"
+          },
+          "minItems": 3
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "flue",
+            "pipe",
+            "vent",
+            "other"
+          ]
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "poly",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "Stair": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence": {
+          "$ref": "#/$defs/Evidence"
+        },
+        "level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "to": {
+          "type": "string",
+          "minLength": 1
+        },
+        "poly": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Vec2"
+          },
+          "minItems": 3
+        },
+        "path": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Vec2"
+          },
+          "minItems": 2
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "straight",
+            "L",
+            "U",
+            "spiral"
+          ]
+        },
+        "steps": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "level",
+        "to",
+        "poly",
+        "path",
+        "width",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "Void": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "poly": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Vec2"
+          },
+          "minItems": 3
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "level",
+        "poly"
+      ],
+      "additionalProperties": false
+    },
+    "Underlay": {
+      "type": "object",
+      "properties": {
+        "src": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?:(?![A-Za-z][A-Za-z0-9+.-]*:|[/\\\\]{2}).+|data:image/(?:png|jpe?g|webp|gif|bmp|avif);base64,.+|data:image/svg\\+xml(?:;charset=utf-8)?(?:;base64)?,.+)$"
+        },
+        "mmPerPx": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "mmPerPxY": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "origin": {
+          "$ref": "#/$defs/Vec2"
+        },
+        "rotation": {
+          "type": "number"
+        },
+        "flipX": {
+          "type": "boolean"
+        },
+        "flipY": {
+          "type": "boolean"
+        },
+        "opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "visible": {
+          "type": "boolean"
+        },
+        "calibrations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "p1": {
+                "$ref": "#/$defs/Vec2"
+              },
+              "p2": {
+                "$ref": "#/$defs/Vec2"
+              },
+              "length": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "p1",
+              "p2",
+              "length"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "src",
+        "mmPerPx",
+        "origin",
+        "opacity",
+        "visible"
+      ],
+      "additionalProperties": false
+    },
+    "Question": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "level": {
+          "type": "string",
+          "minLength": 1
+        },
+        "text": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "original",
+            "renovation"
+          ]
+        },
+        "certainty": {
+          "$ref": "#/$defs/Certainty"
+        },
+        "bbox": {
+          "$ref": "#/$defs/Box"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "answer": {
+          "type": "string"
+        },
+        "answeredBy": {
+          "type": "string"
+        },
+        "answeredAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "category"
+      ],
+      "additionalProperties": false
+    },
+    "Change": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "add",
+            "remove",
+            "update"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "wall",
+            "opening",
+            "beam",
+            "room",
+            "column",
+            "shaft",
+            "stair",
+            "void"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "data": {
+          "type": "object"
+        },
+        "range": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "number",
+              "minimum": 0
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "note": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "by": {
+          "type": "string",
+          "enum": [
+            "user",
+            "agent"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "pending",
+            "confirmed"
+          ]
+        },
+        "confirm": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "type": "string",
+              "minLength": 1
+            },
+            "at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "by"
+          ],
+          "additionalProperties": false
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "op",
+        "type",
+        "by",
+        "status"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "add"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "data"
+            ]
+          },
+          "else": {
+            "required": [
+              "target"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "update"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "data"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "update"
+              },
+              "type": {
+                "const": "wall"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "$ref": "#/$defs/Evidence"
+                  },
+                  "level": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "a": {
+                    "$ref": "#/$defs/Vec2"
+                  },
+                  "b": {
+                    "$ref": "#/$defs/Vec2"
+                  },
+                  "thickness": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "kind": {
+                    "$ref": "#/$defs/WallKind"
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "长度单位 mm"
+                  },
+                  "lowHeight": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "长度单位 mm"
+                  },
+                  "bulge": {
+                    "type": "number"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "update"
+              },
+              "type": {
+                "const": "opening"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "$ref": "#/$defs/Evidence"
+                  },
+                  "wall": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "offset": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "kind": {
+                    "$ref": "#/$defs/OpeningKind"
+                  },
+                  "sill": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "长度单位 mm"
+                  },
+                  "head": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "长度单位 mm"
+                  },
+                  "swing": {
+                    "type": "object",
+                    "properties": {
+                      "hinge": {
+                        "type": "string",
+                        "enum": [
+                          "start",
+                          "end"
+                        ]
+                      },
+                      "side": {
+                        "enum": [
+                          1,
+                          -1
+                        ]
+                      }
+                    },
+                    "required": [
+                      "hinge",
+                      "side"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "panes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "width": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "kind": {
+                          "$ref": "#/$defs/PaneKind"
+                        }
+                      },
+                      "required": [
+                        "width",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "minItems": 1
+                  },
+                  "entry": {
+                    "type": "boolean"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "update"
+              },
+              "type": {
+                "const": "beam"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "$ref": "#/$defs/Evidence"
+                  },
+                  "level": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "a": {
+                    "$ref": "#/$defs/Vec2"
+                  },
+                  "b": {
+                    "$ref": "#/$defs/Vec2"
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "bottom": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "长度单位 mm"
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "update"
+              },
+              "type": {
+                "const": "room"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "$ref": "#/$defs/Evidence"
+                  },
+                  "level": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "poly": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/Vec2"
+                    },
+                    "minItems": 3
+                  },
+                  "ceiling": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "长度单位 mm"
+                  },
+                  "floorOffset": {
+                    "type": "number",
+                    "description": "长度单位 mm"
+                  },
+                  "use": {
+                    "type": "string"
+                  },
+                  "counted": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "update"
+              },
+              "type": {
+                "const": "column"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "$ref": "#/$defs/Evidence"
+                  },
+                  "level": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "center": {
+                    "$ref": "#/$defs/Vec2"
+                  },
+                  "shape": {
+                    "type": "string",
+                    "enum": [
+                      "rect",
+                      "round"
+                    ]
+                  },
+                  "size": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      },
+                      {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      }
+                    ],
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "rotation": {
+                    "type": "number"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "bearing",
+                      "decorative"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "update"
+              },
+              "type": {
+                "const": "shaft"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "$ref": "#/$defs/Evidence"
+                  },
+                  "level": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "poly": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/Vec2"
+                    },
+                    "minItems": 3
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "flue",
+                      "pipe",
+                      "vent",
+                      "other"
+                    ]
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "update"
+              },
+              "type": {
+                "const": "stair"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "evidence": {
+                    "$ref": "#/$defs/Evidence"
+                  },
+                  "level": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "to": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "poly": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/Vec2"
+                    },
+                    "minItems": 3
+                  },
+                  "path": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/Vec2"
+                    },
+                    "minItems": 2
+                  },
+                  "width": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "straight",
+                      "L",
+                      "U",
+                      "spiral"
+                    ]
+                  },
+                  "steps": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "update"
+              },
+              "type": {
+                "const": "void"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "level": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "poly": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/Vec2"
+                    },
+                    "minItems": 3
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                },
+                "required": [],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "add"
+              },
+              "type": {
+                "const": "wall"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/Wall"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "add"
+              },
+              "type": {
+                "const": "opening"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/Opening"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "add"
+              },
+              "type": {
+                "const": "beam"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/Beam"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "add"
+              },
+              "type": {
+                "const": "room"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/Room"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "add"
+              },
+              "type": {
+                "const": "column"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/Column"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "add"
+              },
+              "type": {
+                "const": "shaft"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/Shaft"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "add"
+              },
+              "type": {
+                "const": "stair"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/Stair"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "op": {
+                "const": "add"
+              },
+              "type": {
+                "const": "void"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/Void"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "DecorLayer": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "style": {
+          "type": "string"
+        },
+        "materials": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Material"
+          }
+        },
+        "presets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StylePreset"
+          }
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Surface"
+          }
+        },
+        "furniture": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Furniture"
+          }
+        },
+        "cabinets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Cabinet"
+          }
+        },
+        "panels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Panel"
+          }
+        },
+        "recesses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Recess"
+          }
+        },
+        "cache": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "level": {
+                "type": "string"
+              },
+              "box": {
+                "$ref": "#/$defs/Box"
+              },
+              "anchor": {
+                "type": "object",
+                "properties": {
+                  "wall": {
+                    "type": "string"
+                  },
+                  "a": {
+                    "$ref": "#/$defs/Vec2"
+                  },
+                  "b": {
+                    "$ref": "#/$defs/Vec2"
+                  }
+                },
+                "required": [
+                  "wall",
+                  "a",
+                  "b"
+                ],
+                "additionalProperties": false
+              },
+              "pose": {
+                "type": "object",
+                "properties": {
+                  "at": {
+                    "$ref": "#/$defs/Vec2"
+                  },
+                  "rot": {
+                    "type": "number"
+                  },
+                  "z": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "at",
+                  "rot",
+                  "z"
+                ],
+                "additionalProperties": false
+              },
+              "face": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "$ref": "#/$defs/Vec2"
+                  },
+                  {
+                    "$ref": "#/$defs/Vec2"
+                  }
+                ],
+                "minItems": 2,
+                "maxItems": 2
+              }
+            },
+            "required": [
+              "box"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "version",
+        "style",
+        "materials",
+        "surfaces",
+        "furniture",
+        "cabinets",
+        "panels",
+        "recesses"
+      ],
+      "additionalProperties": false
+    },
+    "DecorBase": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "const": "user"
+            },
+            {
+              "const": "agent"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "const": "pending"
+            },
+            {
+              "const": "confirmed"
+            }
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "ack": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "type": "string"
+            },
+            "at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "id",
+        "by",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "FaceRef": {
+      "type": "object",
+      "properties": {
+        "wall": {
+          "type": "string"
+        },
+        "side": {
+          "anyOf": [
+            {
+              "const": 1
+            },
+            {
+              "const": -1
+            }
+          ]
+        }
+      },
+      "required": [
+        "wall",
+        "side"
+      ],
+      "additionalProperties": false
+    },
+    "FaceSpan": {
+      "type": "object",
+      "properties": {
+        "face": {
+          "$ref": "#/$defs/FaceRef"
+        },
+        "s": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "z": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "长度单位 mm（文件 v3）"
+        }
+      },
+      "required": [
+        "face",
+        "s",
+        "z"
+      ],
+      "additionalProperties": false
+    },
+    "Recess": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "const": "niche"
+            },
+            {
+              "const": "hole"
+            }
+          ]
+        },
+        "host": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "face": {
+                  "$ref": "#/$defs/FaceRef"
+                }
+              },
+              "required": [
+                "face"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "panel": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "panel"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "cabinet": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "cabinet"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "rect": {
+          "type": "object",
+          "properties": {
+            "s": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "u": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "z": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "z"
+          ],
+          "additionalProperties": false
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "const": "through"
+            }
+          ]
+        },
+        "back": {
+          "type": "string"
+        },
+        "shelves": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          }
+        },
+        "trim": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "const": "user"
+            },
+            {
+              "const": "agent"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "const": "pending"
+            },
+            {
+              "const": "confirmed"
+            }
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "ack": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "type": "string"
+            },
+            "at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "host",
+        "rect",
+        "depth",
+        "id",
+        "by",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "Cabinet": {
+      "type": "object",
+      "properties": {
+        "family": {
+          "anyOf": [
+            {
+              "const": "tall"
+            },
+            {
+              "const": "base"
+            },
+            {
+              "const": "wall"
+            }
+          ]
+        },
+        "place": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "face": {
+                  "$ref": "#/$defs/FaceRef"
+                },
+                "s": {
+                  "type": "number"
+                },
+                "gap": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "face",
+                "s"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "at": {
+                  "$ref": "#/$defs/Vec2"
+                },
+                "rot": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "at",
+                "rot"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "depth": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "z": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "plinth": {
+          "type": "number",
+          "minimum": 0,
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "embed": {
+          "type": "number",
+          "minimum": 0,
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "top": {
+          "type": "object",
+          "properties": {
+            "material": {
+              "type": "string"
+            },
+            "thickness": {
+              "type": "number"
+            },
+            "overhang": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "material",
+            "thickness"
+          ],
+          "additionalProperties": false
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CabinetColumn"
+          }
+        },
+        "cuts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "u": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "z": {
+                "type": "array",
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "depth": {
+                "anyOf": [
+                  {
+                    "const": "through"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "u",
+              "z",
+              "depth"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "materials": {
+          "type": "object",
+          "properties": {
+            "carcass": {
+              "type": "string"
+            },
+            "front": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "carcass",
+            "front"
+          ],
+          "additionalProperties": false
+        },
+        "handle": {
+          "anyOf": [
+            {
+              "const": "none"
+            },
+            {
+              "const": "bar"
+            },
+            {
+              "const": "knob"
+            },
+            {
+              "const": "edge"
+            }
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "const": "user"
+            },
+            {
+              "const": "agent"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "const": "pending"
+            },
+            {
+              "const": "confirmed"
+            }
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "ack": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "type": "string"
+            },
+            "at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "family",
+        "place",
+        "width",
+        "depth",
+        "z",
+        "columns",
+        "materials",
+        "id",
+        "by",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "CabinetColumn": {
+      "type": "object",
+      "properties": {
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "cells": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CabinetCell"
+          }
+        }
+      },
+      "required": [
+        "cells"
+      ],
+      "additionalProperties": false
+    },
+    "ApplianceType": {
+      "anyOf": [
+        {
+          "const": "fridge"
+        },
+        {
+          "const": "washer"
+        },
+        {
+          "const": "dryer"
+        },
+        {
+          "const": "oven"
+        },
+        {
+          "const": "steamer"
+        },
+        {
+          "const": "dishwasher"
+        },
+        {
+          "const": "microwave"
+        },
+        {
+          "const": "tv"
+        },
+        {
+          "const": "other"
+        }
+      ]
+    },
+    "CabinetCell": {
+      "type": "object",
+      "properties": {
+        "h": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "const": "door"
+            },
+            {
+              "const": "doors"
+            },
+            {
+              "const": "drawers"
+            },
+            {
+              "const": "flap"
+            },
+            {
+              "const": "open"
+            },
+            {
+              "const": "void"
+            },
+            {
+              "const": "appliance"
+            }
+          ]
+        },
+        "hinge": {
+          "anyOf": [
+            {
+              "const": "left"
+            },
+            {
+              "const": "right"
+            }
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "void": {
+          "type": "object",
+          "properties": {
+            "depth": {
+              "anyOf": [
+                {
+                  "const": "through"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "top": {
+              "type": "object",
+              "properties": {
+                "z": {
+                  "type": "number"
+                },
+                "overhang": {
+                  "type": "number"
+                },
+                "material": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "z"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "depth"
+          ],
+          "additionalProperties": false
+        },
+        "appliance": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "$ref": "#/$defs/ApplianceType"
+            },
+            "size": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 3,
+              "maxItems": 3
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "additionalProperties": false
+        },
+        "material": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "Panel": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "anyOf": [
+            {
+              "const": "feature"
+            },
+            {
+              "const": "wainscot"
+            },
+            {
+              "const": "slats"
+            },
+            {
+              "const": "skirting"
+            },
+            {
+              "const": "arch"
+            }
+          ]
+        },
+        "span": {
+          "$ref": "#/$defs/FaceSpan"
+        },
+        "opening": {
+          "type": "string"
+        },
+        "thickness": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "material": {
+          "type": "string"
+        },
+        "grooves": {
+          "type": "object",
+          "properties": {
+            "dir": {
+              "anyOf": [
+                {
+                  "const": "v"
+                },
+                {
+                  "const": "h"
+                }
+              ]
+            },
+            "spacing": {
+              "type": "number"
+            },
+            "width": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "dir",
+            "spacing"
+          ],
+          "additionalProperties": false
+        },
+        "frame": {
+          "type": "object",
+          "properties": {
+            "style": {
+              "anyOf": [
+                {
+                  "const": "flat"
+                },
+                {
+                  "const": "raised"
+                }
+              ]
+            },
+            "margin": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "style",
+            "margin"
+          ],
+          "additionalProperties": false
+        },
+        "slats": {
+          "type": "object",
+          "properties": {
+            "width": {
+              "type": "number"
+            },
+            "gap": {
+              "type": "number"
+            },
+            "depth": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "width",
+            "gap",
+            "depth"
+          ],
+          "additionalProperties": false
+        },
+        "arch": {
+          "type": "object",
+          "properties": {
+            "radius": {
+              "type": "number"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "avoid": {
+          "anyOf": [
+            {
+              "const": "openings"
+            },
+            {
+              "const": "none"
+            }
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "const": "user"
+            },
+            {
+              "const": "agent"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "const": "pending"
+            },
+            {
+              "const": "confirmed"
+            }
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "ack": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "type": "string"
+            },
+            "at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "thickness",
+        "material",
+        "id",
+        "by",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "Furniture": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "size": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "height": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "长度单位 mm（文件 v3）"
+            },
+            "z": {
+              "type": "number",
+              "description": "长度单位 mm（文件 v3）"
+            },
+            "against": {
+              "type": "object",
+              "properties": {
+                "face": {
+                  "$ref": "#/$defs/FaceRef"
+                },
+                "gap": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "face",
+                "gap"
+              ],
+              "additionalProperties": false
+            },
+            "embed": {
+              "type": "number",
+              "minimum": 0,
+              "description": "长度单位 mm（文件 v3）"
+            },
+            "materials": {
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "fabric": {
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string"
+            },
+            "level": {
+              "type": "string"
+            },
+            "by": {
+              "anyOf": [
+                {
+                  "const": "user"
+                },
+                {
+                  "const": "agent"
+                }
+              ]
+            },
+            "status": {
+              "anyOf": [
+                {
+                  "const": "pending"
+                },
+                {
+                  "const": "confirmed"
+                }
+              ]
+            },
+            "note": {
+              "type": "string"
+            },
+            "ack": {
+              "type": "object",
+              "properties": {
+                "by": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "by"
+              ],
+              "additionalProperties": false
+            },
+            "at": {
+              "$ref": "#/$defs/Vec2"
+            },
+            "rot": {
+              "type": "number"
+            },
+            "in": false
+          },
+          "required": [
+            "type",
+            "size",
+            "height",
+            "id",
+            "by",
+            "status",
+            "at",
+            "rot"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "size": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "height": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "description": "长度单位 mm（文件 v3）"
+            },
+            "z": {
+              "type": "number",
+              "description": "长度单位 mm（文件 v3）"
+            },
+            "against": {
+              "type": "object",
+              "properties": {
+                "face": {
+                  "$ref": "#/$defs/FaceRef"
+                },
+                "gap": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "face",
+                "gap"
+              ],
+              "additionalProperties": false
+            },
+            "embed": {
+              "type": "number",
+              "minimum": 0,
+              "description": "长度单位 mm（文件 v3）"
+            },
+            "materials": {
+              "type": "object",
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "fabric": {
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            },
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "name": {
+              "type": "string"
+            },
+            "level": {
+              "type": "string"
+            },
+            "by": {
+              "anyOf": [
+                {
+                  "const": "user"
+                },
+                {
+                  "const": "agent"
+                }
+              ]
+            },
+            "status": {
+              "anyOf": [
+                {
+                  "const": "pending"
+                },
+                {
+                  "const": "confirmed"
+                }
+              ]
+            },
+            "note": {
+              "type": "string"
+            },
+            "ack": {
+              "type": "object",
+              "properties": {
+                "by": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "by"
+              ],
+              "additionalProperties": false
+            },
+            "in": {
+              "type": "string"
+            },
+            "at": false,
+            "rot": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "type",
+            "size",
+            "height",
+            "id",
+            "by",
+            "status",
+            "in"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "FurnitureBase": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "size": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "z": {
+          "type": "number",
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "against": {
+          "type": "object",
+          "properties": {
+            "face": {
+              "$ref": "#/$defs/FaceRef"
+            },
+            "gap": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "face",
+            "gap"
+          ],
+          "additionalProperties": false
+        },
+        "embed": {
+          "type": "number",
+          "minimum": 0,
+          "description": "长度单位 mm（文件 v3）"
+        },
+        "materials": {
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "fabric": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "const": "user"
+            },
+            {
+              "const": "agent"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "const": "pending"
+            },
+            {
+              "const": "confirmed"
+            }
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "ack": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "type": "string"
+            },
+            "at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "size",
+        "height",
+        "id",
+        "by",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "MaterialCategory": {
+      "anyOf": [
+        {
+          "const": "wood-floor"
+        },
+        {
+          "const": "tile"
+        },
+        {
+          "const": "stone"
+        },
+        {
+          "const": "paint"
+        },
+        {
+          "const": "texture-paint"
+        },
+        {
+          "const": "wallpaper"
+        },
+        {
+          "const": "veneer"
+        },
+        {
+          "const": "microcement"
+        },
+        {
+          "const": "laminate"
+        },
+        {
+          "const": "fabric"
+        },
+        {
+          "const": "leather"
+        },
+        {
+          "const": "metal"
+        },
+        {
+          "const": "glass"
+        },
+        {
+          "const": "rattan"
+        },
+        {
+          "const": "other"
+        }
+      ]
+    },
+    "Material": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "category": {
+          "$ref": "#/$defs/MaterialCategory"
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$"
+        },
+        "texture": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "anyOf": [
+                {
+                  "const": "planks"
+                },
+                {
+                  "const": "tiles"
+                },
+                {
+                  "const": "herringbone"
+                },
+                {
+                  "const": "grain"
+                },
+                {
+                  "const": "speckle"
+                },
+                {
+                  "const": "veins"
+                },
+                {
+                  "const": "weave"
+                }
+              ]
+            },
+            "size": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "joint": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        "pbr": {
+          "type": "object",
+          "properties": {
+            "roughness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "metalness": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "sheen": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "maps": {
+              "type": "object",
+              "properties": {
+                "base": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|[/\\\\]|\\s)[^\\r\\n]+$"
+                },
+                "normal": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|[/\\\\]|\\s)[^\\r\\n]+$"
+                },
+                "rough": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^(?![A-Za-z][A-Za-z0-9+.-]*:|[/\\\\]|\\s)[^\\r\\n]+$"
+                }
+              },
+              "required": [],
+              "additionalProperties": false
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "color"
+      ],
+      "additionalProperties": false
+    },
+    "MaterialRole": {
+      "anyOf": [
+        {
+          "const": "floor.main"
+        },
+        {
+          "const": "floor.wet"
+        },
+        {
+          "const": "floor.outdoor"
+        },
+        {
+          "const": "threshold"
+        },
+        {
+          "const": "wall.main"
+        },
+        {
+          "const": "wall.wet"
+        },
+        {
+          "const": "wall.accent"
+        },
+        {
+          "const": "ceiling"
+        },
+        {
+          "const": "skirting"
+        },
+        {
+          "const": "wood.main"
+        },
+        {
+          "const": "cabinet.front"
+        },
+        {
+          "const": "cabinet.carcass"
+        },
+        {
+          "const": "stone.top"
+        },
+        {
+          "const": "metal"
+        },
+        {
+          "const": "fabric.main"
+        },
+        {
+          "const": "fabric.accent"
+        },
+        {
+          "const": "rug"
+        }
+      ]
+    },
+    "StylePreset": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "blurb": {
+          "type": "string"
+        },
+        "roles": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "rooms": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "match": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "floor": {
+                "$ref": "#/$defs/MaterialRole"
+              },
+              "wall": {
+                "$ref": "#/$defs/MaterialRole"
+              }
+            },
+            "required": [
+              "match"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "trims": {
+          "type": "object",
+          "properties": {
+            "skirting": {
+              "type": "object",
+              "properties": {
+                "height": {
+                  "type": "number"
+                },
+                "role": {
+                  "$ref": "#/$defs/MaterialRole"
+                }
+              },
+              "required": [
+                "height",
+                "role"
+              ],
+              "additionalProperties": false
+            },
+            "threshold": {
+              "type": "boolean"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "board": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "by": {
+          "anyOf": [
+            {
+              "const": "builtin"
+            },
+            {
+              "const": "user"
+            },
+            {
+              "const": "agent"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "roles"
+      ],
+      "additionalProperties": false
+    },
+    "SurfaceTarget": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "floor": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "floor"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ceiling": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ceiling"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "face": {
+              "$ref": "#/$defs/FaceRef"
+            },
+            "s": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "z": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "face"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "Surface": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target": {
+          "$ref": "#/$defs/SurfaceTarget"
+        },
+        "material": {
+          "type": "string"
+        },
+        "layout": {
+          "type": "object",
+          "properties": {
+            "pattern": {
+              "anyOf": [
+                {
+                  "const": "straight"
+                },
+                {
+                  "const": "staggered"
+                },
+                {
+                  "const": "herringbone"
+                },
+                {
+                  "const": "chevron"
+                },
+                {
+                  "const": "grid"
+                },
+                {
+                  "const": "diagonal"
+                }
+              ]
+            },
+            "size": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "origin": {
+              "$ref": "#/$defs/Vec2"
+            },
+            "angle": {
+              "type": "number"
+            },
+            "joint": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "pattern"
+          ],
+          "additionalProperties": false
+        },
+        "by": {
+          "anyOf": [
+            {
+              "const": "user"
+            },
+            {
+              "const": "agent"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "const": "pending"
+            },
+            {
+              "const": "confirmed"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "target",
+        "material",
+        "by",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "Decor": {
+      "$ref": "#/$defs/DecorLayer"
+    }
+  }
+}

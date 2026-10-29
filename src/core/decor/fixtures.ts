@@ -1,0 +1,12 @@
+/** Small fictional fixtures shared by the C4 tests and optional white-model probes. */
+import type { Plan } from '../types.ts'
+import type { Cabinet, Panel, Recess } from './types.ts'
+import { createDecor } from './presets.ts'
+export const authored = { by: 'user' as const, status: 'confirmed' as const }
+export function decorPlan(): Plan { return { format: 'floorplan-structure', version: 2, title: 'C4 虚构探针', ceiling: 2.8, walls: [{ id: 'w', a: [0, 0], b: [6000, 0], thickness: 240, kind: 'partition' }], rooms: [], beams: [], openings: [], changes: [], questions: [], decor: createDecor() } }
+export function niche(id = 'n', s: [number, number] = [500, 900], side: 1 | -1 = 1, depth = 80): Recess { return { id, ...authored, kind: 'niche', host: { face: { wall: 'w', side } }, rect: { s, z: [.8, 1.4] }, depth } }
+export function panel(): Panel { return { id: 'panel', ...authored, type: 'feature', span: { face: { wall: 'w', side: 1 }, s: [500, 3500], z: [0, 2.5] }, thickness: 150, material: 'micro', grooves: { dir: 'v', spacing: 200 } } }
+export function cabinet(): Cabinet { return { id: 'cab', ...authored, family: 'tall', place: { face: { wall: 'w', side: 1 }, s: 500 }, width: 3100, depth: 400, z: [0, 2.8], plinth: .08, columns: [{ width: 900, cells: [{ type: 'doors' }] }, { width: 1400, cells: [{ h: 1.47, type: 'void', void: { depth: 'through', top: { z: .73, overhang: 200 } } }, { h: .62, type: 'open', count: 1 }, { type: 'open', count: 1 }] }, { cells: [{ h: .67, type: 'drawers', count: 2 }, { h: .8, type: 'open' }, { type: 'door', hinge: 'left' }] }], materials: { carcass: 'oakVeneer', front: 'creamDoor' }, handle: 'bar' } }
+export function probeP1(): Plan { const p = decorPlan(); p.walls[0].kind = 'exterior'; p.walls[0].evidence = { certainty: 'seen' }; p.decor!.recesses = [niche()]; return p }
+export function probeP2(): Plan { const p = decorPlan(); p.walls[0].b = [3000, 0]; p.walls.push({ ...p.walls[0], id: 'w2', a: [3000, 0], b: [6000, 0] }); p.openings = [{ id: 'window', wall: 'w2', offset: 0, width: 700, kind: 'window', sill: 1, head: 2 }]; p.beams = [{ id: 'beam', a: [2000, -1000], b: [2000, 1000], width: 240, bottom: 2.55 }]; p.decor!.panels = [panel()]; p.decor!.recesses = [{ id: 'tv-hole', ...authored, kind: 'hole', host: { panel: 'panel' }, rect: { u: [500, 2100], z: [.9, 1.8] }, depth: 100 }]; return p }
+export function probeP3(): Plan { const p = decorPlan(); p.decor!.cabinets = [cabinet()]; return p }

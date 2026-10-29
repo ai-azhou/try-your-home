@@ -1,0 +1,1404 @@
+[
+  {
+    "name": "@babel/runtime",
+    "version": "7.29.10",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2014-present Sebastian McKenzie and other contributors"
+    ],
+    "modules": [
+      "node_modules/@babel/runtime/helpers/esm/arrayLikeToArray.js",
+      "node_modules/@babel/runtime/helpers/esm/arrayWithHoles.js",
+      "node_modules/@babel/runtime/helpers/esm/extends.js",
+      "node_modules/@babel/runtime/helpers/esm/iterableToArrayLimit.js",
+      "node_modules/@babel/runtime/helpers/esm/nonIterableRest.js",
+      "node_modules/@babel/runtime/helpers/esm/slicedToArray.js",
+      "node_modules/@babel/runtime/helpers/esm/typeof.js",
+      "node_modules/@babel/runtime/helpers/esm/unsupportedIterableToArray.js"
+    ]
+  },
+  {
+    "name": "@floating-ui/core",
+    "version": "1.8.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2021-present Floating UI contributors"
+    ],
+    "modules": [
+      "node_modules/@floating-ui/core/dist/floating-ui.core.mjs"
+    ]
+  },
+  {
+    "name": "@floating-ui/dom",
+    "version": "1.8.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2021-present Floating UI contributors"
+    ],
+    "modules": [
+      "node_modules/@floating-ui/dom/dist/floating-ui.dom.mjs"
+    ]
+  },
+  {
+    "name": "@floating-ui/react-dom",
+    "version": "2.1.9",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2021-present Floating UI contributors"
+    ],
+    "modules": [
+      "node_modules/@floating-ui/react-dom/dist/floating-ui.react-dom.mjs"
+    ]
+  },
+  {
+    "name": "@floating-ui/utils",
+    "version": "0.2.12",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2021-present Floating UI contributors"
+    ],
+    "modules": [
+      "node_modules/@floating-ui/utils/dist/floating-ui.utils.dom.mjs",
+      "node_modules/@floating-ui/utils/dist/floating-ui.utils.mjs"
+    ]
+  },
+  {
+    "name": "@fontsource-variable/manrope",
+    "version": "5.3.0",
+    "license": "OFL-1.1",
+    "copyright": [
+      "Copyright 2019 The Manrope Project Authors (https://github.com/sharanda/manrope)"
+    ],
+    "modules": [
+      "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2"
+    ]
+  },
+  {
+    "name": "@radix-ui/primitive",
+    "version": "1.2.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/primitive/dist/index.mjs",
+      "node_modules/@radix-ui/primitive/dist/internal/is-development.false.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-collection",
+    "version": "1.2.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-collection/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-compose-refs",
+    "version": "1.1.5",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-compose-refs/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-context",
+    "version": "1.3.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-context/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-dialog",
+    "version": "1.3.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-dialog/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-direction",
+    "version": "1.2.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-direction/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-dismissable-layer",
+    "version": "1.2.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-dismissable-layer/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-dropdown-menu",
+    "version": "2.2.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-dropdown-menu/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-focus-guards",
+    "version": "1.2.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-focus-guards/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-focus-scope",
+    "version": "1.3.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-focus-scope/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-id",
+    "version": "1.1.4",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-id/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-menu",
+    "version": "2.2.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-menu/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-popover",
+    "version": "1.3.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-popover/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-popper",
+    "version": "1.4.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-popper/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-portal",
+    "version": "1.2.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-portal/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-presence",
+    "version": "1.1.11",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-presence/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-primitive",
+    "version": "2.2.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-primitive/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-roving-focus",
+    "version": "1.2.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-roving-focus/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-slot",
+    "version": "1.5.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-slot/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-tooltip",
+    "version": "1.4.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-tooltip/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-use-callback-ref",
+    "version": "1.1.5",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-use-callback-ref/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-use-controllable-state",
+    "version": "1.3.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-use-controllable-state/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-use-effect-event",
+    "version": "0.0.5",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-use-effect-event/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-use-is-hydrated",
+    "version": "0.1.3",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-use-is-hydrated/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-use-layout-effect",
+    "version": "1.1.4",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-use-layout-effect/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-use-size",
+    "version": "1.1.5",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-use-size/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@radix-ui/react-visually-hidden",
+    "version": "1.2.13",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/@radix-ui/react-visually-hidden/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "@react-three/drei",
+    "version": "10.7.9",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2020 react-spring"
+    ],
+    "modules": [
+      "node_modules/@react-three/drei/core/ContactShadows.js",
+      "node_modules/@react-three/drei/core/OrbitControls.js"
+    ]
+  },
+  {
+    "name": "@react-three/fiber",
+    "version": "9.8.2",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2019-2025 Poimandres",
+      "Copyright (c) Meta Platforms, Inc. and affiliates."
+    ],
+    "modules": [
+      "node_modules/@react-three/fiber/dist/events-e51d7528.esm.js",
+      "node_modules/@react-three/fiber/dist/react-three-fiber.esm.js"
+    ]
+  },
+  {
+    "name": "ajv",
+    "version": "8.20.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2015-2021 Evgeny Poberezkin"
+    ],
+    "modules": [
+      "node_modules/ajv/dist/2020.js",
+      "node_modules/ajv/dist/compile/codegen/code.js",
+      "node_modules/ajv/dist/compile/codegen/index.js",
+      "node_modules/ajv/dist/compile/codegen/scope.js",
+      "node_modules/ajv/dist/compile/errors.js",
+      "node_modules/ajv/dist/compile/index.js",
+      "node_modules/ajv/dist/compile/names.js",
+      "node_modules/ajv/dist/compile/ref_error.js",
+      "node_modules/ajv/dist/compile/resolve.js",
+      "node_modules/ajv/dist/compile/rules.js",
+      "node_modules/ajv/dist/compile/util.js",
+      "node_modules/ajv/dist/compile/validate/applicability.js",
+      "node_modules/ajv/dist/compile/validate/boolSchema.js",
+      "node_modules/ajv/dist/compile/validate/dataType.js",
+      "node_modules/ajv/dist/compile/validate/defaults.js",
+      "node_modules/ajv/dist/compile/validate/index.js",
+      "node_modules/ajv/dist/compile/validate/keyword.js",
+      "node_modules/ajv/dist/compile/validate/subschema.js",
+      "node_modules/ajv/dist/core.js",
+      "node_modules/ajv/dist/refs/data.json",
+      "node_modules/ajv/dist/refs/json-schema-2020-12/index.js",
+      "node_modules/ajv/dist/refs/json-schema-2020-12/meta/applicator.json",
+      "node_modules/ajv/dist/refs/json-schema-2020-12/meta/content.json",
+      "node_modules/ajv/dist/refs/json-schema-2020-12/meta/core.json",
+      "node_modules/ajv/dist/refs/json-schema-2020-12/meta/format-annotation.json",
+      "node_modules/ajv/dist/refs/json-schema-2020-12/meta/meta-data.json",
+      "node_modules/ajv/dist/refs/json-schema-2020-12/meta/unevaluated.json",
+      "node_modules/ajv/dist/refs/json-schema-2020-12/meta/validation.json",
+      "node_modules/ajv/dist/refs/json-schema-2020-12/schema.json",
+      "node_modules/ajv/dist/runtime/equal.js",
+      "node_modules/ajv/dist/runtime/ucs2length.js",
+      "node_modules/ajv/dist/runtime/uri.js",
+      "node_modules/ajv/dist/runtime/validation_error.js",
+      "node_modules/ajv/dist/vocabularies/applicator/additionalItems.js",
+      "node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js",
+      "node_modules/ajv/dist/vocabularies/applicator/allOf.js",
+      "node_modules/ajv/dist/vocabularies/applicator/anyOf.js",
+      "node_modules/ajv/dist/vocabularies/applicator/contains.js",
+      "node_modules/ajv/dist/vocabularies/applicator/dependencies.js",
+      "node_modules/ajv/dist/vocabularies/applicator/dependentSchemas.js",
+      "node_modules/ajv/dist/vocabularies/applicator/if.js",
+      "node_modules/ajv/dist/vocabularies/applicator/index.js",
+      "node_modules/ajv/dist/vocabularies/applicator/items.js",
+      "node_modules/ajv/dist/vocabularies/applicator/items2020.js",
+      "node_modules/ajv/dist/vocabularies/applicator/not.js",
+      "node_modules/ajv/dist/vocabularies/applicator/oneOf.js",
+      "node_modules/ajv/dist/vocabularies/applicator/patternProperties.js",
+      "node_modules/ajv/dist/vocabularies/applicator/prefixItems.js",
+      "node_modules/ajv/dist/vocabularies/applicator/properties.js",
+      "node_modules/ajv/dist/vocabularies/applicator/propertyNames.js",
+      "node_modules/ajv/dist/vocabularies/applicator/thenElse.js",
+      "node_modules/ajv/dist/vocabularies/code.js",
+      "node_modules/ajv/dist/vocabularies/core/id.js",
+      "node_modules/ajv/dist/vocabularies/core/index.js",
+      "node_modules/ajv/dist/vocabularies/core/ref.js",
+      "node_modules/ajv/dist/vocabularies/discriminator/index.js",
+      "node_modules/ajv/dist/vocabularies/discriminator/types.js",
+      "node_modules/ajv/dist/vocabularies/draft2020.js",
+      "node_modules/ajv/dist/vocabularies/dynamic/dynamicAnchor.js",
+      "node_modules/ajv/dist/vocabularies/dynamic/dynamicRef.js",
+      "node_modules/ajv/dist/vocabularies/dynamic/index.js",
+      "node_modules/ajv/dist/vocabularies/dynamic/recursiveAnchor.js",
+      "node_modules/ajv/dist/vocabularies/dynamic/recursiveRef.js",
+      "node_modules/ajv/dist/vocabularies/format/format.js",
+      "node_modules/ajv/dist/vocabularies/format/index.js",
+      "node_modules/ajv/dist/vocabularies/metadata.js",
+      "node_modules/ajv/dist/vocabularies/next.js",
+      "node_modules/ajv/dist/vocabularies/unevaluated/index.js",
+      "node_modules/ajv/dist/vocabularies/unevaluated/unevaluatedItems.js",
+      "node_modules/ajv/dist/vocabularies/unevaluated/unevaluatedProperties.js",
+      "node_modules/ajv/dist/vocabularies/validation/const.js",
+      "node_modules/ajv/dist/vocabularies/validation/dependentRequired.js",
+      "node_modules/ajv/dist/vocabularies/validation/enum.js",
+      "node_modules/ajv/dist/vocabularies/validation/index.js",
+      "node_modules/ajv/dist/vocabularies/validation/limitContains.js",
+      "node_modules/ajv/dist/vocabularies/validation/limitItems.js",
+      "node_modules/ajv/dist/vocabularies/validation/limitLength.js",
+      "node_modules/ajv/dist/vocabularies/validation/limitNumber.js",
+      "node_modules/ajv/dist/vocabularies/validation/limitProperties.js",
+      "node_modules/ajv/dist/vocabularies/validation/multipleOf.js",
+      "node_modules/ajv/dist/vocabularies/validation/pattern.js",
+      "node_modules/ajv/dist/vocabularies/validation/required.js",
+      "node_modules/ajv/dist/vocabularies/validation/uniqueItems.js"
+    ]
+  },
+  {
+    "name": "aria-hidden",
+    "version": "1.2.6",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2017 Anton Korzunov"
+    ],
+    "modules": [
+      "node_modules/aria-hidden/dist/es2015/index.js"
+    ]
+  },
+  {
+    "name": "clsx",
+    "version": "2.1.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) Luke Edwards <luke.edwards05@gmail.com> (lukeed.com)"
+    ],
+    "modules": [
+      "node_modules/clsx/dist/clsx.mjs"
+    ]
+  },
+  {
+    "name": "earcut",
+    "version": "3.2.4",
+    "license": "ISC",
+    "copyright": [
+      "Copyright (c) 2026, Mapbox"
+    ],
+    "modules": [
+      "node_modules/earcut/src/earcut.js"
+    ]
+  },
+  {
+    "name": "fast-deep-equal",
+    "version": "3.1.3",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2017 Evgeny Poberezkin"
+    ],
+    "modules": [
+      "node_modules/fast-deep-equal/index.js"
+    ]
+  },
+  {
+    "name": "fast-png",
+    "version": "6.4.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2015 Michaël Zasso"
+    ],
+    "modules": [
+      "node_modules/fast-png/lib-esm/helpers/applyUnfilter.js",
+      "node_modules/fast-png/lib-esm/helpers/crc.js",
+      "node_modules/fast-png/lib-esm/helpers/decodeInterlaceAdam7.js",
+      "node_modules/fast-png/lib-esm/helpers/decodeInterlaceNull.js",
+      "node_modules/fast-png/lib-esm/helpers/signature.js",
+      "node_modules/fast-png/lib-esm/helpers/text.js",
+      "node_modules/fast-png/lib-esm/helpers/unfilter.js",
+      "node_modules/fast-png/lib-esm/index.js",
+      "node_modules/fast-png/lib-esm/internalTypes.js",
+      "node_modules/fast-png/lib-esm/PngDecoder.js",
+      "node_modules/fast-png/lib-esm/PngEncoder.js",
+      "node_modules/fast-png/lib-esm/types.js"
+    ]
+  },
+  {
+    "name": "fast-uri",
+    "version": "3.1.9",
+    "license": "BSD-3-Clause",
+    "copyright": [
+      "Copyright (c) 2011-2021, Gary Court until https://github.com/garycourt/uri-js/commit/a1acf730b4bba3f1097c9f52e7d9d3aba8cdcaae",
+      "Copyright (c) 2021-present The Fastify team <https://github.com/fastify/fastify#team>"
+    ],
+    "modules": [
+      "node_modules/fast-uri/index.js",
+      "node_modules/fast-uri/lib/schemes.js",
+      "node_modules/fast-uri/lib/utils.js"
+    ]
+  },
+  {
+    "name": "fflate",
+    "version": "0.8.3",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2026 Arjun Barrett"
+    ],
+    "modules": [
+      "node_modules/fflate/esm/browser.js"
+    ]
+  },
+  {
+    "name": "framer-motion",
+    "version": "14.7.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2018 Framer B.V."
+    ],
+    "modules": [
+      "node_modules/framer-motion/dist/es/components/AnimatePresence/index.mjs",
+      "node_modules/framer-motion/dist/es/components/AnimatePresence/PopChild.mjs",
+      "node_modules/framer-motion/dist/es/components/AnimatePresence/PresenceChild.mjs",
+      "node_modules/framer-motion/dist/es/components/AnimatePresence/use-presence.mjs",
+      "node_modules/framer-motion/dist/es/components/AnimatePresence/utils.mjs",
+      "node_modules/framer-motion/dist/es/components/MotionConfig/index.mjs",
+      "node_modules/framer-motion/dist/es/context/LayoutGroupContext.mjs",
+      "node_modules/framer-motion/dist/es/context/LazyContext.mjs",
+      "node_modules/framer-motion/dist/es/context/MotionConfigContext.mjs",
+      "node_modules/framer-motion/dist/es/context/MotionContext/create.mjs",
+      "node_modules/framer-motion/dist/es/context/MotionContext/index.mjs",
+      "node_modules/framer-motion/dist/es/context/MotionContext/utils.mjs",
+      "node_modules/framer-motion/dist/es/context/PresenceContext.mjs",
+      "node_modules/framer-motion/dist/es/context/SwitchLayoutGroupContext.mjs",
+      "node_modules/framer-motion/dist/es/gestures/drag/index.mjs",
+      "node_modules/framer-motion/dist/es/gestures/focus.mjs",
+      "node_modules/framer-motion/dist/es/gestures/hover.mjs",
+      "node_modules/framer-motion/dist/es/gestures/pan/index.mjs",
+      "node_modules/framer-motion/dist/es/gestures/press.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/animation/exit.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/animation/index.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/animations.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/definitions.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/drag.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/gestures.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/layout.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/layout/MeasureLayout.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/load-features.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/viewport/index.mjs",
+      "node_modules/framer-motion/dist/es/motion/features/viewport/observers.mjs",
+      "node_modules/framer-motion/dist/es/motion/index.mjs",
+      "node_modules/framer-motion/dist/es/motion/utils/symbol.mjs",
+      "node_modules/framer-motion/dist/es/motion/utils/use-motion-ref.mjs",
+      "node_modules/framer-motion/dist/es/motion/utils/use-visual-element.mjs",
+      "node_modules/framer-motion/dist/es/motion/utils/use-visual-state.mjs",
+      "node_modules/framer-motion/dist/es/motion/utils/valid-prop.mjs",
+      "node_modules/framer-motion/dist/es/render/components/create-proxy.mjs",
+      "node_modules/framer-motion/dist/es/render/components/motion/feature-bundle.mjs",
+      "node_modules/framer-motion/dist/es/render/components/motion/proxy.mjs",
+      "node_modules/framer-motion/dist/es/render/dom/create-visual-element.mjs",
+      "node_modules/framer-motion/dist/es/render/dom/use-render.mjs",
+      "node_modules/framer-motion/dist/es/render/dom/utils/filter-props.mjs",
+      "node_modules/framer-motion/dist/es/render/dom/utils/is-svg-component.mjs",
+      "node_modules/framer-motion/dist/es/render/html/use-html-visual-state.mjs",
+      "node_modules/framer-motion/dist/es/render/html/use-props.mjs",
+      "node_modules/framer-motion/dist/es/render/html/utils/create-render-state.mjs",
+      "node_modules/framer-motion/dist/es/render/svg/lowercase-elements.mjs",
+      "node_modules/framer-motion/dist/es/render/svg/use-props.mjs",
+      "node_modules/framer-motion/dist/es/render/svg/use-svg-visual-state.mjs",
+      "node_modules/framer-motion/dist/es/render/svg/utils/create-render-state.mjs",
+      "node_modules/framer-motion/dist/es/utils/is-browser.mjs",
+      "node_modules/framer-motion/dist/es/utils/is-ref-object.mjs",
+      "node_modules/framer-motion/dist/es/utils/use-composed-ref.mjs",
+      "node_modules/framer-motion/dist/es/utils/use-constant.mjs",
+      "node_modules/framer-motion/dist/es/utils/use-isomorphic-effect.mjs"
+    ]
+  },
+  {
+    "name": "get-nonce",
+    "version": "1.0.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2020 Anton Korzunov"
+    ],
+    "modules": [
+      "node_modules/get-nonce/dist/es2015/index.js"
+    ]
+  },
+  {
+    "name": "iobuffer",
+    "version": "5.4.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2015 Michaël Zasso"
+    ],
+    "modules": [
+      "node_modules/iobuffer/lib-esm/IOBuffer.js",
+      "node_modules/iobuffer/lib-esm/text.js"
+    ]
+  },
+  {
+    "name": "its-fine",
+    "version": "2.1.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022-2025 Poimandres"
+    ],
+    "modules": [
+      "node_modules/its-fine/dist/index.js"
+    ]
+  },
+  {
+    "name": "json-schema-traverse",
+    "version": "1.0.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2017 Evgeny Poberezkin"
+    ],
+    "modules": [
+      "node_modules/json-schema-traverse/index.js"
+    ]
+  },
+  {
+    "name": "jspdf",
+    "version": "4.2.1",
+    "license": "MIT",
+    "copyright": [
+      "(c) 2010-2025 James Hall, https://github.com/MrRio/jsPDF",
+      "(c) 2015-2025 yWorks GmbH, https://www.yworks.com/",
+      "Copyright (c) 2010-2025 James Hall <james@parall.ax>, https://github.com/MrRio/jsPDF",
+      "Copyright (c) 2014 Steven Spungin (TwelveTone LLC)  steven@twelvetone.tv",
+      "Copyright (c) 2017 Aras Abbasi",
+      "Copyright (c) 2008, Adobe Systems Incorporated",
+      "Copyright (c) 2017 Dominik Homberger",
+      "Copyright (c) 2016 Jussi Utunen, u-jussi@suomi24.fi",
+      "Copyright (c) 2014 Aras Abbasi",
+      "Copyright (c) 2018 Aras Abbasi (aras.abbasi@gmail.com)",
+      "Copyright (c) 2018 Aras Abbasi",
+      "Copyright (c) 2019 Aras Abbasi"
+    ],
+    "modules": [
+      "node_modules/jspdf/dist/jspdf.es.min.js"
+    ]
+  },
+  {
+    "name": "lucide-react",
+    "version": "1.63.0",
+    "license": "ISC",
+    "copyright": [
+      "Copyright (c) 2026 Lucide Icons and Contributors",
+      "Copyright (c) 2013-present Cole Bemis"
+    ],
+    "modules": [
+      "node_modules/lucide-react/dist/esm/context.mjs",
+      "node_modules/lucide-react/dist/esm/createLucideIcon.mjs",
+      "node_modules/lucide-react/dist/esm/Icon.mjs",
+      "node_modules/lucide-react/dist/esm/icons/app-window.mjs",
+      "node_modules/lucide-react/dist/esm/icons/arrow-left-right.mjs",
+      "node_modules/lucide-react/dist/esm/icons/arrow-left.mjs",
+      "node_modules/lucide-react/dist/esm/icons/arrow-right.mjs",
+      "node_modules/lucide-react/dist/esm/icons/arrow-up-down.mjs",
+      "node_modules/lucide-react/dist/esm/icons/box.mjs",
+      "node_modules/lucide-react/dist/esm/icons/brick-wall.mjs",
+      "node_modules/lucide-react/dist/esm/icons/check.mjs",
+      "node_modules/lucide-react/dist/esm/icons/chevron-down.mjs",
+      "node_modules/lucide-react/dist/esm/icons/chevron-left.mjs",
+      "node_modules/lucide-react/dist/esm/icons/chevron-right.mjs",
+      "node_modules/lucide-react/dist/esm/icons/circle-question-mark.mjs",
+      "node_modules/lucide-react/dist/esm/icons/clipboard-paste.mjs",
+      "node_modules/lucide-react/dist/esm/icons/columns-2.mjs",
+      "node_modules/lucide-react/dist/esm/icons/columns-3.mjs",
+      "node_modules/lucide-react/dist/esm/icons/copy.mjs",
+      "node_modules/lucide-react/dist/esm/icons/corner-down-left.mjs",
+      "node_modules/lucide-react/dist/esm/icons/crosshair.mjs",
+      "node_modules/lucide-react/dist/esm/icons/door-open.mjs",
+      "node_modules/lucide-react/dist/esm/icons/download.mjs",
+      "node_modules/lucide-react/dist/esm/icons/eye.mjs",
+      "node_modules/lucide-react/dist/esm/icons/file-braces-corner.mjs",
+      "node_modules/lucide-react/dist/esm/icons/file-braces.mjs",
+      "node_modules/lucide-react/dist/esm/icons/file-down.mjs",
+      "node_modules/lucide-react/dist/esm/icons/file-plus-corner.mjs",
+      "node_modules/lucide-react/dist/esm/icons/focus.mjs",
+      "node_modules/lucide-react/dist/esm/icons/image-down.mjs",
+      "node_modules/lucide-react/dist/esm/icons/image-up.mjs",
+      "node_modules/lucide-react/dist/esm/icons/inbox.mjs",
+      "node_modules/lucide-react/dist/esm/icons/languages.mjs",
+      "node_modules/lucide-react/dist/esm/icons/layers-2.mjs",
+      "node_modules/lucide-react/dist/esm/icons/layers.mjs",
+      "node_modules/lucide-react/dist/esm/icons/list-checks.mjs",
+      "node_modules/lucide-react/dist/esm/icons/loader-circle.mjs",
+      "node_modules/lucide-react/dist/esm/icons/lock.mjs",
+      "node_modules/lucide-react/dist/esm/icons/map.mjs",
+      "node_modules/lucide-react/dist/esm/icons/maximize.mjs",
+      "node_modules/lucide-react/dist/esm/icons/message-square-text.mjs",
+      "node_modules/lucide-react/dist/esm/icons/minus.mjs",
+      "node_modules/lucide-react/dist/esm/icons/mouse-pointer-2.mjs",
+      "node_modules/lucide-react/dist/esm/icons/mouse-pointer-click.mjs",
+      "node_modules/lucide-react/dist/esm/icons/paint-roller.mjs",
+      "node_modules/lucide-react/dist/esm/icons/palette.mjs",
+      "node_modules/lucide-react/dist/esm/icons/pencil.mjs",
+      "node_modules/lucide-react/dist/esm/icons/plus.mjs",
+      "node_modules/lucide-react/dist/esm/icons/redo-2.mjs",
+      "node_modules/lucide-react/dist/esm/icons/rotate-cw.mjs",
+      "node_modules/lucide-react/dist/esm/icons/rows-2.mjs",
+      "node_modules/lucide-react/dist/esm/icons/ruler.mjs",
+      "node_modules/lucide-react/dist/esm/icons/save.mjs",
+      "node_modules/lucide-react/dist/esm/icons/scan-eye.mjs",
+      "node_modules/lucide-react/dist/esm/icons/scan.mjs",
+      "node_modules/lucide-react/dist/esm/icons/scissors.mjs",
+      "node_modules/lucide-react/dist/esm/icons/search.mjs",
+      "node_modules/lucide-react/dist/esm/icons/settings-2.mjs",
+      "node_modules/lucide-react/dist/esm/icons/shapes.mjs",
+      "node_modules/lucide-react/dist/esm/icons/sofa.mjs",
+      "node_modules/lucide-react/dist/esm/icons/sparkles.mjs",
+      "node_modules/lucide-react/dist/esm/icons/square-dashed-mouse-pointer.mjs",
+      "node_modules/lucide-react/dist/esm/icons/square.mjs",
+      "node_modules/lucide-react/dist/esm/icons/trash.mjs",
+      "node_modules/lucide-react/dist/esm/icons/triangle-alert.mjs",
+      "node_modules/lucide-react/dist/esm/icons/triangles-centerline-dashed-horizontal.mjs",
+      "node_modules/lucide-react/dist/esm/icons/triangles-centerline-dashed-vertical.mjs",
+      "node_modules/lucide-react/dist/esm/icons/undo-2.mjs",
+      "node_modules/lucide-react/dist/esm/icons/unlink.mjs",
+      "node_modules/lucide-react/dist/esm/icons/upload.mjs",
+      "node_modules/lucide-react/dist/esm/icons/wallpaper.mjs",
+      "node_modules/lucide-react/dist/esm/icons/x.mjs",
+      "node_modules/lucide-react/dist/esm/lucide-react.mjs",
+      "node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs",
+      "node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconNode.mjs",
+      "node_modules/lucide-react/dist/esm/shared/src/build/defaultAttributes.mjs",
+      "node_modules/lucide-react/dist/esm/shared/src/utils/hasA11yProp.mjs",
+      "node_modules/lucide-react/dist/esm/shared/src/utils/mergeClasses.mjs",
+      "node_modules/lucide-react/dist/esm/shared/src/utils/toCamelCase.mjs",
+      "node_modules/lucide-react/dist/esm/shared/src/utils/toKebabCase.mjs",
+      "node_modules/lucide-react/dist/esm/shared/src/utils/toLucideIconData.mjs",
+      "node_modules/lucide-react/dist/esm/shared/src/utils/toPascalCase.mjs"
+    ]
+  },
+  {
+    "name": "motion",
+    "version": "14.7.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2024 [Motion](https://motion.dev) B.V."
+    ],
+    "modules": [
+      "node_modules/motion/dist/es/react.mjs"
+    ]
+  },
+  {
+    "name": "motion-dom",
+    "version": "14.7.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2024 [Motion](https://motion.dev) B.V."
+    ],
+    "modules": [
+      "node_modules/motion-dom/dist/es/animation/animate/single-value.mjs",
+      "node_modules/motion-dom/dist/es/animation/AsyncMotionValueAnimation.mjs",
+      "node_modules/motion-dom/dist/es/animation/drivers/frame.mjs",
+      "node_modules/motion-dom/dist/es/animation/generators/inertia.mjs",
+      "node_modules/motion-dom/dist/es/animation/generators/keyframes.mjs",
+      "node_modules/motion-dom/dist/es/animation/generators/spring.mjs",
+      "node_modules/motion-dom/dist/es/animation/generators/utils/calc-duration.mjs",
+      "node_modules/motion-dom/dist/es/animation/generators/utils/create-generator-easing.mjs",
+      "node_modules/motion-dom/dist/es/animation/generators/utils/is-generator.mjs",
+      "node_modules/motion-dom/dist/es/animation/generators/utils/velocity.mjs",
+      "node_modules/motion-dom/dist/es/animation/interfaces/motion-value.mjs",
+      "node_modules/motion-dom/dist/es/animation/interfaces/visual-element-target.mjs",
+      "node_modules/motion-dom/dist/es/animation/interfaces/visual-element-variant.mjs",
+      "node_modules/motion-dom/dist/es/animation/interfaces/visual-element.mjs",
+      "node_modules/motion-dom/dist/es/animation/JSAnimation.mjs",
+      "node_modules/motion-dom/dist/es/animation/keyframes/DOMKeyframesResolver.mjs",
+      "node_modules/motion-dom/dist/es/animation/keyframes/get-final.mjs",
+      "node_modules/motion-dom/dist/es/animation/keyframes/KeyframesResolver.mjs",
+      "node_modules/motion-dom/dist/es/animation/keyframes/offsets/default.mjs",
+      "node_modules/motion-dom/dist/es/animation/keyframes/offsets/fill.mjs",
+      "node_modules/motion-dom/dist/es/animation/keyframes/offsets/time.mjs",
+      "node_modules/motion-dom/dist/es/animation/keyframes/utils/fill-wildcards.mjs",
+      "node_modules/motion-dom/dist/es/animation/keyframes/utils/is-none.mjs",
+      "node_modules/motion-dom/dist/es/animation/keyframes/utils/make-none-animatable.mjs",
+      "node_modules/motion-dom/dist/es/animation/keyframes/utils/unit-conversion.mjs",
+      "node_modules/motion-dom/dist/es/animation/NativeAnimation.mjs",
+      "node_modules/motion-dom/dist/es/animation/NativeAnimationExtended.mjs",
+      "node_modules/motion-dom/dist/es/animation/optimized-appear/data-id.mjs",
+      "node_modules/motion-dom/dist/es/animation/optimized-appear/get-appear-id.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/calc-child-stagger.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/can-animate.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/css-variables-conversion.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/default-transitions.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/get-value-transition.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/is-animatable.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/is-css-variable.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/is-transition-defined.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/make-animation-instant.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/notify-inspector.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/replace-transition-type.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/resolve-start-time.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/resolve-transition.mjs",
+      "node_modules/motion-dom/dist/es/animation/utils/WithPromise.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/easing/cubic-bezier.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/easing/map-easing.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/easing/supported.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/start-waapi-animation.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/supports/waapi.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/transforms/groups.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/transforms/TransformAnimation.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/utils/accelerated-values.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/utils/apply-generator.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/utils/is-browser-color.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/utils/linear.mjs",
+      "node_modules/motion-dom/dist/es/animation/waapi/utils/unsupported-easing.mjs",
+      "node_modules/motion-dom/dist/es/events/add-dom-event.mjs",
+      "node_modules/motion-dom/dist/es/events/add-pointer-event.mjs",
+      "node_modules/motion-dom/dist/es/events/event-info.mjs",
+      "node_modules/motion-dom/dist/es/frameloop/batcher.mjs",
+      "node_modules/motion-dom/dist/es/frameloop/frame-data.mjs",
+      "node_modules/motion-dom/dist/es/frameloop/frame.mjs",
+      "node_modules/motion-dom/dist/es/frameloop/microtask.mjs",
+      "node_modules/motion-dom/dist/es/frameloop/order.mjs",
+      "node_modules/motion-dom/dist/es/frameloop/render-step.mjs",
+      "node_modules/motion-dom/dist/es/frameloop/sync-time.mjs",
+      "node_modules/motion-dom/dist/es/gestures/drag/state/is-active.mjs",
+      "node_modules/motion-dom/dist/es/gestures/drag/state/set-active.mjs",
+      "node_modules/motion-dom/dist/es/gestures/drag/utils/constraints.mjs",
+      "node_modules/motion-dom/dist/es/gestures/drag/VisualElementDragControls.mjs",
+      "node_modules/motion-dom/dist/es/gestures/hover.mjs",
+      "node_modules/motion-dom/dist/es/gestures/pan/PanSession.mjs",
+      "node_modules/motion-dom/dist/es/gestures/press/index.mjs",
+      "node_modules/motion-dom/dist/es/gestures/press/utils/is-keyboard-accessible.mjs",
+      "node_modules/motion-dom/dist/es/gestures/press/utils/keyboard.mjs",
+      "node_modules/motion-dom/dist/es/gestures/press/utils/state.mjs",
+      "node_modules/motion-dom/dist/es/gestures/utils/is-node-or-child.mjs",
+      "node_modules/motion-dom/dist/es/gestures/utils/is-primary-pointer.mjs",
+      "node_modules/motion-dom/dist/es/gestures/utils/setup.mjs",
+      "node_modules/motion-dom/dist/es/projection/animation/mix-values.mjs",
+      "node_modules/motion-dom/dist/es/projection/geometry/conversion.mjs",
+      "node_modules/motion-dom/dist/es/projection/geometry/copy.mjs",
+      "node_modules/motion-dom/dist/es/projection/geometry/delta-apply.mjs",
+      "node_modules/motion-dom/dist/es/projection/geometry/delta-calc.mjs",
+      "node_modules/motion-dom/dist/es/projection/geometry/delta-remove.mjs",
+      "node_modules/motion-dom/dist/es/projection/geometry/models.mjs",
+      "node_modules/motion-dom/dist/es/projection/geometry/utils.mjs",
+      "node_modules/motion-dom/dist/es/projection/node/create-projection-node.mjs",
+      "node_modules/motion-dom/dist/es/projection/node/DocumentProjectionNode.mjs",
+      "node_modules/motion-dom/dist/es/projection/node/HTMLProjectionNode.mjs",
+      "node_modules/motion-dom/dist/es/projection/node/root.mjs",
+      "node_modules/motion-dom/dist/es/projection/node/state.mjs",
+      "node_modules/motion-dom/dist/es/projection/shared/stack.mjs",
+      "node_modules/motion-dom/dist/es/projection/styles/default-scale-correctors.mjs",
+      "node_modules/motion-dom/dist/es/projection/styles/scale-border-radius.mjs",
+      "node_modules/motion-dom/dist/es/projection/styles/scale-box-shadow.mjs",
+      "node_modules/motion-dom/dist/es/projection/styles/scale-correction.mjs",
+      "node_modules/motion-dom/dist/es/projection/styles/transform.mjs",
+      "node_modules/motion-dom/dist/es/projection/utils/compare-by-depth.mjs",
+      "node_modules/motion-dom/dist/es/projection/utils/each-axis.mjs",
+      "node_modules/motion-dom/dist/es/projection/utils/flat-tree.mjs",
+      "node_modules/motion-dom/dist/es/projection/utils/has-transform.mjs",
+      "node_modules/motion-dom/dist/es/projection/utils/measure.mjs",
+      "node_modules/motion-dom/dist/es/render/dom/DOMVisualElement.mjs",
+      "node_modules/motion-dom/dist/es/render/dom/is-css-var.mjs",
+      "node_modules/motion-dom/dist/es/render/dom/parse-transform.mjs",
+      "node_modules/motion-dom/dist/es/render/dom/style-set.mjs",
+      "node_modules/motion-dom/dist/es/render/dom/utils/camel-to-dash.mjs",
+      "node_modules/motion-dom/dist/es/render/Feature.mjs",
+      "node_modules/motion-dom/dist/es/render/html/HTMLVisualElement.mjs",
+      "node_modules/motion-dom/dist/es/render/html/utils/build-styles.mjs",
+      "node_modules/motion-dom/dist/es/render/html/utils/build-transform.mjs",
+      "node_modules/motion-dom/dist/es/render/html/utils/render.mjs",
+      "node_modules/motion-dom/dist/es/render/html/utils/scrape-motion-values.mjs",
+      "node_modules/motion-dom/dist/es/render/store.mjs",
+      "node_modules/motion-dom/dist/es/render/svg/SVGVisualElement.mjs",
+      "node_modules/motion-dom/dist/es/render/svg/utils/build-attrs.mjs",
+      "node_modules/motion-dom/dist/es/render/svg/utils/camel-case-attrs.mjs",
+      "node_modules/motion-dom/dist/es/render/svg/utils/is-svg-tag.mjs",
+      "node_modules/motion-dom/dist/es/render/svg/utils/path.mjs",
+      "node_modules/motion-dom/dist/es/render/svg/utils/render.mjs",
+      "node_modules/motion-dom/dist/es/render/svg/utils/scrape-motion-values.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/animation-state.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/is-animation-controls.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/is-controlling-variants.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/is-forced-motion-value.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/is-keyframes-target.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/is-variant-label.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/keys-position.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/keys-transform.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/motion-values.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/reduced-motion/index.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/reduced-motion/state.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/resolve-dynamic-variants.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/resolve-variants.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/setters.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/shallow-compare.mjs",
+      "node_modules/motion-dom/dist/es/render/utils/variant-props.mjs",
+      "node_modules/motion-dom/dist/es/render/VisualElement.mjs",
+      "node_modules/motion-dom/dist/es/resize/handle-element.mjs",
+      "node_modules/motion-dom/dist/es/resize/handle-window.mjs",
+      "node_modules/motion-dom/dist/es/resize/index.mjs",
+      "node_modules/motion-dom/dist/es/scope/active.mjs",
+      "node_modules/motion-dom/dist/es/stats/buffer.mjs",
+      "node_modules/motion-dom/dist/es/utils/border-radius.mjs",
+      "node_modules/motion-dom/dist/es/utils/delay.mjs",
+      "node_modules/motion-dom/dist/es/utils/distance.mjs",
+      "node_modules/motion-dom/dist/es/utils/interpolate.mjs",
+      "node_modules/motion-dom/dist/es/utils/is-html-element.mjs",
+      "node_modules/motion-dom/dist/es/utils/is-svg-element.mjs",
+      "node_modules/motion-dom/dist/es/utils/is-svg-svg-element.mjs",
+      "node_modules/motion-dom/dist/es/utils/mix/color.mjs",
+      "node_modules/motion-dom/dist/es/utils/mix/complex.mjs",
+      "node_modules/motion-dom/dist/es/utils/mix/immediate.mjs",
+      "node_modules/motion-dom/dist/es/utils/mix/index.mjs",
+      "node_modules/motion-dom/dist/es/utils/mix/number.mjs",
+      "node_modules/motion-dom/dist/es/utils/mix/visibility.mjs",
+      "node_modules/motion-dom/dist/es/utils/resolve-elements.mjs",
+      "node_modules/motion-dom/dist/es/utils/supports/flags.mjs",
+      "node_modules/motion-dom/dist/es/utils/supports/linear-easing.mjs",
+      "node_modules/motion-dom/dist/es/utils/supports/memo.mjs",
+      "node_modules/motion-dom/dist/es/utils/supports/scroll-timeline.mjs",
+      "node_modules/motion-dom/dist/es/value/index.mjs",
+      "node_modules/motion-dom/dist/es/value/types/auto.mjs",
+      "node_modules/motion-dom/dist/es/value/types/color/hex.mjs",
+      "node_modules/motion-dom/dist/es/value/types/color/hsla-to-rgba.mjs",
+      "node_modules/motion-dom/dist/es/value/types/color/hsla.mjs",
+      "node_modules/motion-dom/dist/es/value/types/color/index.mjs",
+      "node_modules/motion-dom/dist/es/value/types/color/rgba.mjs",
+      "node_modules/motion-dom/dist/es/value/types/color/utils.mjs",
+      "node_modules/motion-dom/dist/es/value/types/complex/filter.mjs",
+      "node_modules/motion-dom/dist/es/value/types/complex/index.mjs",
+      "node_modules/motion-dom/dist/es/value/types/complex/mask.mjs",
+      "node_modules/motion-dom/dist/es/value/types/dimensions.mjs",
+      "node_modules/motion-dom/dist/es/value/types/int.mjs",
+      "node_modules/motion-dom/dist/es/value/types/maps/defaults.mjs",
+      "node_modules/motion-dom/dist/es/value/types/maps/number.mjs",
+      "node_modules/motion-dom/dist/es/value/types/maps/transform.mjs",
+      "node_modules/motion-dom/dist/es/value/types/numbers/index.mjs",
+      "node_modules/motion-dom/dist/es/value/types/numbers/units.mjs",
+      "node_modules/motion-dom/dist/es/value/types/test.mjs",
+      "node_modules/motion-dom/dist/es/value/types/utils/animatable-none.mjs",
+      "node_modules/motion-dom/dist/es/value/types/utils/color-regex.mjs",
+      "node_modules/motion-dom/dist/es/value/types/utils/float-regex.mjs",
+      "node_modules/motion-dom/dist/es/value/types/utils/get-as-type.mjs",
+      "node_modules/motion-dom/dist/es/value/types/utils/is-nullish.mjs",
+      "node_modules/motion-dom/dist/es/value/types/utils/sanitize.mjs",
+      "node_modules/motion-dom/dist/es/value/types/utils/single-color-regex.mjs",
+      "node_modules/motion-dom/dist/es/value/utils/as-number.mjs",
+      "node_modules/motion-dom/dist/es/value/utils/is-motion-value.mjs",
+      "node_modules/motion-dom/dist/es/value/utils/resolve-motion-value.mjs",
+      "node_modules/motion-dom/dist/es/value/will-change/add-will-change.mjs",
+      "node_modules/motion-dom/dist/es/value/will-change/is.mjs"
+    ]
+  },
+  {
+    "name": "motion-utils",
+    "version": "14.7.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2024 [Motion](https://motion.dev) B.V."
+    ],
+    "modules": [
+      "node_modules/motion-utils/dist/es/array.mjs",
+      "node_modules/motion-utils/dist/es/clamp.mjs",
+      "node_modules/motion-utils/dist/es/easing/anticipate.mjs",
+      "node_modules/motion-utils/dist/es/easing/back.mjs",
+      "node_modules/motion-utils/dist/es/easing/circ.mjs",
+      "node_modules/motion-utils/dist/es/easing/cubic-bezier.mjs",
+      "node_modules/motion-utils/dist/es/easing/ease.mjs",
+      "node_modules/motion-utils/dist/es/easing/modifiers/mirror.mjs",
+      "node_modules/motion-utils/dist/es/easing/modifiers/reverse.mjs",
+      "node_modules/motion-utils/dist/es/easing/utils/is-bezier-definition.mjs",
+      "node_modules/motion-utils/dist/es/easing/utils/is-easing-array.mjs",
+      "node_modules/motion-utils/dist/es/easing/utils/map.mjs",
+      "node_modules/motion-utils/dist/es/global-config.mjs",
+      "node_modules/motion-utils/dist/es/is-numerical-string.mjs",
+      "node_modules/motion-utils/dist/es/is-object.mjs",
+      "node_modules/motion-utils/dist/es/is-zero-value-string.mjs",
+      "node_modules/motion-utils/dist/es/memo.mjs",
+      "node_modules/motion-utils/dist/es/noop.mjs",
+      "node_modules/motion-utils/dist/es/pipe.mjs",
+      "node_modules/motion-utils/dist/es/progress.mjs",
+      "node_modules/motion-utils/dist/es/subscription-manager.mjs",
+      "node_modules/motion-utils/dist/es/time-conversion.mjs",
+      "node_modules/motion-utils/dist/es/velocity-per-second.mjs"
+    ]
+  },
+  {
+    "name": "pako",
+    "version": "2.2.0",
+    "license": "(MIT AND Zlib)",
+    "copyright": [
+      "Copyright (C) 2014-2017 by Vitaly Puzrin and Andrei Tuputcyn"
+    ],
+    "modules": [
+      "node_modules/pako/dist/pako.esm.mjs"
+    ]
+  },
+  {
+    "name": "polygon-clipping",
+    "version": "0.15.7",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2018 Mike Fogel <mike@fogel.ca> - covers everything not specially attributed to others below.",
+      "Copyright (c) 2016 Alexander Milevski <info@w8r.name> - covers all portions originally part of github:w8r/martinez, from which this project was forked on Febuary 2, 2018.",
+      "Copyright (c) Microsoft Corporation. All rights reserved."
+    ],
+    "modules": [
+      "node_modules/polygon-clipping/dist/polygon-clipping.umd.js"
+    ]
+  },
+  {
+    "name": "radix-ui",
+    "version": "1.8.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2022 WorkOS"
+    ],
+    "modules": [
+      "node_modules/radix-ui/dist/index.mjs"
+    ]
+  },
+  {
+    "name": "react",
+    "version": "19.3.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) Meta Platforms, Inc. and affiliates."
+    ],
+    "modules": [
+      "node_modules/react/cjs/react-jsx-runtime.production.js",
+      "node_modules/react/cjs/react.production.js",
+      "node_modules/react/index.js",
+      "node_modules/react/jsx-runtime.js"
+    ]
+  },
+  {
+    "name": "react-dom",
+    "version": "19.3.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) Meta Platforms, Inc. and affiliates."
+    ],
+    "modules": [
+      "node_modules/react-dom/cjs/react-dom-client.production.js",
+      "node_modules/react-dom/cjs/react-dom.production.js",
+      "node_modules/react-dom/client.js",
+      "node_modules/react-dom/index.js"
+    ]
+  },
+  {
+    "name": "react-remove-scroll",
+    "version": "2.7.2",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2017 Anton Korzunov"
+    ],
+    "modules": [
+      "node_modules/react-remove-scroll/dist/es2015/aggresiveCapture.js",
+      "node_modules/react-remove-scroll/dist/es2015/Combination.js",
+      "node_modules/react-remove-scroll/dist/es2015/handleScroll.js",
+      "node_modules/react-remove-scroll/dist/es2015/index.js",
+      "node_modules/react-remove-scroll/dist/es2015/medium.js",
+      "node_modules/react-remove-scroll/dist/es2015/sidecar.js",
+      "node_modules/react-remove-scroll/dist/es2015/SideEffect.js",
+      "node_modules/react-remove-scroll/dist/es2015/UI.js"
+    ]
+  },
+  {
+    "name": "react-remove-scroll-bar",
+    "version": "2.3.8",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2025 Anton Korzunov <thekashey@gmail.com>"
+    ],
+    "modules": [
+      "node_modules/react-remove-scroll-bar/dist/es2015/component.js",
+      "node_modules/react-remove-scroll-bar/dist/es2015/constants.js",
+      "node_modules/react-remove-scroll-bar/dist/es2015/index.js",
+      "node_modules/react-remove-scroll-bar/dist/es2015/utils.js"
+    ]
+  },
+  {
+    "name": "react-style-singleton",
+    "version": "2.2.3",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2017 Anton Korzunov"
+    ],
+    "modules": [
+      "node_modules/react-style-singleton/dist/es2015/component.js",
+      "node_modules/react-style-singleton/dist/es2015/hook.js",
+      "node_modules/react-style-singleton/dist/es2015/index.js",
+      "node_modules/react-style-singleton/dist/es2015/singleton.js"
+    ]
+  },
+  {
+    "name": "react-use-measure",
+    "version": "2.1.7",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2019-2025 Poimandres"
+    ],
+    "modules": [
+      "node_modules/react-use-measure/dist/index.js"
+    ]
+  },
+  {
+    "name": "rolldown",
+    "version": "1.2.15",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2024-present VoidZero Inc. & Contributors"
+    ],
+    "modules": [
+      "\u0000rolldown/runtime.js"
+    ]
+  },
+  {
+    "name": "scheduler",
+    "version": "0.28.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) Meta Platforms, Inc. and affiliates."
+    ],
+    "modules": [
+      "node_modules/scheduler/cjs/scheduler.production.js",
+      "node_modules/scheduler/index.js"
+    ]
+  },
+  {
+    "name": "suspend-react",
+    "version": "0.1.3",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2021 Paul Henschel"
+    ],
+    "modules": [
+      "node_modules/suspend-react/index.js"
+    ]
+  },
+  {
+    "name": "tailwind-merge",
+    "version": "3.7.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2021 Dany Castillo",
+      "Original code has MIT license: Copyright (c) Luke Edwards <luke.edwards05@gmail.com> (lukeed.com)"
+    ],
+    "modules": [
+      "node_modules/tailwind-merge/dist/bundle-mjs.mjs"
+    ]
+  },
+  {
+    "name": "three",
+    "version": "0.186.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright 2010-2026 Three.js Authors"
+    ],
+    "modules": [
+      "node_modules/three/build/three.core.js",
+      "node_modules/three/build/three.module.js",
+      "node_modules/three/examples/jsm/environments/RoomEnvironment.js",
+      "node_modules/three/examples/jsm/utils/BufferGeometryUtils.js"
+    ]
+  },
+  {
+    "name": "three-stdlib",
+    "version": "2.36.1",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2021-2023 Poimandres"
+    ],
+    "modules": [
+      "node_modules/three-stdlib/controls/EventDispatcher.js",
+      "node_modules/three-stdlib/controls/OrbitControls.js",
+      "node_modules/three-stdlib/shaders/HorizontalBlurShader.js",
+      "node_modules/three-stdlib/shaders/VerticalBlurShader.js"
+    ]
+  },
+  {
+    "name": "tslib",
+    "version": "2.8.1",
+    "license": "0BSD",
+    "copyright": [
+      "Copyright (c) Microsoft Corporation."
+    ],
+    "modules": [
+      "node_modules/tslib/tslib.es6.mjs"
+    ]
+  },
+  {
+    "name": "use-callback-ref",
+    "version": "1.3.3",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2017 Anton Korzunov"
+    ],
+    "modules": [
+      "node_modules/use-callback-ref/dist/es2015/assignRef.js",
+      "node_modules/use-callback-ref/dist/es2015/index.js",
+      "node_modules/use-callback-ref/dist/es2015/useMergeRef.js",
+      "node_modules/use-callback-ref/dist/es2015/useRef.js"
+    ]
+  },
+  {
+    "name": "use-sidecar",
+    "version": "1.1.3",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2017 Anton Korzunov"
+    ],
+    "modules": [
+      "node_modules/use-sidecar/dist/es2015/exports.js",
+      "node_modules/use-sidecar/dist/es2015/index.js",
+      "node_modules/use-sidecar/dist/es2015/medium.js"
+    ]
+  },
+  {
+    "name": "use-sync-external-store",
+    "version": "1.7.0",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) Meta Platforms, Inc. and affiliates."
+    ],
+    "modules": [
+      "node_modules/use-sync-external-store/cjs/use-sync-external-store-shim.production.js",
+      "node_modules/use-sync-external-store/cjs/use-sync-external-store-shim/with-selector.production.js",
+      "node_modules/use-sync-external-store/shim/index.js",
+      "node_modules/use-sync-external-store/shim/with-selector.js"
+    ]
+  },
+  {
+    "name": "vite",
+    "version": "8.3.5",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2019-present, VoidZero Inc. and Vite contributors",
+      "> Copyright 2024 Justin Ridgewell <justin@ridgewell.name>",
+      "> Copyright 2019 Justin Ridgewell <jridgewell@google.com>",
+      "> Copyright (c) 2019 RollupJS Plugin Contributors (https://github.com/rollup/plugins/graphs/contributors)",
+      "> Copyright (c) 2021-Present VoidZero Inc. and Vitest contributors",
+      "> Copyright (c) 2026-present, VoidZero Inc.",
+      "> Copyright (c) 2019 Elan Shanker, Paul Miller (https://paulmillr.com)",
+      "> Copyright (c) 2020-present, Yuxi (Evan) You",
+      "> Copyright (c) 2023-present, sapphi-red",
+      "> Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com)",
+      "> Copyright (c) Paul Miller (https://paulmillr.com)",
+      "> Copyright (c) 2014-present, Jon Schlinkert.",
+      "> Copyright (c) EGOIST <0x142857@gmail.com> (https://github.com/egoist)",
+      "> Copyright (c) 2012-2019 Paul Miller (https://paulmillr.com), Elan Shanker",
+      "> Copyright (c) 2010 Sencha Inc.",
+      "> Copyright (c) 2011 LearnBoost",
+      "> Copyright (c) 2011-2014 TJ Holowaychuk",
+      "> Copyright (c) 2015 Douglas Christopher Wilson",
+      "> Copyright 2013 Thorsten Lorenz.",
+      "> Copyright (c) 2013 Troy Goode <troygoode@gmail.com>",
+      "> Copyright (c) 2016, Scott Motte",
+      "> Copyright (c) 2014 Jonathan Ong me@jongleberry.com",
+      "> Copyright (c) 2016 Douglas Christopher Wilson",
+      "> Copyright (c) Felix Böhm",
+      "> Copyright (C) 2018-2022 Guy Bedford",
+      "> Copyright (c) 2012-2013 TJ Holowaychuk",
+      "> Copyright (c) 2015 Andreas Lubbe",
+      "> Copyright (c) 2015 Tiancheng \"Timothy\" Gu",
+      "> Copyright (c) 2015-20 [these people](https://github.com/Rich-Harris/estree-walker/graphs/contributors)",
+      "> Copyright (c) 2014-2016 Douglas Christopher Wilson",
+      "> Copyright (c) 2014-2017 Douglas Christopher Wilson <doug@somethingdoug.com>",
+      "> Copyright 2014–present Olivier Lalonde <olalonde@gmail.com>, James Talmage <james@talmage.io>, Ruben Verborgh",
+      "> Copyright (c) 2026 sapphi-red",
+      "> Copyright (c) 2015 Alexey Litvinov",
+      "> Copyright (c) 2015, 2019 Elan Shanker",
+      "> Copyright (c) 2025 sapphi-red",
+      "> Copyright (c) 2010-2025 William Stein, Charlie Robbins, Jarrett Cruger & the Contributors.",
+      "> Copyright 2018 Glen Maddern",
+      "> Copyright (c) 2019 Sindre Sorhus <sindresorhus@gmail.com> (https://sindresorhus.com), Paul Miller (https://paulmillr.com)",
+      "> Copyright (c) 2014-2016, Jon Schlinkert",
+      "> Copyright (c) 2014-2017, Jon Schlinkert.",
+      "> Copyright (c) 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025 Simon Lydell",
+      "> Copyright (c) 2017-present, Yuxi (Evan) You",
+      "> Copyright (c) 2022 Anton Kastritskiy",
+      "> Copyright 2018 Rich Harris",
+      "> Copyright (c) Pooya Parsa <pooya@pi0.io>",
+      "> Copyright (c) Luke Edwards <luke.edwards05@gmail.com> (https://lukeed.com)",
+      "> Copyright (c) 2014-2018, Jon Schlinkert.",
+      "> Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)",
+      "> Copyright (c) 2014-2017 TJ Holowaychuk <tj@vision-media.ca>",
+      "> Copyright (c) 2018-2021 Josh Junon",
+      "> Copyright (c) 2013 Jonathan Ong <me@jongleberry.com>",
+      "> Copyright (c) 2014 Douglas Christopher Wilson <doug@somethingdoug.com>",
+      "> Copyright (c) 2013-2019 Ivan Nikulin (ifaaan@gmail.com, https://github.com/inikulin)",
+      "> Copyright (c) 2014 Jonathan Ong <me@jongleberry.com>",
+      "> Copyright (c) 2019 Rich Harris",
+      "> Copyright (c) 2021-2024 Oleksii Raspopov, Kostiantyn Denysov, Anton Verinov",
+      "> Copyright (c) 2014 Maxime Thirouin, Jason Campbell & Kevin Mårtensson",
+      "> Copyright 2015-present Alexander Madyankin <alexander@madyankin.name>",
+      "> Copyright 2015 Glen Maddern",
+      "> Copyright 2015 Mark Dalgleish <mark.john.dalgleish@gmail.com>",
+      "> Copyright (c) 2015, Glen Maddern",
+      "> Copyright (c) Ben Briggs <beneb.info@gmail.com> (http://beneb.info)",
+      "> Copyright (c) Bogdan Chadkin <trysound@yandex.ru>",
+      "> Copyright (c) 2012-2019 Thorsten Lorenz, Paul Miller (https://paulmillr.com)",
+      "> Copyright (c) Luke Edwards <luke.edwards05@gmail.com> (lukeed.com)",
+      "> Copyright (c) 2013 James Halliday (mail@substack.net)",
+      "> Copyright (c) 2016 Douglas Christopher Wilson <doug@somethingdoug.com>",
+      "> Copyright (c) 2022 Anthony Fu <https://github.com/antfu>",
+      "> Copyright (c) 2024 Tinylibs",
+      "> Copyright (c) 2015-present, Jon Schlinkert.",
+      "> Copyright (c) 2015 Douglas Christopher Wilson <doug@somethingdoug.com>",
+      "> Copyright (c) 2014 Nathan Rajlich <nathan@tootallnate.net>",
+      "> Copyright (c) 2013-2017 Jared Hanson",
+      "> Copyright (c) 2014-2017 Douglas Christopher Wilson",
+      "> Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>",
+      "> Copyright (c) 2013 Arnout Kazemier and contributors",
+      "> Copyright (c) 2016 Luigi Pinca and contributors",
+      "> Copyright (c) 2023 [these people](https://github.com/Rich-Harris/zimmerframe/graphs/contributors)"
+    ],
+    "modules": [
+      "\u0000vite/modulepreload-polyfill.js",
+      "\u0000vite/preload-helper.js"
+    ]
+  },
+  {
+    "name": "zustand",
+    "version": "5.0.16",
+    "license": "MIT",
+    "copyright": [
+      "Copyright (c) 2019 Paul Henschel"
+    ],
+    "modules": [
+      "node_modules/zustand/esm/index.mjs",
+      "node_modules/zustand/esm/react.mjs",
+      "node_modules/zustand/esm/traditional.mjs",
+      "node_modules/zustand/esm/vanilla.mjs"
+    ]
+  }
+]
