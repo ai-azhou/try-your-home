@@ -6,7 +6,7 @@ import { create } from 'zustand'
 import { parsePlanText, serializePlan } from '@/core/io'
 import { useStore } from './store'
 import { dicts } from './i18n'
-import { analysePaste, chatIssuesText, chatPlanText, keepUnderlays, planForChat, truncatedChatText, type PasteResult } from './chat-text'
+import { analysePaste, chatIssuesText, chatPlanText, failedChatText, keepUnderlays, planForChat, shapeChatText, truncatedChatText, type PasteResult } from './chat-text'
 
 export type ChatView = 'paste' | 'issues' | 'plan'
 interface ChatState {
@@ -54,10 +54,8 @@ export function openChatIssuesFor(text: string) {
 /** 「复制问题给 Chat」的完整文字 */
 export function issuesTextNow(): string {
   const c = useChat.getState(), base = useStore.getState().base
-  if (c.issuesFrom === 'failed' && c.result) {
-    const r = c.result
-    return chatIssuesText({ plan: r.parsed && r.parsed.plan.walls.length + r.parsed.plan.rooms.length ? r.parsed.plan : null, issues: r.parsed?.issues ?? [], raw: r.raw, note: c.note, extracted: r.extracted })
-  }
+  // 没载入的那段：格式根本不对 → 简版模板；简版有错 → 简版问题 + 规则和模板；其余 → 完整格式的问题清单（D7）
+  if (c.issuesFrom === 'failed' && c.result) return failedChatText(c.result, c.note)
   if (!base) return chatIssuesText({ plan: null, issues: [], note: c.note })
   // 走一遍文件边界（序列化 + parsePlanText）：格式和几何问题都和 Chat 那边看到的 v3 文件一致
   const text = serializePlan(base)
@@ -95,7 +93,9 @@ export function applyPaste() {
   closeChat()
   useChat.setState({ text: '', result: null, note: '' })
   const n = useStore.getState().base!
-  s.showToast(fmt(tt.loaded, { w: n.walls.length, o: n.openings.length, r: n.rooms.length }) + (kept.length ? tt.keptUnderlay : ''))
+  // 简版（D7）：提示写明墙和门洞是自动生成的、没有窗户，并展开「简版方案」说明条
+  if (r.simple) useStore.getState().setSimpleNote(true)
+  s.showToast(fmt(r.simple ? tt.loadedSimple : tt.loaded, { w: n.walls.length, o: n.openings.length, r: n.rooms.length }) + (kept.length ? tt.keptUnderlay : ''))
 }
 
 /* ───────── 复制（经得起没有剪贴板权限的环境） ───────── */
@@ -125,6 +125,8 @@ export async function copyForChat(text: string, key: string, view?: ChatView): P
 
 export const copyTruncated = (at: number) => copyForChat(truncatedChatText(at), 'truncated')
 export const copyIssues = () => copyForChat(issuesTextNow(), 'issues')
+/** 格式根本不对：粘贴结果框里的主按钮「复制简版模板给 Chat」（D7） */
+export const copyShape = (reasons: string[]) => copyForChat(shapeChatText(reasons, useChat.getState().note), 'shape')
 
 /** 「复制方案给 Chat」：不带底图编码的 v3 JSON（底图 src 换回文件名） */
 export function planTextNow(): string | null {

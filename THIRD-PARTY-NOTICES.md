@@ -2024,7 +2024,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ## lucide-react 1.63.0
 
-模块 / 资产：82 个；精确路径见 web-modules.json。
+模块 / 资产：85 个；精确路径见 web-modules.json。
 
 来源：node_modules/lucide-react/LICENSE
 

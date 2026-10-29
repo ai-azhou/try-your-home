@@ -11,6 +11,7 @@ import { isEmptyPlan, loadError } from '@/core/persistence'
 import { applyChanges } from '@/core/changes'
 import { polygonArea, wallLength, effectiveWallHeight } from '@/core/geometry'
 import { levelsOf } from '@/core/levels'
+import { diagnoseShape, isSimplePlan, simpleFormatChatText, SIMPLE_RULES, SIMPLE_TEMPLATE } from '@/core/simple'
 
 /* ───────── 1. 从粘贴的文字里找 JSON ───────── */
 
@@ -130,10 +131,14 @@ export interface PasteResult {
   extracted: Extracted
   /** core 解析结果；只有找到完整 JSON 时才有 */
   parsed?: ReturnType<typeof parsePlanText>
-  /** 挡住载入的原因：core loadError 的文字，或 'none' / 'incomplete' / 'syntax' / 'empty'（解析出来是空方案）；null = 可以载入 */
+  /** 挡住载入的原因：core loadError 的文字，或 'none' / 'incomplete' / 'syntax' / 'empty'（解析出来是空方案）/ 'shape'（格式根本不对）；null = 可以载入 */
   fatal: string | null
   /** 原始 JSON 值（v3，mm）：格式错误时 parsed.plan 是空方案，靠它找字段路径对应的构件 id、算房间面积 */
   raw?: unknown
+  /** D7：粘的是简版格式（网页 Chat 专用：只有房间和门，墙和门洞由 core 自动生成） */
+  simple?: boolean
+  /** D7：格式根本不对（core diagnoseShape）时的短句原因；有它就不载入、不列字段错误，改给 Chat 简版模板 */
+  shape?: string[]
 }
 export function analysePaste(text: string): PasteResult {
   const extracted = extractPlanJson(text)
@@ -141,9 +146,45 @@ export function analysePaste(text: string): PasteResult {
   const parsed = parsePlanText(extracted.json)
   let raw: unknown
   try { raw = JSON.parse(extracted.json) } catch { /* extract 已保证能解析 */ }
+  const simple = isSimplePlan(raw)
+  // 格式根本不对（多半是 Chat 写不对完整格式）：放在格式 / 几何错误之前，不列一长串字段错误，改让 Chat 用简版重写。
+  // 合法 v3 和能转出墙的旧格式 diagnoseShape 返回 wrong=false，不受影响；「rooms 有、walls 空」的 v3 在这里拦下
+  if (!simple) {
+    const d = diagnoseShape(raw)
+    if (d.wrong) return { extracted, parsed, raw, fatal: 'shape', shape: d.reasons }
+  }
   const fatal = loadError(parsed.issues)
   // 不是方案的 JSON（比如 {"a":1}）会被当成旧格式转成空方案：不能拿空方案替换当前方案
-  return { extracted, parsed, raw, fatal: fatal ?? (isEmptyPlan(parsed.plan) ? 'empty' : null) }
+  return { extracted, parsed, raw, simple, fatal: fatal ?? (isEmptyPlan(parsed.plan) ? 'empty' : null) }
+}
+
+/* ───────── 2b. 简版（D7）：格式不对 → 给 Chat 简版模板；简版有阻断错误 → 问题 + 简版规则和模板 ───────── */
+
+/** 格式根本不对时复制给 Chat 的文字：core 的 simpleFormatChatText，用户补的一句接在最后 */
+export function shapeChatText(reasons: string[], note?: string): string {
+  const said = note?.trim()
+  return simpleFormatChatText(reasons) + (said ? `\n\n我还想说：${said}` : '') + '\n'
+}
+
+export const SIMPLE_FIRST_LINE = '请按下面的问题修改简版方案，改完重新输出完整的简版 JSON（一个代码块），不要改用别的格式。'
+/** 简版有阻断错误：第一行固定那句 + 问题列表 + 简版规则和模板（规则、模板只用 core 常量） */
+export function simpleIssuesText(issues: Issue[], note?: string): string {
+  const list = issues.filter(i => i.level === 'error' || i.level === 'warn')
+  const nE = list.filter(i => i.level === 'error').length
+  const lines = [SIMPLE_FIRST_LINE, '', `## 问题：${nE} 条错误、${list.length - nE} 条提醒`]
+  list.slice(0, 30).forEach((i, k) => lines.push(`${k + 1}. [${i.level === 'error' ? '错误' : '提醒'}] ${i.message}`))
+  if (list.length > 30) lines.push(`……另有 ${list.length - 30} 条，先改上面这些`)
+  const said = note?.trim()
+  if (said) lines.push('', '## 我还想说', said)
+  lines.push('', '## 简版规则', ...SIMPLE_RULES.map((r, i) => `${i + 1}. ${r}`), '', '## 简版模板（照这个结构写）', '```json', SIMPLE_TEMPLATE, '```', '', '只输出一个 ```json 代码块。')
+  return lines.join('\n') + '\n'
+}
+
+/** 没载入的那段文字该复制什么：格式不对 → 简版模板；简版有错 → 简版问题；其余 → 完整格式的问题清单 */
+export function failedChatText(r: PasteResult, note?: string): string {
+  if (r.shape) return shapeChatText(r.shape, note)
+  if (r.simple && r.parsed) return simpleIssuesText(r.parsed.issues, note)
+  return chatIssuesText({ plan: r.parsed && r.parsed.plan.walls.length + r.parsed.plan.rooms.length ? r.parsed.plan : null, issues: r.parsed?.issues ?? [], raw: r.raw, note, extracted: r.extracted })
 }
 
 /* ───────── 3. 「复制问题给 Chat」 ───────── */

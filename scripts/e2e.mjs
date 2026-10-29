@@ -927,6 +927,202 @@ await step('T2-9 手机：空状态入口、粘贴对话框、错误、文件菜
 })
 await pc.close()
 
+/* ═════════ D7 简版格式（界面）：粘贴简版 / 说明条 + 「简版」标记 / 格式不对给简版模板 / 简版有错 ═════════ */
+const outD7 = path.join(root, '.shots/D7')
+fs.mkdirSync(outD7, { recursive: true })
+const shotD7 = (pg, f) => pg.screenshot({ path: path.join(outD7, f) })
+const { SIMPLE_TEMPLATE, SIMPLE_RULES } = await import('../src/core/simple.ts')
+// 虚构的弱模型失败样本（任务书原文）
+const WEAK = '{"floorplan-structure":"version 3","layout":{"rooms":[{"name":"客厅","poly":[[0,0],[5000,0],[5000,4000],[0,4000]],"area":20,"type":"living"}],"walls":[],"doors":[{"from":"客厅","to":"卧室"}]}}'
+const simpleReply = json => `好的，按简版格式整理如下：\n\n\`\`\`json\n${json}\n\`\`\`\n`
+const d7state = pg => S(pg, () => { const s = window.__fss.store.getState(); return { title: s.base?.title, walls: s.base?.walls.length, openings: s.base?.openings.length, windows: s.base?.openings.filter(o => /window/.test(o.kind)).length, rooms: s.base?.rooms.length, source: s.base?.meta?.source, note: s.simpleNote, tool: s.tool, kind: s.openingKind, toast: s.toast, sel: s.sel, dirty: s.dirty } })
+const visible = (pg, sel) => pg.$eval(sel, e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden' }).catch(() => false)
+async function pasteVia(pg, text) {
+  await pg.waitForSelector('[data-testid=chat-sheet]', { hidden: true })
+  await pg.click('[data-testid=file-menu]'); await pg.waitForSelector('[data-testid=menu-paste]')
+  await pg.click('[data-testid=menu-paste]'); await pg.waitForSelector('[data-testid=chat-paste-input]'); await sleep(500)
+  await fillPaste(pg, text)
+}
+const pd = await newPage()
+const D7 = {}
+
+await step('D7-1 粘贴简版模板 → 载入（墙 > 0、门洞 4、窗 0）；说明条醒目可见', pd, async () => {
+  await pd.goto(BASE + '/?state=empty', { waitUntil: 'networkidle0' })
+  await pd.waitForSelector('[data-testid=empty-paste]'); await sleep(300)
+  await pd.click('[data-testid=empty-paste]'); await pd.waitForSelector('[data-testid=chat-paste-input]'); await sleep(450)
+  await fillPaste(pd, simpleReply(SIMPLE_TEMPLATE)); await sleep(700)
+  const s = await d7state(pd)
+  assert(s.walls > 0 && s.openings === 4 && s.windows === 0 && s.rooms === 5, `载入结果 ${JSON.stringify(s)}`)
+  assert(s.source === 'floorplan-simple', `meta.source ${s.source}`)
+  assert(s.toast === `已载入简版方案：${s.walls} 面墙、4 个门洞、5 个房间（墙和门洞是自动生成的），没有窗户`, `提示「${s.toast}」`)
+  await pd.waitForSelector('[data-testid=simple-banner]')
+  const text = await pd.$eval('[data-testid=simple-banner]', e => e.innerText)
+  assert(text.includes('简版方案') && text.includes('墙和门洞是工具按房间自动生成的，没有窗户。') && text.includes('不是提示词或工具的问题') && text.includes('装了 Skill 的 Agent 版'), `说明条 ${text}`)
+  assert(await visible(pd, '[data-testid=simple-mark]'), '标题区没有「简版」标记')
+  // 说明条不压住平面、不和右侧卡 / 顶栏重叠
+  const geo = await S(pd, () => {
+    const r = document.querySelector('[data-testid=simple-banner]').getBoundingClientRect()
+    const b = window.__fss.planBounds(window.__fss.store.getState().base)
+    const a = window.__plan2screen([b.x0 ?? b[0], b.y0 ?? b[1]])
+    return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, planTop: a[1] }
+  })
+  assert(geo.top >= 80 && geo.right < W - 392, `说明条位置 ${JSON.stringify(geo)}`)
+  assert(geo.planTop > geo.bottom, `平面被说明条压住：平面顶 ${geo.planTop}，说明条底 ${geo.bottom}`)
+  await sleep(1800) // 等提示消失再截图
+  await shotD7(pd, 'D7-01-desktop-banner.png')
+  D7.walls = s.walls
+  return `${s.walls} 面墙、${s.openings} 个门洞、窗 ${s.windows}；${s.toast}`
+})
+
+await step('D7-2 收起 → 标题区「简版」标记；点标记再展开；怎么补窗 → 开始加窗；问题卡能定位', pd, async () => {
+  await pd.click('[data-testid=simple-collapse]'); await sleep(500)
+  assert(!(await pd.$('[data-testid=simple-banner]')), '收起后说明条还在')
+  assert(await visible(pd, '[data-testid=simple-mark]'), '收起后没有「简版」标记')
+  await shotD7(pd, 'D7-02-desktop-collapsed.png')
+  await pd.click('[data-testid=simple-mark]'); await pd.waitForSelector('[data-testid=simple-banner]'); await sleep(400)
+  assert((await d7state(pd)).note, '点标记没展开')
+  // 怎么补窗：说明里写实际入口，「开始加窗」直接进门窗工具、类型选窗
+  await pd.click('[data-testid=simple-how-window]'); await pd.waitForSelector('[data-testid=simple-how]'); await sleep(350)
+  const how = await pd.$eval('[data-testid=simple-how]', e => e.innerText)
+  assert(how.includes('门窗') && how.includes('窗'), `怎么补窗 ${how}`)
+  await shotD7(pd, 'D7-03-desktop-how-window.png')
+  await pd.click('[data-testid=simple-start-window]'); await sleep(400)
+  const s = await d7state(pd)
+  assert(s.tool === 'opening' && s.kind === 'window' && !s.note, `开始加窗后 ${JSON.stringify({ tool: s.tool, kind: s.kind, note: s.note })}`)
+  assert(!(await pd.$('[data-testid=simple-banner]')), '工具激活时说明条应让开')
+  await pd.keyboard.press('Escape'); await sleep(200)
+  // 问题卡：simple-windows、simple-entry 都在待核对列表里；入户门那张能定位到门
+  const list = await S(pd, () => document.body.innerText)
+  assert(list.includes('这是简版方案：窗户没有读出来') && list.includes('入户门放在了『客餐厅』'), '待核对列表里没有简版问题卡')
+  await S(pd, () => [...document.querySelectorAll('button')].find(b => b.innerText.includes('入户门放在了'))?.click()); await sleep(500)
+  await S(pd, () => [...document.querySelectorAll('button')].find(b => b.innerText.startsWith('问的是'))?.click()); await sleep(300)
+  const sel = (await d7state(pd)).sel
+  const entry = await S(pd, () => window.__fss.store.getState().base.questions.find(q => q.id === 'simple-entry').targets[0])
+  assert(sel.length === 1 && sel[0].id === entry, `定位到 ${JSON.stringify(sel)}，应为 ${entry}`)
+  await shotD7(pd, 'D7-04-desktop-question-entry.png')
+  await pd.keyboard.press('Escape'); await pd.keyboard.press('Escape'); await sleep(200)
+  return `标记可点；开始加窗 → 门窗工具 / 窗；问题卡定位到 ${entry}`
+})
+
+await step('D7-3 导出 JSON 存盘 → 刷新（自动保存恢复）→「简版」标记还在', pd, async () => {
+  const since = Date.now()
+  await pd.click('[data-testid=file-menu]'); await pd.waitForSelector('[data-testid=menu-export]')
+  await pd.click('[data-testid=menu-export]')
+  const f = await waitFile(downloads, /\.json$/, since - 1000)
+  const saved = JSON.parse(fs.readFileSync(f, 'utf8'))
+  assert(saved.version === 3 && saved.meta?.source === 'floorplan-simple', `存出的文件 v${saved.version} source=${saved.meta?.source}`)
+  await sleep(600)
+  await pd.goto(BASE + '/', { waitUntil: 'networkidle0' }); await sleep(1200)
+  const s = await d7state(pd)
+  assert(s.source === 'floorplan-simple' && s.walls === D7.walls, `刷新后 ${JSON.stringify(s)}`)
+  assert(await visible(pd, '[data-testid=simple-mark]'), '刷新后没有「简版」标记')
+  // 打开刚存的文件（完整 v3，meta.source 记着简版来源）：标记照样在；说明条和刷新一样保持收起，点标记再看
+  await pickFileVia(pd, 'menu-open', f); await sleep(700)
+  assert(await visible(pd, '[data-testid=simple-mark]'), '打开存盘文件后没有「简版」标记')
+  await shotD7(pd, 'D7-05-desktop-reloaded.png')
+  return `${path.basename(f)}：meta.source=floorplan-simple；刷新、重新打开后标记都在`
+})
+
+await step('D7-4 弱模型失败样本 → 不载入；「格式不对」；复制简版模板给 Chat', pd, async () => {
+  const before = (await d7state(pd)).title
+  await pasteVia(pd, '这是方案：\n```json\n' + WEAK + '\n```')
+  await pd.waitForSelector('[data-testid=chat-shape]')
+  const box = await pd.$eval('[data-testid=chat-shape]', e => e.innerText)
+  assert(box.includes('格式不对，工具读不了') && box.includes('多半是 Chat 写不对完整格式'), `结果框 ${box}`)
+  const reasons = await pd.$$eval('[data-testid=chat-shape-reasons] li', l => l.length)
+  assert(reasons >= 1 && reasons <= 4 && !box.includes('字段 '), `原因 ${reasons} 条：${box}`)
+  assert((await d7state(pd)).title === before, '格式不对的方案替换了当前方案')
+  await pd.click('[data-testid=chat-copy-shape]'); await sleep(300)
+  const clip = await readClip(pd)
+  assert(clip.includes('floorplan-simple') && clip.includes('只输出一个 ```json 代码块'), `复制的文字 ${clip.slice(0, 200)}`)
+  fs.writeFileSync(path.join(outD7, 'D7-copy-shape.txt'), clip)
+  await shotD7(pd, 'D7-06-desktop-shape.png')
+  // 复制问题页的预览也是这段
+  await pd.click('[data-testid=chat-to-issues]'); await pd.waitForSelector('[data-testid=chat-issues-preview]'); await sleep(300)
+  const pv = await pd.$eval('[data-testid=chat-issues-preview]', e => e.innerText)
+  const label = await pd.$eval('[data-testid=chat-copy-issues]', e => e.innerText)
+  assert(pv.includes('floorplan-simple') && pv.includes('不要再写完整格式了') && label.includes('复制简版模板给 Chat'), `预览 / 按钮 ${label}`)
+  await shotD7(pd, 'D7-07-desktop-shape-preview.png')
+  await pd.keyboard.press('Escape'); await sleep(300)
+  return clip.split('\n').slice(0, 3).join(' / ')
+})
+
+await step('D7-5 简版有阻断错误（poly 只有两个点）→ 不载入；复制的文字第一行固定、含模板', pd, async () => {
+  const before = (await d7state(pd)).title
+  const bad = JSON.parse(SIMPLE_TEMPLATE); bad.title = '坏简版'; bad.rooms[0].poly = [[0, 0], [3600, 0]]
+  await pasteVia(pd, simpleReply(JSON.stringify(bad, null, 2)))
+  await pd.waitForSelector('[data-testid=chat-simple-failed]')
+  const box = await pd.$eval('[data-testid=chat-simple-failed]', e => e.innerText)
+  assert(box.includes('简版方案有错误，没有载入') && box.includes('至少要 3 个点'), `结果框 ${box}`)
+  assert((await d7state(pd)).title === before, '有错误的简版替换了当前方案')
+  await shotD7(pd, 'D7-08-desktop-simple-failed.png')
+  await pd.click('[data-testid=chat-to-issues]'); await pd.waitForSelector('[data-testid=chat-copy-issues]'); await sleep(300)
+  await pd.click('[data-testid=chat-copy-issues]'); await sleep(300)
+  const clip = await readClip(pd)
+  assert(clip.split('\n')[0].startsWith('请按下面的问题修改简版方案'), `第一行 ${clip.split('\n')[0]}`)
+  assert(clip.includes(SIMPLE_TEMPLATE) && SIMPLE_RULES.every(r => clip.includes(r)), '没附简版规则和模板')
+  fs.writeFileSync(path.join(outD7, 'D7-copy-simple-failed.txt'), clip)
+  await pd.keyboard.press('Escape'); await sleep(300)
+  return clip.split('\n')[0]
+})
+
+await step('D7-6 打开格式不对的文件 → 不载入；提示条「复制问题给 Chat」给简版模板', pd, async () => {
+  const before = (await d7state(pd)).title
+  const weakFile = path.join(downloads, 'd7-weak.json'); fs.writeFileSync(weakFile, WEAK)
+  await pd.waitForSelector('[data-testid=chat-sheet]', { hidden: true })
+  await pickFileVia(pd, 'menu-open', weakFile); await sleep(500)
+  await pd.waitForSelector('[data-testid=notice]')
+  const notice = await pd.$eval('[data-testid=notice]', e => e.innerText)
+  assert(notice.includes('格式不对') && notice.includes('复制问题给 Chat'), `提示条 ${notice}`)
+  assert((await d7state(pd)).title === before, '格式不对的文件替换了当前方案')
+  await pd.click('[data-testid=notice-primary]'); await pd.waitForSelector('[data-testid=chat-copy-issues]'); await sleep(300)
+  await pd.click('[data-testid=chat-copy-issues]'); await sleep(300)
+  const clip = await readClip(pd)
+  assert(clip.includes('floorplan-simple') && clip.includes('只输出一个 ```json 代码块'), `复制的文字 ${clip.slice(0, 200)}`)
+  await pd.keyboard.press('Escape'); await sleep(300)
+  return notice.split('\n')[0]
+})
+
+await step('D7-7 合法 v3 照旧能载入，没有简版说明条和标记', pd, async () => {
+  await pasteVia(pd, chatReply(v3text)); await sleep(300)
+  if (await pd.$('[data-testid=chat-replace]')) { await pd.click('[data-testid=chat-replace]'); await sleep(500) }
+  await sleep(400)
+  const s = await d7state(pd)
+  assert(s.walls === 6 && s.title === '虚构冒烟户型' && s.source !== 'floorplan-simple', `载入 ${JSON.stringify(s)}`)
+  assert(!(await pd.$('[data-testid=simple-banner]')) && !(await pd.$('[data-testid=simple-mark]')), '合法 v3 出现了简版说明条 / 标记')
+  return `${s.title}：${s.walls} 面墙，无简版标记`
+})
+await pd.close()
+
+await step('D7-8 手机 390×844：说明条完整显示、不挡主要操作；标记不挤掉方案名', page, async () => {
+  const pm = await newPage(390, 844, 2)
+  await pm.goto(BASE + '/?state=empty', { waitUntil: 'networkidle0' }); await sleep(700)
+  await pm.click('[data-testid=empty-paste]'); await pm.waitForSelector('[data-testid=chat-paste-input]'); await sleep(700)
+  await fillPaste(pm, simpleReply(SIMPLE_TEMPLATE)); await sleep(900)
+  await pm.waitForSelector('[data-testid=simple-banner]')
+  const g = await S(pm, () => {
+    const rect = s => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom } }
+    const name = [...document.querySelectorAll('[data-testid=file-menu] span[title]')][0]
+    return { banner: rect('[data-testid=simple-banner]'), mark: rect('[data-testid=simple-mark]'), menu: rect('[data-testid=file-menu]'), dock: rect('[data-testid=tool-more]'), seg: rect('[data-testid=mode-original]'),
+      name: name ? { text: name.textContent, clipped: name.scrollWidth > name.clientWidth + 1 } : null, wide: document.documentElement.scrollWidth <= window.innerWidth, vw: window.innerWidth }
+  })
+  assert(g.banner.l >= 0 && g.banner.r <= g.vw && g.banner.t >= 120, `说明条位置 ${JSON.stringify(g.banner)}`)
+  assert(g.dock && g.banner.b < g.dock.t - 120, `说明条压到底部工具坞 / 下一步条：${g.banner.b} vs ${g.dock?.t}`)
+  assert(g.mark && g.mark.t >= g.menu.b, '标记不在第二行')
+  assert(g.name && g.name.text === '我家' && !g.name.clipped, `方案名被挤：${JSON.stringify(g.name)}`)
+  assert(g.wide, '手机上横向溢出')
+  await sleep(1800)
+  await shotD7(pm, 'D7-M1-mobile-banner.png')
+  await pm.click('[data-testid=simple-collapse]'); await sleep(600)
+  assert(await visible(pm, '[data-testid=simple-mark]') && !(await pm.$('[data-testid=simple-banner]')), '手机收起后')
+  await shotD7(pm, 'D7-M2-mobile-collapsed.png')
+  await pasteVia(pm, '```json\n' + WEAK + '\n```')
+  await pm.waitForSelector('[data-testid=chat-shape]'); await sleep(400)
+  await shotD7(pm, 'D7-M3-mobile-shape.png')
+  await pm.close()
+  return `说明条 ${Math.round(g.banner.t)}–${Math.round(g.banner.b)} px；方案名「${g.name.text}」完整`
+})
+
 await browser.close()
 try { process.kill(srvPid, 'SIGTERM') } catch {}
 

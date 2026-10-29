@@ -5,7 +5,7 @@ import type { Change, Evidence, Opening, OpeningKind, Plan, Vec2, Wall, WallKind
 import { distance, dot, effectiveWallHeight, projectToWall, wallDir, wallLength, wallNormal } from './geometry.ts'
 
 export interface ImportReport {
-  source: 'legacy' | 'v2'
+  source: 'legacy' | 'v2' | 'simple'
   counts: Record<string, number>
   approximations: string[]
   unsupported: string[]

@@ -9,6 +9,7 @@ import { FloatingConfirm, NextStep, NoticeBar, RightColumn, Toast, ZoomBar } fro
 import { QuestionPopover } from './panels/Questions'
 import { AgentSheet } from './panels/AgentSheet'
 import { ChatSheet } from './panels/ChatSheet'
+import { SimpleBanner } from './panels/SimpleNote'
 import { useChat } from './chat'
 import { EmptyState } from './panels/EmptyState'
 import { useIsMobile } from './layout'
@@ -261,6 +262,7 @@ export default function App() {
               <NextStep />
               {!mobile && <ZoomBar />}
               <Compass />
+              <SimpleBanner />
               {mobile && <div className="pointer-events-none absolute left-[64px] top-[124px] z-30"><LevelSwitch /></div>}
               {!mobile && <QuestionPopover />}
               {dragOver && <div className="pointer-events-none absolute inset-3 z-[70] rounded-[36px] border-2 border-dashed border-mint-400 bg-mint-50/40 backdrop-blur-[2px]" />}

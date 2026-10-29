@@ -313,3 +313,56 @@ core/mesh `buildMesh` 已消费 footprint：弧玻璃/门扇每扇一块连续�
 node scripts/plan.ts cameras fixtures/example-v2.json
 node scripts/plan.ts cameras fixtures/example-v2.json --all --level L1
 ```
+
+## 简版格式（工具的导入格式，Skill 不用）
+
+**Agent / Skill 一律输出完整 v3，不要输出简版；简版只给网页 Chat 用，提示词在 see-your-home 的 chat/read-prompt.md**
+
+简版是单层、毫米制的导入格式，不是完整方案的另一种保存格式。`src/core/simple.ts` 提供模板、规则、识别、转换和复制给 Chat 的纠错文字；工具导入后仍用原来的内存 Plan（version 2，平面 mm、高度 m），`serializePlan` 保存成完整 v3。
+
+### 字段与标准形状
+
+| 字段 | 说明 |
+| --- | --- |
+| `format` / `version` | 固定为 `"floorplan-simple"` / `1` |
+| `title?` | 方案名，缺省「简版方案」 |
+| `rooms[]` | 非空数组；每项必须有不重复的 `name`，可有 `id` |
+| `rooms[].rect` | `[左上角 x, 左上角 y, 宽, 深]`，宽、深大于 0 |
+| `rooms[].poly` | 顺序顶点 `[[x,y],…]`，至少三点，不重复首点、不退化、不自交；和 rect 二选一 |
+| `doors[]` | `{between:[A,B],open?:true}`；A、B 引用房间 name 或 id |
+
+所有长度 mm，x 向右、y 向下。相邻房间共用边的坐标应相同，房间不重叠、不留缝。户外可写「外面」「室外」「户外」或 `outside`，通常写 `{"between":["客餐厅","外面"]}`。`open:true` 表示两间房之间敞开，没有墙和门洞。不要写 walls、windows 或楼层；窗户由用户在工具里补。
+
+规范模板与六条规则分别以 `SIMPLE_TEMPLATE`、`SIMPLE_RULES` 为准；`simpleFormatChatText(reasons)` 返回整段可交给 Chat 的提示词。`schema/simple.schema.json` 为 JSON Schema 2020-12，与完整方案 schema 一起由 `node schema/generate.ts`（或 `node scripts/plan.ts schema`）生成。schema 描述标准形状，允许额外字段；以下非标准写法由转换器宽容处理，不扩大标准 schema。
+
+### 宽容与阻断
+
+每种修正均记入 `notes`，通过导入报告的 `approximations` 提供给界面：
+
+- 顶层仅一个键、其对象值带简版 format 时，拆掉这一层。
+- `"floorplan-simple":1` 或 `"floorplan-simple":"version 1"` 也能识别；version 缺失或字符串 `"1"` 按 1 读取，其他版本报错。
+- 忽略多余字段，键名汇总一次；room 的 id 不是多余字段。poly 的 `{x,y}`、rect 的 `{x,y,w,h}` / `{x,y,width,height}` 转成数组。
+- 门的 `{from,to}` 转成 between。重名改成「卧室」「卧室 2」等，原重名引用按第一间房。
+- 所有输入坐标及 rect 尺寸绝对值都 ≤100 时，统一乘 1000，同时生成「坐标像是米，已按毫米 ×1000 换算，请核对尺寸」问题卡。
+
+缺少或空 rooms、缺 name、rect 非四个有限数或宽深不正、poly 少于三点、非有限/字符串坐标、自交或退化多边形都会阻断；同时给 rect 和 poly 也阻断。错误使用简版路径和房名，如 `rooms[2]（厨房）.poly：至少要 3 个点`。`simpleToPlan` 返回 `plan:null`；`parsePlanText` 维持现有失败形状，返回 `emptyPlan()` 和 error issues。
+
+### 自动补全规则
+
+1. 顶点以 `SIMPLE_SNAP=150` mm 就近聚类取平均，附近顶点投影到其他房间边上，再按顶点切开边，处理 T 接头。聚类不合并同房间两个顶点，组内两点不跨过容差；会造成自交/退化的吸附撤回并记 note。
+2. 两间及以上房间共用的小段生成 partition 隔墙，厚 `DEFAULTS.thickness.partition=120` mm；单间房边生成 exterior 外墙，厚 240 mm。房间边当墙中心线。共线、相连、同类型段合并，保留各段所属房间用于定位门。open 关系的共用边直接移除，不生成墙或洞口。
+3. 普通门宽 900 mm、洞底 0、洞顶内存 2.1 m（保存为 2100 mm），在两房最长连续共用段中间；offset 从合并墙 a 端量。两端各留至少 100 mm，空间不足缩宽；缩到小于 600 mm 则不生成，给 warn 和问题卡。
+4. 入户门宽 1000 mm、`entry:true`，在指定房间最长的外墙范围中间；同长时按输入边顺序选择。合并墙邻接多房时只用该房所属范围。加 `simple-entry` 问题卡，targets 指向门，说明位置是工具猜的；房间没有外墙则不生成并警告。户外引用在前也能识别；`open:true` 仅用于两房关系，户外关系仍按入户门处理。
+5. 房间不存在、两端同房、没有共用边、门放不下，均按原 `doors[i]` 给 warn 与问题卡，不阻断其他房间。重复门或与先前门重叠时跳过后者；同一关系同时有 open 和普通门时，敞开优先。
+6. 净面为吸附后的多边形减去所有墙占地矩形的并集（polygon-clipping difference），取面积最大块、去共线点。墙占地逐步合并，每步量化到 0.000001 mm，避免斜墙交接的浮点碎片。敞开边不内缩。扣墙后没有有效净面时省略该房间并给 warn/问题卡；如果重叠造成净面内孔，用 0.01 mm 细缝连到外缘，避免单环 Room.poly 填回已扣除的墙体，并记 note。
+7. 房间 id 默认 `r1`、`r2`…，有效显式 id 保留；为避免全局重复，生成 id 避开显式房间 id。重复/无效 id 或占用 `simple-` 问题卡前缀时自动换名并记录。墙、门洞、房间证据统一 `{certainty:'inferred',basis:'简版格式自动生成'}`（`SIMPLE_BASIS`）。层高取 `DEFAULTS.ceiling`。
+
+问题卡 category 都是 original，编号稳定。固定 `simple-windows`（unknown）提醒补窗。吸附后每对房间重叠超过 0.05 m²，生成 `simple-overlap-N`，带交集 bbox 和两房 targets；房间并集内孔超过 0.1 m²，生成 `simple-hole-N`。外墙平行相对、间距在 (150,600] mm、投影重叠至少 300 mm，且中间没有房间占用，生成 `simple-gap-N`，带 bbox、两房 targets 和毫米缝宽。另有入户门、失败门、米换算等问题卡。
+
+转换结束运行 `validatePlan`。`parsePlanText` 在完整 v2/v3 和 legacy 之前识别简版，报告 `source:'simple'`，填充 counts、approximations、warnings。生成方案带 `meta.source='floorplan-simple'`（`SIMPLE_FORMAT`）；现有 v3 schema 的 meta.source 允许任意字符串，因此保存、重读后仍能用 `isSimpleDerived(plan)` 判断简版来源。
+
+### 格式根本不对的诊断
+
+`diagnoseShape(value)` 接受 JSON.parse 后原始对象，返回 `{wrong:boolean,reasons:string[]}`；不替代字段或几何校验。识别为简版时直接不判 wrong，简版自己的错误走转换器。完整 v2/v3 标记正确、walls/openings/beams/rooms/questions/changes 六数组齐全且不是「rooms 非空、walls 为空」，不判 wrong。`fromLegacy` 能转换出至少一面墙（包括自由墙、洞口宿主）的旧格式也不误判。
+
+其余对象按条件逐条返回短中文原因：顶层非对象；缺 format/version；把 floorplan-structure 写成键（带实际键值）；无顶层 walls/rooms 但子对象含它们（带实际外层键名）；rooms 非空却没有墙；顶层或外层含 doors 数组，或 openings 只有 from/to 关系而无 wall/offset/width。`simpleFormatChatText` 用这些原因、六条规则和模板拼成重试提示；没有原因时省略错误段，直接请求用简版重新输出。

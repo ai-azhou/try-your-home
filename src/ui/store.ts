@@ -80,6 +80,8 @@ interface State {
   saving: boolean
   /** 底图的原文件名（键 main = underlay，其余 = levelUnderlays 的楼层 id）。底图存成 data URL 后文件名就丢了，「复制方案给 Chat」要把 src 换回文件名（T2） */
   underlayNames: Record<string, string>
+  /** D7：「简版方案」说明条展开着（载入简版时展开；收起后顶栏只留「简版」标记，点它再展开）。只在 isSimpleDerived(base) 时有意义 */
+  simpleNote: boolean
 }
 
 type EditOpts = { key?: string; confirmed?: boolean; select?: Ref | null; silent?: boolean }
@@ -115,6 +117,7 @@ interface Actions {
   setRoomPoly(p: Vec2[] | null): void
   setCalib(p: Vec2[] | null): void
   setSheetTall(b: boolean): void
+  setSimpleNote(b: boolean): void
   /** 编辑：原始模式把 Change 烘进 base（纠正读图）；改造模式追加进 changes。受保护墙先弹二次确认 */
   edit(changes: Change[], opts?: EditOpts): boolean
   /** 拖动：开始时记一步历史，过程中反复替换，结束时（改造态受保护墙）再确认 */
@@ -214,6 +217,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
   hist: emptyHist(),
   dirty: false,
   underlayNames: {},
+  simpleNote: false,
   loadFailure: null,
   saveState: 'idle',
   source: { kind: 'none' },
@@ -268,7 +272,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
     const error = p && planWriteError(p, true)
     if (error) { set({ loadFailure: error, booting: false }); get().showToast(error); return }
     lastKey = null; tx = null
-    set(s => ({ loadFailure: null, base: p, booting: false, sel: [], hover: null, qOpen: null, mode: 'original', tool: 'select', measure: null, level: p?.levels?.some(l => l.id === s.level) ? s.level : null, fitNonce: s.fitNonce + 1, camNonce: s.camNonce + 1, dragOver: false, hist: emptyHist(), dirty: false, underlayNames: underlayNamesOf(p), source, report, confirm: null, notice: null, draw: { anchor: null, cursor: null, start: null }, roomPoly: null, calib: null, layers: { ...s.layers, underlay: !!p?.underlay?.visible } }))
+    set(s => ({ loadFailure: null, base: p, booting: false, sel: [], hover: null, qOpen: null, mode: 'original', tool: 'select', measure: null, level: p?.levels?.some(l => l.id === s.level) ? s.level : null, fitNonce: s.fitNonce + 1, camNonce: s.camNonce + 1, dragOver: false, hist: emptyHist(), dirty: false, underlayNames: underlayNamesOf(p), source, report, confirm: null, notice: null, draw: { anchor: null, cursor: null, start: null }, roomPoly: null, calib: null, simpleNote: false, layers: { ...s.layers, underlay: !!p?.underlay?.visible } }))
   },
   revertChange: id => set(s => {
     if (!s.base) return {}
@@ -288,6 +292,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
   setRoomPoly: roomPoly => set({ roomPoly }),
   setCalib: calib => set({ calib }),
   setSheetTall: sheetTall => set({ sheetTall }),
+  setSimpleNote: simpleNote => set({ simpleNote }),
 
   edit: (changes, opts = {}) => {
     const s = get()

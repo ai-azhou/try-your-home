@@ -51,3 +51,20 @@ const schema = {
   $defs: defs,
 }
 writeFileSync('schema/plan.schema.json', JSON.stringify(schema, null, 2) + '\n')
+
+// Canonical Chat import shape; forgiving variants are normalized by core/simple.ts.
+const simpleSchema = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  $id: 'urn:floorplan-simple:v1',
+  title: '简版户型（网页 Chat 导入格式）',
+  description: '单层，所有长度 mm；Agent / Skill 使用完整 floorplan-structure v3。允许额外字段，导入时忽略并记录。',
+  ...object({
+    format: { const: 'floorplan-simple' }, version: { const: 1 }, title: { ...str, default: '简版方案' },
+    rooms: array({
+      ...object({ id, name: id, rect: tuple([num, num, positive, positive]), poly: array(tuple([num, num]), 3) }, ['name'], true),
+      oneOf: [{ required: ['rect'], not: { required: ['poly'] } }, { required: ['poly'], not: { required: ['rect'] } }],
+    }, 1),
+    doors: array(object({ between: { ...tuple([id, id]), description: '房间 name 或 id；户外用 外面、室外、户外 或 outside' }, open: { const: true } }, ['between'], true)),
+  }, ['format', 'version', 'rooms', 'doors'], true),
+}
+writeFileSync('schema/simple.schema.json', JSON.stringify(simpleSchema, null, 2) + '\n')

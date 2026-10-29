@@ -268,7 +268,8 @@ export function Toast() {
     <AnimatePresence>
       {toast && (
         <motion.div key={toast} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }}
-          className={cn('pointer-events-none absolute left-1/2 z-[90] -translate-x-1/2 whitespace-nowrap rounded-full bg-ink-900/92 px-4 py-2.5 text-[13px] font-medium text-white shadow-xl backdrop-blur-md', mobile ? 'bottom-[156px]' : 'bottom-[88px]')}>
+          // 手机上长提示（比如「已载入简版方案：…」）换行，不出屏
+          className={cn('pointer-events-none absolute left-1/2 z-[90] -translate-x-1/2 bg-ink-900/92 px-4 py-2.5 text-[13px] font-medium text-white shadow-xl backdrop-blur-md', mobile ? 'bottom-[156px] w-max max-w-[calc(100vw-24px)] rounded-[20px] text-center leading-snug' : 'bottom-[88px] whitespace-nowrap rounded-full')}>
           {toast}
         </motion.div>
       )}

@@ -10,7 +10,7 @@ import { Pill, RoundButton } from '../kit'
 import { fmt } from '../i18n'
 import { useIsMobile } from '../layout'
 import { cn } from '@/lib/utils'
-import { applyPaste, closeChat, copyIssues, copyPlan, copyTruncated, issuesTextNow, openPaste, planTextNow, submitPaste, useChat } from '../chat'
+import { applyPaste, closeChat, copyIssues, copyPlan, copyShape, copyTruncated, issuesTextNow, openPaste, planTextNow, submitPaste, useChat } from '../chat'
 import { issueLines, truncatedChatText } from '../chat-text'
 
 export function ChatSheet() {
@@ -143,8 +143,24 @@ function PasteView() {
           <Pill tone="ink" size="sm" onClick={() => useChat.setState({ view: 'issues', issuesFrom: 'failed', copied: null })} data-testid="chat-to-issues"><MessageSquareText size={14} />{t.chat.copyIssues}</Pill>
         </Callout>
       )}
-      {ex?.kind === 'ok' && result?.fatal && result.fatal !== 'empty' && (
-        <Callout testId="chat-failed" title={fmt(t.chat.failed, { kind })} sub={t.chat.failedSub}>
+      {/* D7：格式根本不对 → 不列字段错误，只列几条短原因，主按钮直接复制简版模板 */}
+      {ex?.kind === 'ok' && result?.fatal === 'shape' && result.shape && (
+        <Callout testId="chat-shape" title={t.chat.shape} sub={t.chat.shapeSub}>
+          {result.shape.length > 0 && (
+            <ul className="mb-3 flex flex-col gap-1.5" data-testid="chat-shape-reasons">
+              {result.shape.slice(0, 4).map((r, i) => (
+                <li key={i} className="flex gap-2 text-[12.5px] leading-snug text-ink-800"><span className="mt-[7px] size-1.5 shrink-0 rounded-full bg-lemon-600" /><span className="min-w-0 break-words">{r}</span></li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <CopyBtn k="shape" label={t.chat.copyShape} size="sm" onClick={() => void copyShape(result.shape!)} testId="chat-copy-shape" />
+            <Pill tone="plain" size="sm" onClick={() => useChat.setState({ view: 'issues', issuesFrom: 'failed', copied: null })} data-testid="chat-to-issues">{t.chat.shapePreview}</Pill>
+          </div>
+        </Callout>
+      )}
+      {ex?.kind === 'ok' && result?.fatal && result.fatal !== 'empty' && result.fatal !== 'shape' && (
+        <Callout testId={result.simple ? 'chat-simple-failed' : 'chat-failed'} title={result.simple ? t.chat.simpleFailed : fmt(t.chat.failed, { kind })} sub={result.simple ? t.chat.simpleFailedSub : t.chat.failedSub}>
           <ol className="mb-3 flex flex-col gap-1.5" data-testid="chat-errors">
             {(errs.length ? errs : lines).slice(0, SHOW).map((l, i) => (
               <li key={i} className="flex gap-2 text-[12.5px] leading-snug text-ink-800"><span className="num mt-px shrink-0 text-[11px] font-bold text-lemon-800">{i + 1}</span><span className="min-w-0 break-words">{l.text}</span></li>
@@ -181,6 +197,8 @@ function IssuesView() {
   const mobile = useIsMobile()
   const [preview, setPreview] = useState(!mobile)
   const text = useMemo(() => issuesTextNow(), [note, from, result, base])
+  // D7：没载入的那段是「格式不对」或「简版有错」：标题、摘要、按钮换成简版的说法
+  const shape = from === 'failed' && !!result?.shape, simple = from === 'failed' && !shape && !!result?.simple
   // 摘要：数一下文字里写了什么（和复制出去的一致）
   const nErr = (text.match(/^\d+\. \[错误\]/gm) ?? []).length, nWarn = (text.match(/^\d+\. \[提醒\]/gm) ?? []).length
   const nRooms = (text.split('## 各房间面积')[1]?.split('\n## ')[0].match(/^- /gm) ?? []).length
@@ -188,11 +206,11 @@ function IssuesView() {
   const chip = (label: string, tone: 'lemon' | 'mint' | 'gray') => <span className={cn('num inline-flex h-7 items-center rounded-full px-2.5 text-[12px] font-semibold', tone === 'lemon' ? 'bg-lemon-200 text-lemon-800' : tone === 'mint' ? 'bg-mint-100 text-mint-700' : 'bg-ink-100 text-ink-600')}>{label}</span>
   return (
     <>
-      <Head icon={<MessageSquareText size={21} strokeWidth={2.2} />} a={t.chat.issuesA} b={t.chat.issuesB} sub={t.chat.issuesSub} />
+      <Head icon={<MessageSquareText size={21} strokeWidth={2.2} />} a={t.chat.issuesA} b={t.chat.issuesB} sub={shape ? t.chat.shapeSub : t.chat.issuesSub} />
       <div className="-mt-1 flex flex-wrap items-center gap-1.5" data-testid="chat-issues-summary">
-        <span className="mr-1 text-[12px] font-medium text-ink-500">{from === 'failed' ? t.chat.fromFailed : t.chat.fromCurrent}</span>
-        {nErr || nWarn ? <>{nErr > 0 && chip(fmt(t.chat.sumErr, { n: nErr }), 'lemon')}{nWarn > 0 && chip(fmt(t.chat.sumWarn, { n: nWarn }), 'gray')}</> : chip(t.chat.sumClean, 'mint')}
-        {chip(fmt(t.chat.sumRooms, { n: nRooms }), 'gray')}
+        <span className="mr-1 text-[12px] font-medium text-ink-500">{shape ? t.chat.fromShape : simple ? t.chat.fromSimple : from === 'failed' ? t.chat.fromFailed : t.chat.fromCurrent}</span>
+        {shape ? chip(t.chat.sumShape, 'lemon') : nErr || nWarn ? <>{nErr > 0 && chip(fmt(t.chat.sumErr, { n: nErr }), 'lemon')}{nWarn > 0 && chip(fmt(t.chat.sumWarn, { n: nWarn }), 'gray')}</> : chip(t.chat.sumClean, 'mint')}
+        {shape || simple ? chip(t.chat.sumTemplate, 'gray') : chip(fmt(t.chat.sumRooms, { n: nRooms }), 'gray')}
         {nQ > 0 && chip(fmt(t.chat.sumQ, { n: nQ }), 'lemon')}
       </div>
       <label className="block">
@@ -214,7 +232,7 @@ function IssuesView() {
         {from === 'failed' && <button onClick={openPaste} className="flex items-center gap-1 text-[12.5px] font-semibold text-ink-500 hover:text-ink-800"><ArrowLeft size={14} />{t.chat.back}</button>}
         <span className="flex-1" />
         {from === 'current' && base && <CopyBtn k="plan" tone="tile" label={t.chat.copyPlan} onClick={() => void copyPlan(true)} testId="chat-copy-plan" />}
-        <CopyBtn k="issues" size="lg" label={t.chat.copyIssues} onClick={() => void copyIssues()} testId="chat-copy-issues" className="min-w-[180px]" />
+        <CopyBtn k="issues" size="lg" label={shape ? t.chat.copyShape : t.chat.copyIssues} onClick={() => void copyIssues()} testId="chat-copy-issues" className="min-w-[180px]" />
       </div>
       <AnimatePresence>{copiedIssues && <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="-mt-2 text-right text-[12px] font-medium text-mint-700">{t.chat.done}</motion.div>}</AnimatePresence>
     </>

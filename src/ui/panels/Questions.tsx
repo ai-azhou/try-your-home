@@ -13,6 +13,7 @@ import { fmt } from '../i18n'
 import { polyPath, underlayHref } from '../geom'
 import { wallFootprint } from '@/core/geometry'
 import { cn } from '@/lib/utils'
+import { isSimpleDerived } from '@/core/simple'
 
 function useImageSize(src?: string) {
   const [s, setS] = useState<[number, number] | null>(null)
@@ -57,7 +58,7 @@ export function QuestionList() {
         <span className="grid size-11 place-items-center rounded-full bg-lemon-200 text-ink-900 shadow-[inset_0_1px_0_rgb(255_255_255/0.6)]"><CircleQuestionMark size={20} strokeWidth={2.2} /></span>
         <div className="flex-1">
           <div className="text-[17px] font-semibold tracking-[-0.01em] text-ink-900">{t.q.title} <span className="num font-normal text-ink-400">{pending.length}</span></div>
-          <div className="text-[12px] font-medium text-ink-400">{pending.length ? (useStore.getState().lang === 'zh' ? 'Agent 读图时拿不准的地方' : 'Where the agent wasn’t sure') : t.q.allDone}</div>
+          <div className="text-[12px] font-medium text-ink-400">{pending.length ? (isSimpleDerived(base) ? t.simple.qSub : useStore.getState().lang === 'zh' ? 'Agent 读图时拿不准的地方' : 'Where the agent wasn’t sure') : t.q.allDone}</div>
         </div>
         <RoundButton size="sm" tone="plain" onClick={() => setPanel(null)} aria-label="close"><X size={16} /></RoundButton>
       </div>

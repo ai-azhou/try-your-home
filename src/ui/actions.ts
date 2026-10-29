@@ -14,6 +14,7 @@ import { mockPlan } from './mock'
 import { loadError, planWriteError } from '@/core/persistence'
 import { findEl } from './model'
 import { openChatIssuesFor } from './chat'
+import { diagnoseShape, isSimplePlan } from '@/core/simple'
 
 const st = () => useStore.getState()
 const t = () => dicts[st().lang]
@@ -231,6 +232,17 @@ function rejectLoad(message: string, text?: string) {
     { label: t().act.dismiss, run: () => st().setNotice(null) },
   ] })
 }
+function shapeProblem(text: string): string[] | null {
+  let raw: unknown
+  try { raw = JSON.parse(text.replace(/^\uFEFF/, '')) } catch { return null }
+  if (isSimplePlan(raw)) return null
+  const d = diagnoseShape(raw)
+  return d.wrong ? d.reasons : null
+}
+function simpleLoadError(issues: { level: string; message: string }[]): string {
+  const errors = issues.filter(i => i.level === 'error')
+  return `${t().chat.simpleFailed}：\n${errors.slice(0, 3).map(i => i.message).join('\n')}${errors.length > 3 ? `\n${fmt(t().chat.more, { n: errors.length - 3 })}` : ''}`
+}
 function writeBlocked(): boolean {
   const s = st(), error = s.loadFailure ? '上次载入失败，不能保存或导出。请修复文件后重新载入；原文件保持不变。' : planWriteError(s.base)
   if (error) { s.showToast(error); return true }
@@ -238,8 +250,12 @@ function writeBlocked(): boolean {
 }
 export function openPlanText(text: string, source: Source, opts: { keepView?: boolean } = {}): boolean {
   const r = parsePlanText(text)
+  // 格式根本不对（D7，和粘贴同一条判断，放在格式 / 几何错误之前）：不载入；提示条「复制问题给 Chat」给的是简版模板
+  const shape = shapeProblem(text)
+  if (shape) { rejectLoad(`${t().chat.shape}：${shape.slice(0, 2).join('；')}`, text); return false }
   const fatal = loadError(r.issues)
-  if (fatal) { rejectLoad(fatal, text); return false }
+  // 简版有阻断错误：core 的 message 已经是简版路径，提示里别写成「方案文件有几何错误」（D7）
+  if (fatal) { rejectLoad(r.report.source === 'simple' ? simpleLoadError(r.issues) : fatal, text); return false }
   const plan = r.plan
   // 本地服务模式知道真实路径；浏览器里打开的文件只知道文件名，方案里已有路径就不覆盖
   if (source.file && (source.kind === 'served' || !plan.meta?.planFile)) plan.meta = { ...plan.meta, planFile: source.file }
@@ -248,6 +264,12 @@ export function openPlanText(text: string, source: Source, opts: { keepView?: bo
   prev.loadPlan(plan, source, r.report)
   if (keep) useStore.setState({ mode: keep.mode, main: keep.main, sel: keep.sel.filter(ref => findEl(plan, ref)), fitNonce: prev.fitNonce, camNonce: prev.camNonce })
   const n = r.report.approximations.length
+  // 简版（D7）：不弹「已转换旧格式」，改展开「简版方案」说明条 + 提示数量
+  if (r.report.source === 'simple') {
+    st().setSimpleNote(opts.keepView ? prev.simpleNote : true)
+    if (!opts.keepView) st().showToast(fmt(t().chat.loadedSimple, { w: plan.walls.length, o: plan.openings.length, r: plan.rooms.length }))
+    return true
+  }
   if (r.report.source !== 'v2' && !opts.keepView) {
     st().setNotice(n
       ? { text: fmt(t().importApprox, { n }), actions: [{ label: t().act.details, primary: true, run: () => { st().setNotice(null); st().setPanel('report') } }, { label: t().act.dismiss, run: () => st().setNotice(null) }] }
@@ -303,7 +325,8 @@ export async function handleFiles(files: FileList | File[] | null | undefined) {
   if (!f) return
   if (/\.json$/i.test(f.name) || f.type === 'application/json') {
     const ok = openPlanText(await f.text(), { kind: 'file', file: f.name })
-    if (ok) st().showToast(fmt(t().opened, { name: f.name }))
+    // 简版文件（D7）：openPlanText 已经给了「已载入简版方案：…」，不拿「已打开」盖掉
+    if (ok && st().report?.source !== 'simple') st().showToast(fmt(t().opened, { name: f.name }))
   } else if (/^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(f.name)) await importImage(f)
   else st().showToast(t().badFile)
 }

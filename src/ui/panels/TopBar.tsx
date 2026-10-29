@@ -15,6 +15,7 @@ import { GlobalExport } from '../export/GlobalExport'
 import { planStats } from '@/core/summary'
 import { enterDecor } from '../decor/actions'
 import { DecorTitle } from '../decor/Chrome'
+import { SimpleMark } from './SimpleNote'
 
 export function AppMark({ size = 30 }: { size?: number }) {
   return <span aria-hidden="true" className="app-mark shrink-0" style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: tryMark }} />
@@ -147,6 +148,8 @@ export function TopBar() {
         </div>
         {base && (
           <div className="pointer-events-auto flex items-center gap-2">
+            {/* 简版标记放第二行：第一行方案胶囊已经很挤，放那里会把方案名挤没（D7） */}
+            <SimpleMark compact />
             <Glass className="min-w-0 flex-1 rounded-full">
               <Segmented value={mode} onChange={m => setMode(m)} options={modes} />
             </Glass>
@@ -159,7 +162,7 @@ export function TopBar() {
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-40 flex h-[80px] items-center gap-3 px-5">
-      <div className="pointer-events-auto flex min-w-0 flex-1 items-center"><FileMenu /></div>
+      <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-2.5"><FileMenu />{base && <SimpleMark />}</div>
       {base && (
         <motion.div initial={{ y: -12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.05 }}>
           <div className="pointer-events-auto flex items-center gap-3">

@@ -902,6 +902,10 @@
       "renderedLength": 365
     },
     {
+      "id": "node_modules/lucide-react/dist/esm/icons/chevron-up.mjs",
+      "renderedLength": 351
+    },
+    {
       "id": "node_modules/lucide-react/dist/esm/icons/circle-question-mark.mjs",
       "renderedLength": 616
     },
@@ -1030,6 +1034,10 @@
       "renderedLength": 889
     },
     {
+      "id": "node_modules/lucide-react/dist/esm/icons/pencil-ruler.mjs",
+      "renderedLength": 904
+    },
+    {
       "id": "node_modules/lucide-react/dist/esm/icons/pencil.mjs",
       "renderedLength": 500
     },
@@ -1095,7 +1103,7 @@
     },
     {
       "id": "node_modules/lucide-react/dist/esm/icons/square.mjs",
-      "renderedLength": 372
+      "renderedLength": 376
     },
     {
       "id": "node_modules/lucide-react/dist/esm/icons/trash.mjs",
@@ -1130,12 +1138,16 @@
       "renderedLength": 682
     },
     {
+      "id": "node_modules/lucide-react/dist/esm/icons/wand-sparkles.mjs",
+      "renderedLength": 924
+    },
+    {
       "id": "node_modules/lucide-react/dist/esm/icons/x.mjs",
       "renderedLength": 350
     },
     {
       "id": "node_modules/lucide-react/dist/esm/lucide-react.mjs",
-      "renderedLength": 1535
+      "renderedLength": 1600
     },
     {
       "id": "node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs",
@@ -2275,7 +2287,7 @@
     },
     {
       "id": "src/core/changes.ts",
-      "renderedLength": 15296
+      "renderedLength": 15326
     },
     {
       "id": "src/core/decor/cabinets.ts",
@@ -2287,15 +2299,15 @@
     },
     {
       "id": "src/core/decor/elevation.ts",
-      "renderedLength": 8467
+      "renderedLength": 8473
     },
     {
       "id": "src/core/decor/embed.ts",
-      "renderedLength": 7040
+      "renderedLength": 7046
     },
     {
       "id": "src/core/decor/faces.ts",
-      "renderedLength": 4749
+      "renderedLength": 4761
     },
     {
       "id": "src/core/decor/furniture.ts",
@@ -2327,7 +2339,7 @@
     },
     {
       "id": "src/core/decor/resolve.ts",
-      "renderedLength": 15867
+      "renderedLength": 15877
     },
     {
       "id": "src/core/decor/solids.ts",
@@ -2335,7 +2347,7 @@
     },
     {
       "id": "src/core/decor/surfaces.ts",
-      "renderedLength": 14142
+      "renderedLength": 14148
     },
     {
       "id": "src/core/decor/validate.ts",
@@ -2347,11 +2359,11 @@
     },
     {
       "id": "src/core/edit.ts",
-      "renderedLength": 11970
+      "renderedLength": 11974
     },
     {
       "id": "src/core/geometry.ts",
-      "renderedLength": 11519
+      "renderedLength": 11567
     },
     {
       "id": "src/core/handoff.ts",
@@ -2363,11 +2375,11 @@
     },
     {
       "id": "src/core/io.ts",
-      "renderedLength": 6039
+      "renderedLength": 6574
     },
     {
       "id": "src/core/legacy.ts",
-      "renderedLength": 16113
+      "renderedLength": 16163
     },
     {
       "id": "src/core/levels.ts",
@@ -2375,7 +2387,7 @@
     },
     {
       "id": "src/core/measure.ts",
-      "renderedLength": 4161
+      "renderedLength": 4195
     },
     {
       "id": "src/core/mirror-frame.ts",
@@ -2402,8 +2414,12 @@
       "renderedLength": 648
     },
     {
+      "id": "src/core/simple.ts",
+      "renderedLength": 23226
+    },
+    {
       "id": "src/core/solids.ts",
-      "renderedLength": 12112
+      "renderedLength": 12118
     },
     {
       "id": "src/core/summary.ts",
@@ -2419,7 +2435,7 @@
     },
     {
       "id": "src/core/walls.ts",
-      "renderedLength": 3373
+      "renderedLength": 3377
     },
     {
       "id": "src/lib/empty-module.ts",
@@ -2479,11 +2495,11 @@
     },
     {
       "id": "src/ui/actions.ts",
-      "renderedLength": 19219
+      "renderedLength": 20241
     },
     {
       "id": "src/ui/App.tsx",
-      "renderedLength": 13342
+      "renderedLength": 13414
     },
     {
       "id": "src/ui/canvas2d/labels.ts",
@@ -2491,7 +2507,7 @@
     },
     {
       "id": "src/ui/canvas2d/PlanCanvas.tsx",
-      "renderedLength": 54584
+      "renderedLength": 54678
     },
     {
       "id": "src/ui/canvas2d/PlanLayers.tsx",
@@ -2503,11 +2519,11 @@
     },
     {
       "id": "src/ui/chat-text.ts",
-      "renderedLength": 14988
+      "renderedLength": 16528
     },
     {
       "id": "src/ui/chat.ts",
-      "renderedLength": 4692
+      "renderedLength": 4667
     },
     {
       "id": "src/ui/data.ts",
@@ -2615,7 +2631,7 @@
     },
     {
       "id": "src/ui/i18n.ts",
-      "renderedLength": 28059
+      "renderedLength": 30847
     },
     {
       "id": "src/ui/kit/extra-icons.tsx",
@@ -2647,7 +2663,7 @@
     },
     {
       "id": "src/ui/panels/ChatSheet.tsx",
-      "renderedLength": 20678
+      "renderedLength": 22625
     },
     {
       "id": "src/ui/panels/Compass.tsx",
@@ -2655,7 +2671,7 @@
     },
     {
       "id": "src/ui/panels/Context.tsx",
-      "renderedLength": 34519
+      "renderedLength": 34590
     },
     {
       "id": "src/ui/panels/Diagrams.tsx",
@@ -2675,7 +2691,11 @@
     },
     {
       "id": "src/ui/panels/Questions.tsx",
-      "renderedLength": 14827
+      "renderedLength": 14882
+    },
+    {
+      "id": "src/ui/panels/SimpleNote.tsx",
+      "renderedLength": 7416
     },
     {
       "id": "src/ui/panels/Stage.tsx",
@@ -2687,7 +2707,7 @@
     },
     {
       "id": "src/ui/panels/TopBar.tsx",
-      "renderedLength": 24671
+      "renderedLength": 24860
     },
     {
       "id": "src/ui/render-plan.ts",
@@ -2695,7 +2715,7 @@
     },
     {
       "id": "src/ui/store.ts",
-      "renderedLength": 15242
+      "renderedLength": 15340
     },
     {
       "id": "src/ui/underlay-art.ts",

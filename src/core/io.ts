@@ -5,6 +5,7 @@ import type { Plan } from './types.ts'
 import { validatePlanFile } from './schema.ts'
 import { validatePlan } from './validate.ts'
 import { emptyPlan, fromLegacy, importReport } from './legacy.ts'
+import { isSimplePlan, simpleToPlan } from './simple.ts'
 export { emptyPlan } from './legacy.ts'
 export function newId(plan: Plan, prefix: string): string {
   const ids = new Set([...plan.walls, ...plan.openings, ...plan.beams, ...plan.rooms, ...plan.questions, ...plan.changes, ...(plan.levels ?? []), ...(plan.columns ?? []), ...(plan.shafts ?? []), ...(plan.stairs ?? []), ...(plan.voids ?? [])].flatMap(x => [x.id, ...('data' in x && x.data && typeof x.data.id === 'string' ? [x.data.id] : []), ...('group' in x && x.group ? [x.group] : [])]))
@@ -65,6 +66,13 @@ export function serializePlan(plan: Plan): string { return JSON.stringify(stable
 export function parsePlanText(text: string) {
   try {
     const value = JSON.parse(text.replace(/^\uFEFF/, ''))
+    if (isSimplePlan(value)) {
+      const converted = simpleToPlan(value), report = importReport('simple'), plan = converted.plan ?? emptyPlan()
+      report.approximations = converted.notes
+      report.counts = Object.fromEntries((['walls', 'openings', 'beams', 'rooms', 'questions', 'changes'] as const).map(k => [k, plan[k].length]))
+      report.warnings = converted.issues.filter(i => i.level === 'warn').map(i => i.message)
+      return { plan, report, issues: converted.issues }
+    }
     if (value?.format === 'floorplan-structure' || [2, 3].includes(value?.version)) {
       const report = importReport('v2')
       if (value.format !== 'floorplan-structure' || ![2, 3].includes(value.version) || !['walls', 'openings', 'beams', 'rooms', 'questions', 'changes'].every(k => Array.isArray(value[k]))) throw new Error('v2/v3 方案标记或构件数组不完整')

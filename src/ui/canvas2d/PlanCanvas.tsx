@@ -920,7 +920,8 @@ function QuestionAnchor({ xf }: { xf: Xf }) {
   const view = useView(), qOpen = useStore(s => s.qOpen)
   const q = view?.plan.questions.find(q => q.id === qOpen)
   useEffect(() => {
-    if (!q?.bbox) return
+    // 没有位置的问题（比如简版的「窗户没读出来」）：清掉上一张卡的锚点，问题卡回到画面中间
+    if (!q?.bbox) { if (q) window.dispatchEvent(new CustomEvent('q-anchor', { detail: null })); return }
     const c: Vec2 = [(q.bbox[0] + q.bbox[2]) / 2, (q.bbox[1] + q.bbox[3]) / 2]
     window.dispatchEvent(new CustomEvent('q-anchor', { detail: { x: xf.x + c[0] * xf.k, y: xf.y + c[1] * xf.k } }))
   })

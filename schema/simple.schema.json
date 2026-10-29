@@ -1,0 +1,138 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:floorplan-simple:v1",
+  "title": "简版户型（网页 Chat 导入格式）",
+  "description": "单层，所有长度 mm；Agent / Skill 使用完整 floorplan-structure v3。允许额外字段，导入时忽略并记录。",
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "floorplan-simple"
+    },
+    "version": {
+      "const": 1
+    },
+    "title": {
+      "type": "string",
+      "default": "简版方案"
+    },
+    "rooms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rect": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
+            ],
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "poly": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            },
+            "minItems": 3
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": true,
+        "oneOf": [
+          {
+            "required": [
+              "rect"
+            ],
+            "not": {
+              "required": [
+                "poly"
+              ]
+            }
+          },
+          {
+            "required": [
+              "poly"
+            ],
+            "not": {
+              "required": [
+                "rect"
+              ]
+            }
+          }
+        ]
+      },
+      "minItems": 1
+    },
+    "doors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "between": {
+            "type": "array",
+            "prefixItems": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "string",
+                "minLength": 1
+              }
+            ],
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "房间 name 或 id；户外用 外面、室外、户外 或 outside"
+          },
+          "open": {
+            "const": true
+          }
+        },
+        "required": [
+          "between"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "required": [
+    "format",
+    "version",
+    "rooms",
+    "doors"
+  ],
+  "additionalProperties": true
+}
