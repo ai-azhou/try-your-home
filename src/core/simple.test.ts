@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import Ajv2020 from 'ajv/dist/2020.js'
 import { describe, expect, it } from 'vitest'
 import simpleSchema from '../../schema/simple.schema.json' with { type: 'json' }
-import { SIMPLE_FORMAT, SIMPLE_BASIS, SIMPLE_SNAP, SIMPLE_TEMPLATE, SIMPLE_RULES, isSimplePlan, simpleToPlan, diagnoseShape, simpleFormatChatText, isSimpleDerived } from './simple.ts'
+import { CHAT_REPLY_TAIL, SIMPLE_FORMAT, SIMPLE_BASIS, SIMPLE_SNAP, SIMPLE_TEMPLATE, SIMPLE_RULES, isSimplePlan, simpleToPlan, diagnoseShape, simpleFormatChatText, isSimpleDerived } from './simple.ts'
 import { parsePlanText, serializePlan, emptyPlan } from './io.ts'
 import { polygonArea, wallLength, openingSpan } from './geometry.ts'
 import { validatePlan } from './validate.ts'
@@ -335,7 +335,7 @@ describe('diagnoseShape 与 Chat 提示词', () => {
     const reasons = ['walls 是空的，只有房间', '外面多套了一层 layout'], text = simpleFormatChatText(reasons)
     for (const reason of reasons) expect(text).toContain(`- ${reason}\n`)
     SIMPLE_RULES.forEach((r, i) => expect(text).toContain(`${i + 1}. ${r}`))
-    expect(text).toContain(SIMPLE_TEMPLATE); expect(text).toContain('只输出一个 ```json 代码块。')
+    expect(text).toContain(SIMPLE_TEMPLATE); expect(text.endsWith(CHAT_REPLY_TAIL)).toBe(true); expect(text).not.toContain('只输出')
     expect(text.startsWith('你上次输出的方案 JSON 格式不对')).toBe(true)
   })
   it('无原因的提示词用指定开头，不附错误段落', () => {

@@ -11,7 +11,7 @@ import { fmt } from '../i18n'
 import { useIsMobile } from '../layout'
 import { cn } from '@/lib/utils'
 import { applyPaste, closeChat, copyIssues, copyPlan, copyShape, copyTruncated, issuesTextNow, openPaste, planTextNow, submitPaste, useChat } from '../chat'
-import { issueLines, truncatedChatText } from '../chat-text'
+import { issueLines, truncatedChatLead } from '../chat-text'
 
 export function ChatSheet() {
   const open = useChat(s => s.open), view = useChat(s => s.view)
@@ -134,7 +134,7 @@ function PasteView() {
       {ex?.kind === 'ok' && result?.fatal === 'empty' && <Callout testId="chat-empty" title={t.chat.empty} sub={t.chat.emptySub} />}
       {ex?.kind === 'incomplete' && (
         <Callout testId="chat-incomplete" title={t.chat.incomplete} sub={fmt(t.chat.incompleteSub, { n: ex.at })}>
-          <div className="tile-sunken mb-2.5 rounded-[14px] px-3 py-2 text-[12.5px] leading-relaxed text-ink-700" data-testid="chat-incomplete-text">{truncatedChatText(ex.at)}</div>
+          <div className="tile-sunken mb-2.5 rounded-[14px] px-3 py-2 text-[12.5px] leading-relaxed text-ink-700" data-testid="chat-incomplete-text">{truncatedChatLead(ex.at)}</div>
           <CopyBtn k="truncated" label={t.chat.copyToChat} size="sm" onClick={() => void copyTruncated(ex.at)} testId="chat-copy-truncated" />
         </Callout>
       )}

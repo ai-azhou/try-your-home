@@ -11,7 +11,7 @@ import { isEmptyPlan, loadError } from '@/core/persistence'
 import { applyChanges } from '@/core/changes'
 import { polygonArea, wallLength, effectiveWallHeight } from '@/core/geometry'
 import { levelsOf } from '@/core/levels'
-import { diagnoseShape, isSimplePlan, simpleFormatChatText, SIMPLE_RULES, SIMPLE_TEMPLATE } from '@/core/simple'
+import { CHAT_REPLY_TAIL, diagnoseShape, isSimplePlan, simpleFormatChatText, SIMPLE_RULES, SIMPLE_TEMPLATE } from '@/core/simple'
 
 /* ───────── 1. 从粘贴的文字里找 JSON ───────── */
 
@@ -123,7 +123,9 @@ export function extractPlanJson(raw: string): Extracted {
 }
 
 /** 截断时复制给 Chat 的那一句 */
-export const truncatedChatText = (at: number) => `你上次输出的方案 JSON 不完整（在第 ${at} 个字符附近断了），请重新输出完整的 JSON，只输出一个代码块`
+/** 对话框里只显示第一句；复制出去的带 core 的收尾（JSON 怎么放、去工具里看） */
+export const truncatedChatLead = (at: number) => `你上次输出的方案 JSON 不完整（在第 ${at} 个字符附近断了），请重新输出完整的 JSON。`
+export const truncatedChatText = (at: number) => `${truncatedChatLead(at)}\n\n${CHAT_REPLY_TAIL}`
 
 /* ───────── 2. 解析 + 校验（core parsePlanText 那一套，不碰界面状态） ───────── */
 
@@ -176,7 +178,7 @@ export function simpleIssuesText(issues: Issue[], note?: string): string {
   if (list.length > 30) lines.push(`……另有 ${list.length - 30} 条，先改上面这些`)
   const said = note?.trim()
   if (said) lines.push('', '## 我还想说', said)
-  lines.push('', '## 简版规则', ...SIMPLE_RULES.map((r, i) => `${i + 1}. ${r}`), '', '## 简版模板（照这个结构写）', '```json', SIMPLE_TEMPLATE, '```', '', '只输出一个 ```json 代码块。')
+  lines.push('', '## 简版规则', ...SIMPLE_RULES.map((r, i) => `${i + 1}. ${r}`), '', '## 简版模板（照这个结构写）', '```json', SIMPLE_TEMPLATE, '```', '', CHAT_REPLY_TAIL)
   return lines.join('\n') + '\n'
 }
 
@@ -345,6 +347,7 @@ export function chatIssuesText({ plan, issues, raw, note, extracted }: ChatIssue
 
   const said = note?.trim()
   if (said) lines.push('', '## 我还想说', said)
+  lines.push('', CHAT_REPLY_TAIL)
   return lines.join('\n') + '\n'
 }
 
@@ -371,7 +374,7 @@ export function planForChat(plan: Plan, names: Record<string, string> = {}): Pla
 export function chatPlanText(plan: Plan, names: Record<string, string> = {}): string {
   // 规范序列化（键排序、v3 mm）后压成一行：缩进版里坐标一个数一行，体积翻两三倍，长方案贴进 Chat 容易被截断
   const json = JSON.stringify(JSON.parse(serializePlan(planForChat(plan, names))))
-  return `这是我现在的方案 JSON（底图只写了文件名，图片我这边有）。请在它的基础上改，改完重新输出完整的 JSON（一个代码块）。\n\n\`\`\`json\n${json}\n\`\`\`\n`
+  return `这是我现在的方案 JSON（底图只写了文件名，图片我这边有）。请在它的基础上改，改完重新输出完整的 JSON。\n\n\`\`\`json\n${json}\n\`\`\`\n\n${CHAT_REPLY_TAIL}\n`
 }
 
 /**

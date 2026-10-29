@@ -803,8 +803,8 @@ await step('T2-4 粘贴截断的 JSON → 提示不完整，「复制给 Chat」
   assert(shown.includes('这段 JSON 不完整，可能是 Chat 的回复被截断了'), `提示 ${shown}`)
   await pc.click('[data-testid=chat-copy-truncated]'); await sleep(250)
   const clip = await readClip(pc)
-  const want = `你上次输出的方案 JSON 不完整（在第 ${at} 个字符附近断了），请重新输出完整的 JSON，只输出一个代码块`
-  assert(clip === want, `复制的是「${clip}」`)
+  const want = `你上次输出的方案 JSON 不完整（在第 ${at} 个字符附近断了），请重新输出完整的 JSON。`
+  assert(clip.startsWith(want + '\n\n') && clip.includes('看效果：复制下面整段 JSON') && !clip.includes('只输出'), `复制的是「${clip}」`)
   assert((await S(pc, () => window.__fss.store.getState().base.title)) === '第二轮', '截断的 JSON 替换了当前方案')
   await shotT2(pc, 'T2-05-incomplete.png')
   T2.truncClip = clip
@@ -1034,7 +1034,7 @@ await step('D7-4 弱模型失败样本 → 不载入；「格式不对」；复�
   assert((await d7state(pd)).title === before, '格式不对的方案替换了当前方案')
   await pd.click('[data-testid=chat-copy-shape]'); await sleep(300)
   const clip = await readClip(pd)
-  assert(clip.includes('floorplan-simple') && clip.includes('只输出一个 ```json 代码块'), `复制的文字 ${clip.slice(0, 200)}`)
+  assert(clip.includes('floorplan-simple') && clip.includes('看效果：复制下面整段 JSON') && !clip.includes('只输出'), `复制的文字 ${clip.slice(0, 200)}`)
   fs.writeFileSync(path.join(outD7, 'D7-copy-shape.txt'), clip)
   await shotD7(pd, 'D7-06-desktop-shape.png')
   // 复制问题页的预览也是这段
@@ -1078,7 +1078,7 @@ await step('D7-6 打开格式不对的文件 → 不载入；提示条「复制�
   await pd.click('[data-testid=notice-primary]'); await pd.waitForSelector('[data-testid=chat-copy-issues]'); await sleep(300)
   await pd.click('[data-testid=chat-copy-issues]'); await sleep(300)
   const clip = await readClip(pd)
-  assert(clip.includes('floorplan-simple') && clip.includes('只输出一个 ```json 代码块'), `复制的文字 ${clip.slice(0, 200)}`)
+  assert(clip.includes('floorplan-simple') && clip.includes('看效果：复制下面整段 JSON') && !clip.includes('只输出'), `复制的文字 ${clip.slice(0, 200)}`)
   await pd.keyboard.press('Escape'); await sleep(300)
   return notice.split('\n')[0]
 })

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { parsePlanText, serializePlan } from '../core/io.ts'
 import { analysePaste, chatIssuesText, chatPlanText, extractPlanJson, failedChatText, keepUnderlays, truncatedChatText, CHAT_FIRST_LINE, SIMPLE_FIRST_LINE } from './chat-text.ts'
-import { SIMPLE_RULES, SIMPLE_TEMPLATE, simpleFormatChatText } from '../core/simple.ts'
+import { CHAT_REPLY_TAIL, SIMPLE_RULES, SIMPLE_TEMPLATE, simpleFormatChatText } from '../core/simple.ts'
 
 const v3 = serializePlan(parsePlanText(readFileSync(new URL('../../fixtures/example-v2.json', import.meta.url), 'utf8')).plan)
 
@@ -103,7 +103,7 @@ describe('D7 简版：粘贴的三种情况', () => {
     const text = failedChatText(r)
     expect(text.trimEnd()).toBe(simpleFormatChatText(r.shape!).trimEnd())
     expect(text).toContain('floorplan-simple')
-    expect(text).toContain('只输出一个 ```json 代码块')
+    expect(text).toContain(CHAT_REPLY_TAIL)
   })
   it('rooms 有、walls 空的 v3 也按格式不对拦下；合法 v3 不受影响', () => {
     const roomsOnly = JSON.parse(v3); roomsOnly.walls = []; roomsOnly.openings = []
@@ -112,5 +112,18 @@ describe('D7 简版：粘贴的三种情况', () => {
     expect(ok.fatal).toBeNull()
     expect(ok.shape).toBeUndefined()
     expect(ok.simple).toBe(false)
+  })
+})
+
+describe('复制给 Chat 的文字都用 core 的收尾', () => {
+  it('不写「只输出一个」，结尾指回 try-your-home', () => {
+    const p = parsePlanText(v3).plan
+    const weak = analysePaste('{"floorplan-structure":"version 3","layout":{"rooms":[{"name":"客厅","poly":[[0,0],[5000,0],[5000,4000],[0,4000]]}],"walls":[]}}')
+    const texts = [truncatedChatText(1999), chatIssuesText({ plan: p, issues: [] }), chatPlanText(p), failedChatText(weak)]
+    for (const t of texts) {
+      expect(t.trimEnd().endsWith(CHAT_REPLY_TAIL)).toBe(true)
+      expect(t).not.toContain('只输出一个')
+    }
+    expect(analysePaste(chatPlanText(p)).fatal).toBeNull()
   })
 })

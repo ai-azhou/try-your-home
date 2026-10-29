@@ -371,9 +371,12 @@ export function diagnoseShape(value: unknown): { wrong: boolean; reasons: string
   return { wrong: reasons.length > 0, reasons }
 }
 
+/** 每段复制给 Chat 的文字都用这段收尾。只说 JSON 怎么放，不说「只输出」：推理一般的 Chat 会照最后一条消息做，把提示词要的使用段落挤掉；再把「去工具里看」说死，免得它说要自己渲染 */
+export const CHAT_REPLY_TAIL = 'JSON 放在一个 ```json 代码块里，从 { 到 } 完整输出，不要拆开。代码块前面先写一句：「看效果：复制下面整段 JSON，回到『改改你的家』（try-your-home），点『粘贴方案』贴进去。」不要自己画图、写 SVG / HTML 代码，也不要说要帮我渲染或预览：看 3D、看效果都在 try-your-home 里。'
+
 export function simpleFormatChatText(reasons: string[]): string {
   const intro = reasons.length
     ? `你上次输出的方案 JSON 格式不对，工具读不了：\n${reasons.map(r => `- ${r}`).join('\n')}\n\n不要再写完整格式了。请改用下面的「简版格式」重新输出：只写房间和门，墙和门洞由工具自动生成。`
     : '请改用下面的简版格式重新输出方案：只写房间和门，墙和门洞由工具自动生成。'
-  return `${intro}\n\n简版规则：\n${SIMPLE_RULES.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n\n简版模板（照这个结构写你家的房间和门）：\n\`\`\`json\n${SIMPLE_TEMPLATE}\n\`\`\`\n\n只输出一个 \`\`\`json 代码块。`
+  return `${intro}\n\n简版规则：\n${SIMPLE_RULES.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n\n简版模板（照这个结构写你家的房间和门）：\n\`\`\`json\n${SIMPLE_TEMPLATE}\n\`\`\`\n\n${CHAT_REPLY_TAIL}`
 }

@@ -2415,7 +2415,7 @@
     },
     {
       "id": "src/core/simple.ts",
-      "renderedLength": 23226
+      "renderedLength": 23431
     },
     {
       "id": "src/core/solids.ts",
@@ -2519,7 +2519,7 @@
     },
     {
       "id": "src/ui/chat-text.ts",
-      "renderedLength": 16528
+      "renderedLength": 16646
     },
     {
       "id": "src/ui/chat.ts",
