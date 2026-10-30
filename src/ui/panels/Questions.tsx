@@ -96,7 +96,7 @@ export function QuestionList() {
         <div data-testid="q-waiting">
           <div className="flex items-center gap-2 px-1 pb-1.5">
             <span className="text-[12px] font-semibold text-lav-600">{t.q.waiting} {waiting.length}</span>
-            <Pill tone="lav" size="sm" onClick={() => openAgent(true, true)} className="ml-auto h-7 gap-1.5 px-2.5 text-[12px]" data-testid="q-handoff"><Sparkles size={13} strokeWidth={2.3} />{fmt(t.q.handoffN, { n: waiting.length })}</Pill>
+            <Pill tone="lav" size="sm" onClick={() => openAgent(true, true)} className="ml-auto h-7 gap-1.5 px-2.5 text-[12px]" data-testid="q-handoff"><Sparkles size={13} strokeWidth={2.3} />{t.q.handoff}</Pill>
           </div>
           {waiting.map(q => <Row key={q.id} q={q} disc="bg-lav-100 text-lav-600" icon={<Hourglass size={12} strokeWidth={2.6} />} line={q.answer ?? ''} />)}
         </div>
@@ -261,7 +261,7 @@ export function QuestionCardBody({ onClose }: { onClose(): void }) {
       )}
       {status === 'answered' && !editing && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <Pill tone="ink" size="sm" onClick={() => openAgent(true, true)} className="gap-1.5" data-testid="q-card-handoff"><Sparkles size={13} strokeWidth={2.3} />{t.q.handoffOne}</Pill>
+          <Pill tone="ink" size="sm" onClick={() => openAgent(true, true)} className="gap-1.5" data-testid="q-card-handoff"><Sparkles size={13} strokeWidth={2.3} />{t.q.handoff}</Pill>
           <Pill tone="tile" size="sm" onClick={() => { setText(q.answer ?? ''); setEditing(true) }} data-testid="q-edit">{t.q.editAnswer}</Pill>
           <button onClick={() => resolveSelf(q.id)} className="ml-auto px-1 text-[12px] font-semibold text-ink-400 transition hover:text-ink-800" data-testid="q-self-done">{t.q.selfDone}</button>
         </div>

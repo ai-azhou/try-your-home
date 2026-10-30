@@ -1169,6 +1169,8 @@ await step('Q1 示例：待核对分三组；提示条说「已答 1 条」；�
   await pq.waitForSelector('[data-testid=q-waiting]'); await pq.waitForSelector('[data-testid=q-resolved]')
   const s = await qstate(pq)
   assert(/还有 2 处读图没把握，已答 1 条/.test(s.next), `提示条 ${s.next}`)
+  const handoffLabel = await pq.$eval('[data-testid=q-handoff]', e => e.innerText.trim())
+  assert(handoffLabel === '把答复交给 Agent', `组头按钮 ${handoffLabel}`)
   await pq.click('[data-testid=q-row-q-bay]'); await sleep(400)
   const card = await S(pq, () => { const c = document.querySelector('[data-testid=q-card]'); return { status: c?.dataset.status, agent: c?.querySelector('[data-testid=q-said-agent]')?.innerText ?? '' } })
   assert(card.status === 'resolved' && /飘窗台按 450 mm/.test(card.agent) && /已确认，没改/.test(card.agent), `卡片 ${JSON.stringify(card)}`)

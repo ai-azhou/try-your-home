@@ -2647,7 +2647,7 @@
     },
     {
       "id": "src/ui/i18n.ts",
-      "renderedLength": 33291
+      "renderedLength": 33159
     },
     {
       "id": "src/ui/kit/extra-icons.tsx",
@@ -2707,7 +2707,7 @@
     },
     {
       "id": "src/ui/panels/Questions.tsx",
-      "renderedLength": 24474
+      "renderedLength": 24440
     },
     {
       "id": "src/ui/panels/SimpleNote.tsx",
