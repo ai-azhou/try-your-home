@@ -9,7 +9,7 @@ import { Hotspot } from '../kit'
 import { C } from '../canvas2d/style'
 import { useDecor, type CabFamily } from './dstore'
 import type { DecorIssues } from './model'
-import type { Clear } from './plan-ctl'
+import type { Clear, Fit } from './plan-ctl'
 
 export function DecorPins({ xf, plan, issues }: { xf: { k: number; x: number; y: number }; plan: Plan; issues: DecorIssues }) {
   const sel = useDecor(s => s.sel)
@@ -35,11 +35,15 @@ export function DecorPins({ xf, plan, issues }: { xf: { k: number; x: number; y:
 }
 
 const DIR_LABEL: Record<Clear['dir'], string> = { l: '', r: '', u: '', d: '' }
-/** 拖家具：四个方向到墙面、到别的家具的净距（只给数，不判断够不够） */
-export function DragClearance({ cl, k }: { cl: Clear[]; k: number }) {
+/** 拖家具：四个方向到墙面、到别的家具的净距（洋红胶囊），加一句放不放得下（压墙、和家具重叠时占地标珊瑚红） */
+export function DragClearance({ cl, fit, k }: { cl: Clear[]; fit?: Fit; k: number }) {
   const px = (v: number) => v / k
+  // 结论胶囊挂在外接框右上角外侧：净距胶囊都在四条边中点的射线上，角上是空的
+  const corner = fit && [Math.max(...fit.poly.map(q => q[0])), Math.min(...fit.poly.map(q => q[1]))]
+  const fw = fit ? px(fit.text.length * 11.5 + 18) : 0
   return (
     <g pointerEvents="none" data-testid="drag-clearance">
+      {fit && !fit.ok && <path d={`M${fit.poly.map(q => q.join(' ')).join('L')}Z`} fill="rgb(232 96 79 / 0.16)" stroke={C.coral500} strokeWidth={px(2)} />}
       {cl.map(c => {
         const m: Vec2 = [(c.from[0] + c.to[0]) / 2, (c.from[1] + c.to[1]) / 2]
         const t = `${c.what === 'furniture' ? '' : ''}${c.dist.toLocaleString('en-US')}${DIR_LABEL[c.dir]}`
@@ -57,6 +61,12 @@ export function DragClearance({ cl, k }: { cl: Clear[]; k: number }) {
           </g>
         )
       })}
+      {fit && corner && (
+        <g data-testid="drag-fit" data-fit={fit.ok ? 'ok' : 'blocked'} transform={`translate(${corner[0] + px(6)} ${corner[1] - px(27)})`}>
+          <rect width={fw} height={px(21)} rx={px(10.5)} fill={fit.ok ? C.mint500 : C.coral500} stroke="#fff" strokeWidth={px(1.5)} />
+          <text x={fw / 2} y={px(14.7)} fontSize={px(11.5)} fontWeight={700} fill="#fff" textAnchor="middle">{fit.text}</text>
+        </g>
+      )}
     </g>
   )
 }

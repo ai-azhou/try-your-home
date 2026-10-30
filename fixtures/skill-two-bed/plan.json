@@ -126,15 +126,6 @@
       "op": "add",
       "status": "pending",
       "type": "opening"
-    },
-    {
-      "at": "2026-10-29T02:17",
-      "by": "user",
-      "id": "change1",
-      "op": "remove",
-      "status": "confirmed",
-      "target": "w-m",
-      "type": "wall"
     }
   ],
   "format": "floorplan-structure",

@@ -7,16 +7,19 @@ import { openingFootprint } from './geometry.ts'
 import type { Plan, Vec2 } from './types.ts'
 
 export type ModelState = 'original' | 'renovated'
-export type MeshKind = SolidKind | 'leaf' | 'pane' | 'rail' | 'plinth' | 'ceiling'
+/** furniture / cabinet: decor-layer boxes, drawn only by the raster renderer (buildMesh and GLB export stay structural). */
+export type MeshKind = SolidKind | 'leaf' | 'pane' | 'rail' | 'plinth' | 'ceiling' | 'furniture' | 'cabinet'
 export type V3 = [number, number, number]
 export interface MeshPart { kind: MeshKind; ids: string[]; level?: string; positions: number[]; normals: number[] }
 export interface MeshGroup { kind: MeshKind; parts: MeshPart[] }
 export interface MeshOptions { state?: ModelState; cutHeight?: number; level?: string }
-/** White-model palette = the tool's clay3 set in three/materials.ts (sRGB). Glass is a pale cool white, drawn see-through. */
+/** White-model palette = the tool's clay3 set in three/materials.ts (sRGB). Glass is a pale cool white, drawn see-through.
+ * Decor follows the tool's decor-mode clay look: furniture in the platform tone, cabinets and panels in the wall tone. */
 export const CLAY_COLORS: Record<MeshKind, string> = {
   wall: '#f4f4f3', sill: '#f4f4f3', lintel: '#f4f4f3', glass: '#eef3f7', beam: '#f1f1f0',
   floor: '#e8e8e6', platform: '#f0f0ee', slab: '#f4f4f3', stair: '#f0f0ee',
   column: '#f4f4f3', shaft: '#f4f4f3', leaf: '#f6f6f5', pane: '#eef3f7', rail: '#ececea', plinth: '#f2f2f1', ceiling: '#f4f4f3',
+  furniture: '#f0f0ee', cabinet: '#f4f4f3',
 }
 /** Kinds drawn as light see-through glass (GLB alpha blend, raster one-layer see-through). */
 export const GLASS_KINDS: ReadonlySet<MeshKind> = new Set(['glass', 'pane'])

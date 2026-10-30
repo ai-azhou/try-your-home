@@ -1123,6 +1123,24 @@ await step('D7-8 手机 390×844：说明条完整显示、不挡主要操作；
   return `说明条 ${Math.round(g.banner.t)}–${Math.round(g.banner.b)} px；方案名「${g.name.text}」完整`
 })
 
+await step('B4 改造态拆隔墙 → 问要不要合成一间；合并后少一间', page, async () => {
+  const pb = await newPage(1440, 900)
+  await pb.goto(BASE + '/?mode=renovation&sel=w-c', { waitUntil: 'networkidle0' }); await sleep(1300)
+  const before = await S(pb, () => window.__fss.getView().plan.rooms.length)
+  await pb.keyboard.press('Delete'); await sleep(400)
+  await pb.waitForSelector('[data-testid=merge-confirm]', { visible: true, timeout: 4000 })
+  const text = await S(pb, () => document.querySelector('[data-testid=merge-confirm]').textContent)
+  assert(/客餐厅/.test(text) && /卫生间/.test(text), `合并提示：${text}`)
+  await shot(pb, 'B4-merge-confirm.png')
+  await pb.click('[data-testid=merge-confirm] [data-testid=confirm-yes]'); await sleep(500)
+  const after = await S(pb, () => { const v = window.__fss.getView(); return { n: v.plan.rooms.length, bath: v.plan.rooms.some(r => r.id === 'r-bath'), last: v.base.changes.slice(-3).map(c => `${c.op}:${c.type}`) } })
+  assert(after.n === before - 1 && !after.bath, `合并后房间 ${before} → ${after.n}，卫生间还在：${after.bath}`)
+  assert(after.last.join() === 'remove:wall,update:room,remove:room', `改造记录 ${after.last}`)
+  await shot(pb, 'B4-merged.png')
+  await pb.close()
+  return `${text.slice(0, 40)}…；房间 ${before} → ${after.n}，改造记录 ${after.last.join(' → ')}`
+})
+
 await browser.close()
 try { process.kill(srvPid, 'SIGTERM') } catch {}
 

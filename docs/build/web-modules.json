@@ -2311,7 +2311,7 @@
     },
     {
       "id": "src/core/decor/furniture.ts",
-      "renderedLength": 5881
+      "renderedLength": 7248
     },
     {
       "id": "src/core/decor/integration.ts",
@@ -2375,7 +2375,7 @@
     },
     {
       "id": "src/core/io.ts",
-      "renderedLength": 6574
+      "renderedLength": 7371
     },
     {
       "id": "src/core/legacy.ts",
@@ -2388,6 +2388,10 @@
     {
       "id": "src/core/measure.ts",
       "renderedLength": 4195
+    },
+    {
+      "id": "src/core/merge-rooms.ts",
+      "renderedLength": 1958
     },
     {
       "id": "src/core/mirror-frame.ts",
@@ -2495,7 +2499,7 @@
     },
     {
       "id": "src/ui/actions.ts",
-      "renderedLength": 20241
+      "renderedLength": 21621
     },
     {
       "id": "src/ui/App.tsx",
@@ -2507,7 +2511,7 @@
     },
     {
       "id": "src/ui/canvas2d/PlanCanvas.tsx",
-      "renderedLength": 54678
+      "renderedLength": 54717
     },
     {
       "id": "src/ui/canvas2d/PlanLayers.tsx",
@@ -2539,7 +2543,7 @@
     },
     {
       "id": "src/ui/decor/Chrome.tsx",
-      "renderedLength": 17939
+      "renderedLength": 18158
     },
     {
       "id": "src/ui/decor/dstore.ts",
@@ -2567,7 +2571,7 @@
     },
     {
       "id": "src/ui/decor/plan-ctl.ts",
-      "renderedLength": 4892
+      "renderedLength": 5679
     },
     {
       "id": "src/ui/decor/PlanDecor.tsx",
@@ -2575,7 +2579,7 @@
     },
     {
       "id": "src/ui/decor/PlanOverlays.tsx",
-      "renderedLength": 4447
+      "renderedLength": 5561
     },
     {
       "id": "src/ui/export/badges.ts",
@@ -2603,7 +2607,7 @@
     },
     {
       "id": "src/ui/export/GlobalExport.tsx",
-      "renderedLength": 11404
+      "renderedLength": 11570
     },
     {
       "id": "src/ui/export/model.ts",
@@ -2643,7 +2647,7 @@
     },
     {
       "id": "src/ui/layout.ts",
-      "renderedLength": 2478
+      "renderedLength": 2982
     },
     {
       "id": "src/ui/levels-ui.ts",
@@ -2667,11 +2671,11 @@
     },
     {
       "id": "src/ui/panels/Compass.tsx",
-      "renderedLength": 4589
+      "renderedLength": 4769
     },
     {
       "id": "src/ui/panels/Context.tsx",
-      "renderedLength": 34590
+      "renderedLength": 34598
     },
     {
       "id": "src/ui/panels/Diagrams.tsx",
@@ -2683,7 +2687,7 @@
     },
     {
       "id": "src/ui/panels/Inspector.tsx",
-      "renderedLength": 58732
+      "renderedLength": 60449
     },
     {
       "id": "src/ui/panels/Levels.tsx",

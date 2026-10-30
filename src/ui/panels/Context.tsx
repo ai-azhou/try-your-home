@@ -8,13 +8,13 @@ import type { Change } from '@/core/types'
 import { useStore, useT, useView } from '../store'
 import { findEl } from '../model'
 import { Glass, Pill, RoundButton, Slider, Switch, Tag, Tip } from '../kit'
-import { InspectorBody, ProtectConfirm, ShaftConfirm } from './Inspector'
+import { ConfirmCard, InspectorBody } from './Inspector'
 import { QuestionCardBody, QuestionList } from './Questions'
 import { describeChange } from '@/core/changes'
 import { applyCalibration, pickFile } from '../actions'
 import { relinkUnderlay } from '../underlay-check'
 import { fmt } from '../i18n'
-import { useIsMobile } from '../layout'
+import { bottomSlot, useIsMobile, useIsNarrow } from '../layout'
 import { cn } from '@/lib/utils'
 import { ExportButton } from '../export/entry'
 import { DecorCard, decorCardKey } from '../decor/Cards'
@@ -193,7 +193,7 @@ export function NextStep() {
   const mode = useStore(s => s.mode), sel = useStore(s => s.sel), qOpen = useStore(s => s.qOpen), agentOpen = useStore(s => s.agentOpen), panel = useStore(s => s.panel)
   const measuring = useStore(s => !!s.measure)
   const { openQuestion, setMode, openAgent, setPanel } = useStore.getState()
-  const mobile = useIsMobile()
+  const mobile = useIsMobile(), narrow = useIsNarrow() && !mobile, shift = useStore(s => s.pipShift)
   if (mode === 'decor') return useStore.getState().main === '2d' ? <DecorNext /> : null
   if (!view || agentOpen) return null
   if (mobile && !measuring && (sel.length || qOpen || panel === 'questions' || panel === 'changes')) return null
@@ -224,12 +224,12 @@ export function NextStep() {
   const disc = { lemon: 'bg-lemon-200 text-ink-900', mint: 'bg-mint-200 text-mint-900', lav: 'bg-lav-200 text-lav-800', ink: 'bg-ink-900 text-white' }[tone]
   return (
     <motion.div key={lead} initial={{ opacity: 0, y: 12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-      className={cn('absolute left-1/2 z-30 -translate-x-1/2', mobile ? 'bottom-[92px]' : 'bottom-5')}>
-      <Glass data-testid="next-step" className="flex h-[52px] items-center gap-3 rounded-full pl-1.5 pr-1.5">
+      className={cn('absolute z-30', narrow ? 'bottom-5 flex justify-center' : 'left-1/2 -translate-x-1/2', mobile ? 'bottom-[92px]' : 'bottom-5')} style={narrow ? bottomSlot(shift) : undefined}>
+      <Glass data-testid="next-step" className="flex h-[52px] min-w-0 max-w-full items-center gap-3 rounded-full pl-1.5 pr-1.5">
         <span className={cn('grid size-10 shrink-0 place-items-center rounded-full shadow-[inset_0_1px_0_rgb(255_255_255/0.6)]', disc)}>{icon}</span>
-        <span className={cn('whitespace-nowrap text-[13.5px] font-semibold text-ink-800', !cta && 'pr-4')}>{lead}</span>
+        <span className={cn('min-w-0 truncate whitespace-nowrap text-[13.5px] font-semibold text-ink-800', !cta && 'pr-4')}>{lead}</span>
         {cta && (
-          <Pill tone="ink" size="md" onClick={act} className="h-10 gap-1.5 pl-4 pr-3.5" data-testid="next-cta">{cta}<ArrowRight size={15} strokeWidth={2.4} /></Pill>
+          <Pill tone="ink" size="md" onClick={act} className="h-10 shrink-0 gap-1.5 pl-4 pr-3.5" data-testid="next-cta">{cta}<ArrowRight size={15} strokeWidth={2.4} /></Pill>
         )}
       </Glass>
     </motion.div>
@@ -305,7 +305,7 @@ export function FloatingConfirm() {
   if (!confirm || card === 'inspector') return null
   return (
     <div className={cn('absolute left-1/2 z-[75] w-[380px] max-w-[calc(100%-24px)] -translate-x-1/2', mobile ? 'bottom-[160px]' : 'bottom-24')}>
-      <Glass strong className="rounded-[24px] p-2"><AnimatePresence>{confirm.kind === 'shaft' ? <ShaftConfirm onConfirm={confirm.yes} onCancel={confirm.no} /> : <ProtectConfirm onConfirm={confirm.yes} onCancel={confirm.no} />}</AnimatePresence></Glass>
+      <Glass strong className="rounded-[24px] p-2"><AnimatePresence><ConfirmCard confirm={confirm} /></AnimatePresence></Glass>
     </div>
   )
 }

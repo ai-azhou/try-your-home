@@ -17,7 +17,7 @@ export type Style3D = 'struct' | 'clay'
 export interface Layers { underlay: boolean; dims: boolean; certainty: boolean; ceilings: boolean; otherLevels: boolean }
 export interface Notice { text: string; actions: { label: string; run(): void; primary?: boolean }[] }
 /** 二次确认：缺省是受保护墙 / 承重柱（珊瑚卡）；kind 'shaft' = 原始模式删管道井前的轻确认「这是在纠正读图吗？」 */
-export interface Confirm { text?: string; kind?: 'protect' | 'shaft'; yes(): void; no(): void }
+export interface Confirm { text?: string; kind?: 'protect' | 'shaft' | 'merge'; yes(): void; no(): void }
 export type Source = { kind: 'none' | 'local' | 'file' | 'demo' | 'new' | 'served' | 'paste'; file?: string; etag?: string | null }
 
 const MAX_HIST = 100

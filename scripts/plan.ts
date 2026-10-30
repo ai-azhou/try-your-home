@@ -19,7 +19,7 @@ if (command === 'schema') {
     'schema', 'cameras "$WORK/方案.json" [--json] [--all] [--state original|renovated] [--level id]',
     'convert "$WORK/旧.json" "$WORK/新.json"', 'validate "$WORK/方案.json"', 'apply "$WORK/方案.json"', 'stats "$WORK/方案.json"', 'decor "$WORK/方案.json"',
     'export "$WORK/方案.json" "$WORK/输出.glb" [--state original|renovated] [--level id]',
-    'render "$WORK/方案.json" "$WORK/输出目录" [--camera 预设|room:id|"$WORK/相机.json"（可重复）] [--cameras "$WORK/列表.json"] [--state original|renovated] [--views iso-sw,iso-ne,iso-se,iso-nw,top] [--level id] [--section mm] [--passes clay,depth,lines,seg,openings] [--size 2400x1600] [--transparent]',
+    'render "$WORK/方案.json" "$WORK/输出目录" [--camera 预设|room:id|"$WORK/相机.json"（可重复）] [--cameras "$WORK/列表.json"] [--state original|renovated] [--views iso-sw,iso-ne,iso-se,iso-nw,top] [--level id] [--section mm] [--passes clay,depth,lines,seg,openings] [--size 2400x1600] [--transparent] [--no-decor]',
     'render "$WORK/方案.json" "$WORK/输出目录" --camera "pos=2000,1450,1000;target=2000,1450,4000;fov=75"',
   ].map(line => 'node "$SKILL/scripts/plan-cli.mjs" ' + line).join('\n'))
   const { plan, report, issues } = parsePlanText(readFileSync(input === '-' ? 0 : input, 'utf8'))
@@ -33,7 +33,7 @@ if (command === 'schema') {
       if (typeof value === 'string' && (value.startsWith('room:') || value.startsWith('pos=') || ['iso-sw','iso-ne','iso-se','iso-nw','top'].includes(value))) cameras.push({ camera: value, record: {} })
       else { const data = typeof value === 'string' ? JSON.parse(readFileSync(value, 'utf8')) : value; const record = data.camera ? { ...data.camera, level: data.level ?? data.camera.level } : data; if (record.unit !== undefined && record.unit !== 'mm') throw new Error('相机文件单位必须为 mm'); cameras.push({ camera: record, record }) }
     }
-    let passes: RenderPass[] | undefined, state: ModelState = 'original', level: string | undefined, section: number | undefined, sizeSet = false, stateSet = false, transparentSet = false, views: RenderView[] = ['iso-sw', 'iso-ne', 'top'], width = 2400, height = 1600, transparent = false
+    let passes: RenderPass[] | undefined, state: ModelState = 'original', level: string | undefined, section: number | undefined, sizeSet = false, stateSet = false, transparentSet = false, views: RenderView[] = ['iso-sw', 'iso-ne', 'top'], width = 2400, height = 1600, transparent = false, noDecor = false
     const args = command === 'cameras' ? [output, ...flags].filter((v): v is string => v !== undefined) : flags
     for (let i = 0; i < args.length; i++) {
       const flag = args[i]
@@ -41,6 +41,7 @@ if (command === 'schema') {
       else if (flag === '--json' && command === 'cameras') { json = true }
       else if (flag === '--all' && command === 'cameras') { all = true }
       else if (flag === '--transparent' && command === 'render') { transparent = true; transparentSet = true }
+      else if (flag === '--no-decor' && command === 'render') { noDecor = true }
       else if (flag === '--level') { level = args[++i]; if (!level) throw new Error('--level 缺少楼层 id') }
       else if (flag === '--section' && command === 'render') { section = Number(args[++i]); if (!Number.isFinite(section) || section <= 0) throw new Error('--section 必须是正数 mm') }
       else if (flag === '--camera' && command === 'render') {
@@ -71,7 +72,12 @@ if (command === 'schema') {
         const bg = transparentSet ? transparent : record.transparent ?? transparent
         process.stderr.write(`渲染 ${index + 1}/${selections.length}：${view}\n`)
         const { files, camera: savedCamera } = session.renderKit({ state: stateSet ? state : record.state ?? state, camera, level: level ?? record.level, section: section ?? record.section,
-          width: sizeSet ? width : record.width ?? width, height: sizeSet ? height : record.height ?? height, transparent: bg, passes: passes ?? record.passes })
+          width: sizeSet ? width : record.width ?? width, height: sizeSet ? height : record.height ?? height, transparent: bg, passes: passes ?? record.passes,
+          decor: !noDecor && record.decor?.skipped !== 'disabled' })
+        const dv = savedCamera.decor
+        if (dv?.drawn) process.stderr.write(`装修层：画面里有 ${dv.visible.length} 件（${dv.visible.map(v => v.name).join('、') || '都在画外或被挡住'}）\n`)
+        else if (dv?.skipped === 'original-state') process.stderr.write('装修层：没画。装修是按改造后的格局摆的，原始状态有已确认改造；要带家具出图加 --state renovated\n')
+        else if (dv?.skipped === 'error') process.stderr.write(`装修层：没画，装修数据有问题：${dv.error}\n`)
         mkdirSync(output, { recursive: true })
         let stem = view.replace(/[^a-zA-Z0-9_-]/g, '_')
         if (usedNames.has(stem)) stem += `-${savedCamera.level ?? 'all'}-${index + 1}`.replace(/[^a-zA-Z0-9_-]/g, '_')

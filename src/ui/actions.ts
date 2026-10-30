@@ -4,7 +4,7 @@
  */
 import type { Change, Level, Opening, Plan, Room, Wall } from '@/core/types'
 import { DEFAULTS, PROTECTED_KINDS } from '@/core/types'
-import { projectToWall, planBounds } from '@/core/geometry'
+import { projectToWall, planBounds, polygonArea } from '@/core/geometry'
 import { mirrorPlan, removeElement, splitWall, updateBeam, updateElement, updateOpening, updateRoom, updateWall } from '@/core/edit'
 import { levelsOf } from '@/core/levels'
 import { emptyPlan, newId, parsePlanText, serializePlan } from '@/core/io'
@@ -15,6 +15,7 @@ import { loadError, planWriteError } from '@/core/persistence'
 import { findEl } from './model'
 import { openChatIssuesFor } from './chat'
 import { diagnoseShape, isSimplePlan } from '@/core/simple'
+import { mergeAcrossWall } from '@/core/merge-rooms'
 
 const st = () => useStore.getState()
 const t = () => dicts[st().lang]
@@ -56,7 +57,27 @@ export function removeRefs(refs: Ref[], confirmedShaft = false) {
     return true
   }
   const ok = st().edit(list.map(r => removeElement(v.plan, r)), { select: null })
+  // 改造态拆墙：墙两边各一间时问一句要不要合成一间。受保护的墙先过二次确认，确认拆了再问
+  const walls = list.filter(r => r.type === 'wall').map(r => r.id)
+  if (s.mode === 'renovation' && walls.length) {
+    const pending = st().confirm
+    if (ok) offerMerge(v.plan, walls)
+    else if (pending) useStore.setState({ confirm: { ...pending, yes: () => { pending.yes(); if (!st().confirm) offerMerge(v.plan, walls) } } })
+  }
   return ok
+}
+/** 拆墙后两边的房间合成一间：update 留下的房间（轮廓 = 两间 + 墙占地），remove 另一间（线上 bug B4） */
+function offerMerge(before: Plan, wallIds: string[]) {
+  const m = wallIds.map(id => mergeAcrossWall(before, id)).find(x => x)
+  if (!m) return
+  const zh = st().lang === 'zh', area = (polygonArea(m.poly) / 1e6).toFixed(1)
+  const text = zh ? `墙拆了，${m.keep.name}和${m.drop.name}连成一片。合并后叫「${m.keep.name}」，约 ${area} m²（含原来墙占的地方）。` : `With the wall gone, ${m.keep.name} and ${m.drop.name} are one space. Merged as “${m.keep.name}”, about ${area} m² (including the wall’s footprint).`
+  useStore.setState({ confirm: { kind: 'merge', text, no: () => useStore.setState({ confirm: null }), yes: () => {
+    useStore.setState({ confirm: null })
+    const v = getView()
+    if (!v || !findEl(v.plan, { type: 'room', id: m.keep.id }) || !findEl(v.plan, { type: 'room', id: m.drop.id })) return
+    st().edit([updateRoom(m.keep.id, { poly: m.poly }), removeElement(v.plan, { type: 'room', id: m.drop.id })], { select: { type: 'room', id: m.keep.id } })
+  } } })
 }
 export const isProtectedRef = (plan: Plan, r: Ref) => r.type === 'wall' && PROTECTED_KINDS.includes((findEl(plan, r) as Wall | undefined)?.kind ?? 'partition')
 

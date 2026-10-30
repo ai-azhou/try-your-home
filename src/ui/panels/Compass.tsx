@@ -5,7 +5,7 @@
  */
 import { useRef, useState } from 'react'
 import { useStore, useT } from '../store'
-import { useIsMobile } from '../layout'
+import { PIP, useIsMobile, useIsNarrow } from '../layout'
 import { Tip } from '../kit'
 import { cn } from '@/lib/utils'
 
@@ -13,7 +13,7 @@ export function Compass() {
   const t = useT()
   const north = useStore(s => s.base?.north ?? 0), has = useStore(s => s.base?.north !== undefined)
   const main = useStore(s => s.main), mode = useStore(s => s.mode)
-  const mobile = useIsMobile()
+  const mobile = useIsMobile(), narrow = useIsNarrow(), shift = useStore(s => s.pipShift)
   const el = useRef<HTMLDivElement>(null)
   const [drag, setDrag] = useState(false)
   if (main !== '2d') return null
@@ -35,7 +35,7 @@ export function Compass() {
     s.replaceBase({ ...s.base, north: a }, { key: 'north' })
   }
   return (
-    <div data-float className={cn('absolute z-30', mobile ? 'left-3 top-[124px]' : 'bottom-5 right-[284px]')}>
+    <div data-float className={cn('absolute z-30', mobile ? 'left-3 top-[124px]' : !narrow && 'bottom-5 right-[284px]')} style={!mobile && narrow ? { left: 20 + shift + PIP.w - 52, bottom: 20 + PIP.h + 12 } : undefined}>
       <Tip label={<span>{t.s2a.north.title} <span className="num">{Math.round(north)}°</span> · {t.s2a.north.hint}</span>} side="top">
         <div ref={el} role="slider" aria-label={t.s2a.north.title} aria-valuemin={-180} aria-valuemax={180} aria-valuenow={Math.round(north)} data-testid="compass" data-north={north}
           onPointerDown={e => { if (ro) return; e.preventDefault(); e.stopPropagation(); (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); setDrag(true) }}

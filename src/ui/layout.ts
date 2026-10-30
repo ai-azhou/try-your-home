@@ -14,6 +14,26 @@ export function useIsMobile() {
   return m
 }
 
+/**
+ * 窄桌面（768–1099，平板竖屏、小窗口）：底部一排放不下画中画 + 居中的下一步条 + 指北针 + 缩放条（线上 bug B3）。
+ * 这时指北针挪到画中画右上方，下一步条放进画中画和缩放条之间的空当，顶栏「导出」只留图标。
+ */
+export function useIsNarrow() {
+  const q = '(min-width: 768px) and (max-width: 1099px)'
+  const [m, setM] = useState(() => typeof window !== 'undefined' && window.matchMedia(q).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(q)
+    const on = () => setM(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  return m
+}
+/** 缩放条的宽度（撤销、重做、缩小、适配、放大） */
+export const ZOOM_W = 236
+/** 窄桌面下一步条的空当：画中画右边到缩放条左边，各留 12 */
+export const bottomSlot = (shift: number) => ({ left: 20 + shift + PIP.w + 12, right: 20 + ZOOM_W + 12 })
+
 export interface Insets { top: number; right: number; bottom: number; left: number }
 export interface Rect { x0: number; y0: number; x1: number; y1: number }
 

@@ -63,9 +63,10 @@ export function GlobalExport({ compact }: { compact?: boolean }) {
       <Tip label={zh ? '导出：改造清单 PDF、方案文件、图片' : 'Export: PDF, plan file, image'}>
         <Popover.Trigger asChild>
           <button data-testid="global-export" aria-label={zh ? '导出' : 'Export'}
-            className={cn('glass glass-hover flex h-[46px] items-center gap-2 rounded-full pl-1.5 pr-4 text-[13.5px] font-semibold text-ink-800 transition active:scale-[0.97]', open && 'bg-white', compact && 'h-[44px] pr-1.5')}>
+            className={cn('glass glass-hover flex h-[46px] shrink-0 items-center gap-2 whitespace-nowrap rounded-full pl-1.5 pr-4 text-[13.5px] font-semibold text-ink-800 transition active:scale-[0.97] max-[1099px]:pr-1.5', open && 'bg-white', compact && 'h-[44px] pr-1.5')}>
             <span className="grid size-[34px] place-items-center rounded-full bg-ink-900 text-white"><Download size={16} strokeWidth={2.3} /></span>
-            {!compact && (zh ? '导出' : 'Export')}
+            {/* 窄桌面（< 1100）顶栏挤，只留图标；aria-label 和悬停提示照样写「导出」（线上 bug B3） */}
+            {!compact && <span className="max-[1099px]:hidden">{zh ? '导出' : 'Export'}</span>}
           </button>
         </Popover.Trigger>
       </Tip>

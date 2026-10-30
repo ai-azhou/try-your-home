@@ -4,7 +4,8 @@
  */
 import type { Plan, Vec2 } from '@/core/types'
 import type { Decor, FaceRef, Furniture } from '@/core/decor/types'
-import { furnitureFootprint } from '@/core/decor/furniture'
+import { furnitureCollisions, furnitureFootprint } from '@/core/decor/furniture'
+import { FURN_LIB } from './furniture'
 import { faceAxis, faceExtent } from '@/core/decor/faces'
 import { joinedWallFootprint } from '@/core/walls'
 import { pointInPolygon, wallDir, wallNormal } from '@/core/geometry'
@@ -106,4 +107,15 @@ export function clearances(plan: Plan, decor: Decor, f: Furniture): Clear[] {
     if (best && best.t > 1) out.push({ dir, from: o, to: [o[0] + d[0] * best.t, o[1] + d[1] * best.t], dist: Math.round(best.t), what: best.what })
   }
   return out
+}
+
+/** 拖家具：放不放得下（core furnitureCollisions：压到墙、和同高度的家具重叠）。地毯本来就垫在家具下面，不算重叠 */
+export interface Fit { poly: Vec2[]; ok: boolean; text: string }
+export function fitCheck(plan: Plan, decor: Decor, f: Furniture): Fit {
+  const rug = (id: string) => decor.furniture.find(g => g.id === id)?.type === 'rug'
+  const hits = furnitureCollisions(plan, f).filter(h => h.type === 'wall' || (f.type !== 'rug' && !rug(h.id)))
+  const name = (id: string) => { const g = decor.furniture.find(x => x.id === id); return g?.name ?? FURN_LIB.find(e => e.type === g?.type)?.name ?? '家具' }
+  const furn = [...new Set(hits.filter(h => h.type === 'furniture').map(h => name(h.id)))]
+  const text = !hits.length ? '放得下' : `放不下 · ${[hits.some(h => h.type === 'wall') ? '压到墙' : '', furn.length ? `和${furn.slice(0, 2).join('、')}${furn.length > 2 ? '等' : ''}重叠` : ''].filter(Boolean).join('，')}`
+  return { poly: furnitureFootprint(f, plan), ok: !hits.length, text }
 }

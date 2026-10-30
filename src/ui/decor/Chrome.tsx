@@ -13,6 +13,7 @@ import { cabinetFootprint } from '@/core/decor/cabinets'
 import { useStore } from '../store'
 import { Glass, Pill, Tip } from '../kit'
 import { cn } from '@/lib/utils'
+import { bottomSlot, useIsNarrow } from '../layout'
 import { useDecor } from './dstore'
 import { faceLabel, faceRoom, styleOf, useDecorIssues, useDecorPlan, WALL_ZH, matOf } from './model'
 import { elevSegmentRooms, elevationModel } from './elev-model'
@@ -157,6 +158,7 @@ export const FURN_CAT_LIST = FURN_CATS
 
 /* ───────── 下一步条（装修态，按优先级取第一条；设计规范 §3.3） ───────── */
 export function DecorNext() {
+  const narrow = useIsNarrow(), shift = useStore(s => s.pipShift)
   const dp = useDecorPlan()
   const sel = useDecor(s => s.sel), tool = useDecor(s => s.tool), canvas = useDecor(s => s.canvas), preview = useDecor(s => s.preview), styleCard = useDecor(s => s.styleCard), visited = useDecor(s => s.elevVisited), hint = useDecor(s => s.throughHint)
   const agentOpen = useStore(s => s.agentOpen)
@@ -204,11 +206,11 @@ export function DecorNext() {
   const disc = { lemon: 'bg-lemon-200 text-ink-900', mint: 'bg-mint-200 text-mint-900', ink: 'bg-ink-900 text-white' }[tone]
   return (
     <motion.div key={lead} initial={{ opacity: 0, y: 12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 420, damping: 30 }}
-      className="absolute bottom-5 left-1/2 z-30 -translate-x-1/2">
-      <Glass data-testid="next-step" className="flex h-[52px] items-center gap-3 rounded-full pl-1.5 pr-1.5">
+      className={cn('absolute bottom-5 z-30', narrow ? 'flex justify-center' : 'left-1/2 -translate-x-1/2')} style={narrow ? bottomSlot(shift) : undefined}>
+      <Glass data-testid="next-step" className="flex h-[52px] min-w-0 max-w-full items-center gap-3 rounded-full pl-1.5 pr-1.5">
         <span className={cn('grid size-10 shrink-0 place-items-center rounded-full shadow-[inset_0_1px_0_rgb(255_255_255/0.6)]', disc)}>{icon}</span>
-        <span className={cn('whitespace-nowrap text-[13.5px] font-semibold text-ink-800', !cta && 'pr-4')}>{lead}</span>
-        {cta && <Pill tone="ink" size="md" onClick={act} className="h-10 gap-1.5 pl-4 pr-3.5" data-testid="next-cta">{cta}<ArrowRight size={15} strokeWidth={2.4} /></Pill>}
+        <span className={cn('min-w-0 truncate whitespace-nowrap text-[13.5px] font-semibold text-ink-800', !cta && 'pr-4')} title={lead}>{lead}</span>
+        {cta && <Pill tone="ink" size="md" onClick={act} className="h-10 shrink-0 gap-1.5 pl-4 pr-3.5" data-testid="next-cta">{cta}<ArrowRight size={15} strokeWidth={2.4} /></Pill>}
       </Glass>
     </motion.div>
   )

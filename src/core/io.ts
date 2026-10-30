@@ -63,6 +63,22 @@ export function planFileValue(plan: Plan): any {
   return value
 }
 export function serializePlan(plan: Plan): string { return JSON.stringify(stable(planFileValue(plan)), null, 2) + '\n' }
+/**
+ * Format marker and the six arrays of a v2/v3 file. Chat replies often leave out arrays that may be empty
+ * (beams / questions / changes): those become [] and are reported back; anything else is named, never guessed.
+ */
+function shapeOf(value: Record<string, unknown>): string[] {
+  const problems: string[] = [], filled: string[] = [], seen = (v: unknown) => v === undefined ? '缺失' : v === null ? 'null' : Array.isArray(v) ? '数组' : JSON.stringify(v).length <= 24 ? JSON.stringify(v) : typeof v
+  if (value.format !== 'floorplan-structure') problems.push(`format 应为 "floorplan-structure"（现在是 ${seen(value.format)}）`)
+  if (![2, 3].includes(value.version as number)) problems.push(`version 应为 3（现在是 ${seen(value.version)}）`)
+  for (const k of ['walls', 'openings', 'beams', 'rooms', 'questions', 'changes']) {
+    if (Array.isArray(value[k])) continue
+    if (value[k] === undefined && ['beams', 'questions', 'changes'].includes(k)) { value[k] = []; filled.push(k); continue }
+    problems.push(value[k] === undefined ? `缺 ${k} 数组（没有就写 []）` : `${k} 应为数组（现在是 ${seen(value[k])}）`)
+  }
+  if (problems.length) throw new Error(`方案格式不完整：${problems.join('；')}`)
+  return filled
+}
 export function parsePlanText(text: string) {
   try {
     const value = JSON.parse(text.replace(/^\uFEFF/, ''))
@@ -74,8 +90,7 @@ export function parsePlanText(text: string) {
       return { plan, report, issues: converted.issues }
     }
     if (value?.format === 'floorplan-structure' || [2, 3].includes(value?.version)) {
-      const report = importReport('v2')
-      if (value.format !== 'floorplan-structure' || ![2, 3].includes(value.version) || !['walls', 'openings', 'beams', 'rooms', 'questions', 'changes'].every(k => Array.isArray(value[k]))) throw new Error('v2/v3 方案标记或构件数组不完整')
+      const report = importReport('v2'), filled = shapeOf(value)
       if (value.version === 3) shiftPlan(value, -3)
       value.version = 2 // Runtime contract stays mixed-unit v2; serialization always upgrades to v3.
       if (Array.isArray(value.decor?.furniture)) for (const f of value.decor.furniture) {
@@ -88,7 +103,8 @@ export function parsePlanText(text: string) {
       const schemaIssues = validatePlanFile(planFileValue(value as Plan))
       if (schemaIssues.length) return { plan: emptyPlan(), report, issues: schemaIssues }
       report.counts = Object.fromEntries(['walls', 'openings', 'beams', 'rooms', 'questions', 'changes'].map(k => [k, value[k].length]))
-      return { plan: value as Plan, report, issues: validatePlan(value as Plan) }
+      const missing = filled.map(k => ({ level: 'warn' as const, code: 'missing-array', message: `方案里没写 ${k}，已按空数组 [] 载入` }))
+      return { plan: value as Plan, report, issues: [...missing, ...validatePlan(value as Plan)] }
     }
     const converted = fromLegacy(value)
     const furniture = fromLegacyFurniture(converted.plan)

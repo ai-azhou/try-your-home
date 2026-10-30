@@ -32,7 +32,7 @@ import type { FaceRef } from '@/core/decor/types'
 import { useDecor } from '../decor/dstore'
 import { DecorOver, DecorUnder } from '../decor/PlanDecor'
 import { decorIssues, decorPlanOf, faceNear, getDecorPlan, openCabinetAt, openElevAt, shownDecor, tempDecor } from '../decor/model'
-import { clearances, decorHit, snapFurniture } from '../decor/plan-ctl'
+import { clearances, decorHit, fitCheck, snapFurniture } from '../decor/plan-ctl'
 import { addCabinet, addFurniture, paintFace, paintFloor, patchFurniture } from '../decor/actions'
 import { DecorPins, DragClearance, CabinetDraft } from '../decor/PlanOverlays'
 
@@ -644,7 +644,7 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
     const styleId = dPreview ?? decor.style
     const props = { plan: dplan, base: basePlan!, decor, k: xf.k, pid, styleId, keep: dPreview ? dKeep : true, sel: dSel, hover: dHover, issues, mini, focusFace: mini && dCanvas.k !== 'plan' ? dCanvas.face : null }
     const dragF = dDragging && !dDragging.startsWith('cab:') ? decor.furniture.find(f => f.id === dDragging) : null
-    const drag = dragF ? <DragClearance cl={clearances(dplan, decor, dragF)} k={xf.k} /> : dDragging?.startsWith('cab:') ? <CabinetDraft plan={dplan} spec={dDragging} k={xf.k} family={dFamily} /> : undefined
+    const drag = dragF ? <DragClearance cl={clearances(dplan, decor, dragF)} fit={fitCheck(dplan, decor, dragF)} k={xf.k} /> : dDragging?.startsWith('cab:') ? <CabinetDraft plan={dplan} spec={dDragging} k={xf.k} family={dFamily} /> : undefined
     return { under: <DecorUnder {...props} />, over: <DecorOver {...props} drag={drag} />, issues, dplan }
   })()
 

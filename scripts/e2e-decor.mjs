@@ -198,16 +198,36 @@ try {
     const sofa = d.furniture.at(-1)
     assert(sofa.type === 'sofa-2', `没放下双人沙发：${sofa.type}`)
     const from = await P(page, sofa.at), to = await P(page, [5000, 6300])
-    let mid = null
+    let mid = null, fit = null
+    const fitNow = () => S(page, () => { const e = document.querySelector('[data-testid=drag-fit]'); return e && { fit: e.dataset.fit, text: e.textContent } })
     await drag(page, from, to, 16, async () => {
       mid = await S(page, () => [...document.querySelectorAll('[data-testid=drag-clearance] [data-clear]')].map(e => `${e.dataset.clear}:${e.dataset.dist}`))
+      fit = await fitNow()
       await shot(page, '09-drag-clearance.png')
     })
     d = await decor(page)
     const moved = d.furniture.find(f => f.id === sofa.id)
     assert(Math.hypot(moved.at[0] - sofa.at[0], moved.at[1] - sofa.at[1]) > 300, '沙发没拖动')
     assert(mid && mid.length >= 2, `拖动时应显示净距胶囊：${JSON.stringify(mid)}`)
-    return `沙发 ${sofa.id} 从 (${sofa.at}) 拖到 (${moved.at})；拖动中净距 ${mid.join('、')} mm`
+    assert(fit?.fit === 'ok' || fit?.fit === 'blocked', `拖动时应提示放不放得下：${JSON.stringify(fit)}`)
+    // 线上 bug B5：按住沙发拖过去看提示，再拖回起点才松手（净位移为零；同一件家具的连续拖动会合成一步撤销，所以不用 ⌘Z）。
+    // 客厅中间的空地 → 放得下；三人沙发上 → 放不下
+    const big = d.furniture.find(f => f.type === 'sofa-3')
+    const tryDrag = async (target, name) => {
+      const [x0, y0] = await P(page, moved.at), [x1, y1] = await P(page, target)
+      await page.mouse.move(x0, y0); await page.mouse.down()
+      for (let i = 1; i <= 16; i++) { await page.mouse.move(x0 + (x1 - x0) * i / 16, y0 + (y1 - y0) * i / 16); await sleep(18) }
+      await sleep(120); const got = await fitNow(); await shot(page, name)
+      for (let i = 15; i >= 0; i--) { await page.mouse.move(x0 + (x1 - x0) * i / 16, y0 + (y1 - y0) * i / 16); await sleep(18) }
+      await page.mouse.up(); await sleep(300)
+      const back = (await decor(page)).furniture.find(f => f.id === sofa.id)
+      assert(Math.hypot(back.at[0] - moved.at[0], back.at[1] - moved.at[1]) < 5, `拖回起点后位置变了：${back.at} vs ${moved.at}`)
+      return got
+    }
+    const clear = await tryDrag([5300, 4800], '09b-drag-fits.png'), blocked = await tryDrag(big.at, '09c-drag-blocked.png')
+    assert(clear?.fit === 'ok' && clear.text === '放得下', `拖到客厅空地应提示放得下：${JSON.stringify(clear)}`)
+    assert(blocked?.fit === 'blocked' && /^放不下 · .*三人沙发/.test(blocked.text), `拖到三人沙发上应提示放不下：${JSON.stringify(blocked)}`)
+    return `沙发 ${sofa.id} 从 (${sofa.at}) 拖到 (${moved.at})；拖动中净距 ${mid.join('、')} mm、「${fit.text}」；空地「${clear.text}」；压到三人沙发「${blocked.text}」`
   })
 
   await step('7 撤销 / 重做带装修层（转 90° → ⌘Z → ⇧⌘Z）', page, async () => {

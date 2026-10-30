@@ -9,7 +9,7 @@ import type { Beam, Change, Column, Opening, OpeningKind, Plan, Room, Shaft, Sta
 import { DEFAULTS, PROTECTED_KINDS } from '@/core/types'
 import { arcParams, bulgeFromAngle, bulgeFromRadius, effectiveWallHeight, roomsBesideWall, pointInPolygon, wallLength } from '@/core/geometry'
 import { levelCeiling, levelOf, levelsOf } from '@/core/levels'
-import { useStore, useT, useView } from '../store'
+import { useStore, useT, useView, type Confirm } from '../store'
 import { CertaintyBadge, NumberField, Pill, RoundButton, SectionLabel, Switch, Tag, WallSwatch, Tip } from '../kit'
 import { RoomSection, WallElevation } from './Diagrams'
 import { openingsOn, len2, spanOf } from '../geom'
@@ -93,7 +93,7 @@ export function Actions({ onAgent, removeLabel, onRemove, disabledRemove, extra 
   return (
     // 二次确认放进吸底的操作区里：滚动时不会被操作行盖住，主按钮旁边就是确认
     <div className="sticky -bottom-5 z-10 -mx-4 -mb-5 mt-auto flex flex-col gap-2 rounded-b-[30px] bg-[linear-gradient(to_top,rgb(251_251_253/0.96)_58%,rgb(251_251_253/0))] px-4 pb-5 pt-4 max-md:rounded-none max-md:pb-[max(20px,env(safe-area-inset-bottom))]">
-    <AnimatePresence>{confirm && (confirm.kind === 'shaft' ? <ShaftConfirm onConfirm={confirm.yes} onCancel={confirm.no} /> : <ProtectConfirm onConfirm={confirm.yes} onCancel={confirm.no} />)}</AnimatePresence>
+    <AnimatePresence>{confirm && <ConfirmCard confirm={confirm} />}</AnimatePresence>
     <div className="flex items-center gap-2">
       <Pill tone="ink" size="md" onClick={onAgent} className="flex-1 pl-1.5" data-testid="inspector-agent">
         <span className="grid size-7 place-items-center rounded-full bg-lav-300 text-lav-800"><Sparkles size={14} strokeWidth={2.4} /></span>
@@ -112,6 +112,30 @@ export function Actions({ onAgent, removeLabel, onRemove, disabledRemove, extra 
 }
 
 /* 原始模式删管道井：轻确认（墨色，不是珊瑚——这不是拆，是纠正读图） */
+/** 三种二次确认挑一种：管道井、受保护的墙、拆墙后合并房间 */
+export function ConfirmCard({ confirm }: { confirm: Confirm }) {
+  if (confirm.kind === 'shaft') return <ShaftConfirm onConfirm={confirm.yes} onCancel={confirm.no} />
+  if (confirm.kind === 'merge') return <MergeConfirm text={confirm.text ?? ''} onConfirm={confirm.yes} onCancel={confirm.no} />
+  return <ProtectConfirm onConfirm={confirm.yes} onCancel={confirm.no} />
+}
+
+/* 改造态手动拆墙后：两边的房间要不要合成一间（线上 bug B4；Agent 按手册自己写 update / remove room） */
+export function MergeConfirm({ text, onConfirm, onCancel }: { text: string; onConfirm(): void; onCancel(): void }) {
+  const lang = useStore(s => s.lang)
+  return (
+    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden" data-testid="merge-confirm">
+      <div className="tile rounded-[18px] p-3.5">
+        <div className="text-[13.5px] font-semibold text-ink-900">{lang === 'zh' ? '合成一间吗？' : 'Make it one room?'}</div>
+        <p className="mt-1 text-[12.5px] leading-relaxed text-ink-600">{text}</p>
+        <div className="mt-3 flex gap-2">
+          <Pill tone="ink" size="sm" onClick={onConfirm} data-testid="confirm-yes">{lang === 'zh' ? '合并' : 'Merge'}</Pill>
+          <Pill tone="plain" size="sm" onClick={onCancel} data-testid="confirm-no">{lang === 'zh' ? '先不合并' : 'Keep two rooms'}</Pill>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
 export function ShaftConfirm({ onConfirm, onCancel }: { onConfirm(): void; onCancel(): void }) {
   const lang = useStore(s => s.lang)
   return (

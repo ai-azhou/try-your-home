@@ -2,6 +2,8 @@ import { assertLevel, levelOf, levelsOf, onLevel } from './levels.ts'
 import { labelPoint, pointInPolygon, polygonArea, projectToWall, openingSpan, columnFootprint, roomsBesideWall, roomCeiling, openingFootprint } from './geometry.ts'
 import { deflateSync } from 'node:zlib'
 import { modelPlan, buildMesh, solidMesh, CLAY_COLORS, GLASS_KINDS, GLASS_OPACITY, type ModelState, type MeshOptions, type MeshPart, type V3 } from './mesh.ts'
+import { buildDecorSolids } from './decor/solids.ts'
+import { FURNITURE_LIBRARY } from './decor/furniture.ts'
 import type { Plan, Vec2 } from './types.ts'
 export type RenderView = 'iso-sw' | 'iso-ne' | 'iso-se' | 'iso-nw' | 'top'
 /**
@@ -48,18 +50,29 @@ export interface CameraRecord extends CameraSpec {
   intrinsics: { fx: number; fy: number; cx: number; cy: number }
   viewMatrix: number[]; projectionMatrix: number[]; world: string
   openings: VisibleOpening[]
+  decor?: DecorView
+}
+/** What the decor layer put into this picture; gen_prompt.py words the prompt from `visible`. */
+export interface DecorView {
+  drawn: boolean
+  /** Why nothing was drawn: nothing to draw, decor belongs to the renovated plan, --no-decor, or core could not build it. */
+  skipped?: 'none' | 'original-state' | 'disabled' | 'error'
+  error?: string
+  visible: { id: string; kind: 'furniture' | 'cabinet' | 'panel' | 'shelf'; type?: string; name: string; seg: SegClass; visible_px: number }[]
 }
 export type RenderPass = 'clay' | 'depth' | 'lines' | 'seg' | 'openings'
 export interface VisibleOpening { idx: number; id: string; name: string; kind: string; cls: 'window' | 'door'; width_mm: number; sill_mm: number; head_mm: number; visible_px: number; bbox_xyxy: number[]; mask: string }
 export interface RenderOptions extends MeshOptions {
   view?: RenderView; camera?: string | CameraSpec; width?: number; height?: number; transparent?: boolean
   section?: number; passes?: RenderPass[]
+  /** Draw the decor layer (default true). Decor is laid out on the renovated plan, so an original-state render skips it once there are confirmed changes. */
+  decor?: boolean
 }
 export interface CameraChoice { id: string; description: string; level: string; camera: CameraSpec }
 const sub3 = (a: V3, b: V3): V3 => a.map((v,i)=>v-b[i]) as V3
 const dist2 = (a: Vec2,b: Vec2) => Math.hypot(a[0]-b[0],a[1]-b[1])
 /** Eye-level room cameras: height above the room floor, vertical fov, the evaluation raster and how far the camera may tilt down. */
-export const ROOM_CAMERA = { eye: 1450, fov: 75, clearances: [900, 600, 450, 300, 180], grid: 7, yaws: 36, pitches: [0, 3, 6], probe: { width: 96, height: 64 }, coarseProbe: { width: 48, height: 32 } }
+export const ROOM_CAMERA = { eye: 1450, fov: 75, clearances: [900, 600, 450, 300, 180], furnitureClearances: [600, 200], grid: 7, yaws: 36, pitches: [0, 3, 6], probe: { width: 96, height: 64 }, coarseProbe: { width: 48, height: 32 } }
 interface RoomScene { parts: MeshPart[]; proxies: { part: MeshPart; opening: Plan['openings'][number] }[] }
 interface RenderCache { states: WeakMap<Plan, Map<ModelState, Plan>>; floors: WeakMap<Plan, Map<string, Plan>>; meshes: WeakMap<Plan, Map<string, ReturnType<typeof buildMesh>>> }
 const renderCaches = new WeakMap<Plan, RenderCache>()
@@ -157,7 +170,7 @@ function probeView(scene: RoomScene, room: Plan['rooms'][number], area: number, 
 export function cameraRoomEligible(room: Plan['rooms'][number]): boolean {
   return room.counted !== false && polygonArea(room.poly) >= 1.5e6 && (room.floorOffset ?? 0) <= .3
 }
-function roomCamera(plan: Plan, room: Plan['rooms'][number], wallId?: string): CameraSpec {
+function roomCamera(plan: Plan, room: Plan['rooms'][number], wallId?: string, obstacles: DecorObstacle[] = []): CameraSpec {
   if (!cameraRoomEligible(room)) throw new Error(`房间 ${room.id} 不适合站人平视：不计入面积、面积小于 1.5 m² 或地面抬高超过 0.3 m`)
   const level = levelOf(plan, room), floorY = (level.elevation + (room.floorOffset ?? 0)) * 1000, eye = floorY + ROOM_CAMERA.eye
   const walls = plan.walls.filter(w => levelOf(plan, w).id === level.id), wall = wallId ? walls.find(w => w.id === wallId) : undefined
@@ -169,12 +182,18 @@ function roomCamera(plan: Plan, room: Plan['rooms'][number], wallId?: string): C
     !(plan.columns ?? []).some(c => levelOf(plan, c).id === level.id && pointInPolygon(p, columnFootprint(c))) &&
     !(plan.shafts ?? []).some(s => levelOf(plan, s).id === level.id && pointInPolygon(p, s.poly)) &&
     doors.every(({ o, span }) => dist2(p, o.swing?.hinge === 'end' ? span.b : span.a) > o.width + 200)
+  // Stand clear of furniture and floor-standing cabinets (rugs and wall cabinets above the eye do not count):
+  // a walkway's width first, then just outside them, and only then as if the room were empty.
+  const blockers = obstacles.filter(o => levelOf(plan, { level: o.level }).id === level.id && o.z1 > floorY / 1000 + .1 && o.z0 < eye / 1000).flatMap(o => o.rings)
+  const free = (p: Vec2, margin: number) => blockers.every(r => !pointInPolygon(p, r) && r.every((a, i) => edgeDistance(p, a, r[(i + 1) % r.length]) >= margin))
   const xs = room.poly.map(p => p[0]), ys = room.poly.map(p => p[1]), x0 = Math.min(...xs), y0 = Math.min(...ys), dx = Math.max(...xs) - x0, dy = Math.max(...ys) - y0
   const grid: Vec2[] = [], n = ROOM_CAMERA.grid
   for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) grid.push([x0 + dx * i / n, y0 + dy * j / n])
   for (const corner of room.poly) { const c = labelPoint(room.poly), l = dist2(corner, c); for (const inset of [700, 1000]) if (l > inset) grid.push([corner[0] + (c[0] - corner[0]) * inset / l, corner[1] + (c[1] - corner[1]) * inset / l]) }
   let gap = 0, usable: Vec2[] = []
-  for (gap of ROOM_CAMERA.clearances) { usable = grid.filter(p => clearOf(p, gap)); if (usable.length) break }
+  search: for (const margin of blockers.length ? [...ROOM_CAMERA.furnitureClearances, 0] : [0]) for (gap of ROOM_CAMERA.clearances) {
+    usable = grid.filter(p => clearOf(p, gap) && (!margin || free(p, margin))); if (usable.length) break search
+  }
   if (!usable.length) throw new Error(`房间 ${room.id} 没有避开墙体和门扇的机位，请提供自定义相机`)
   // Key wall = the longest continuous full-height stretch of this room's boundary without doors or windows (TV / bed wall).
   const focusWalls = new Map<string, number>()
@@ -237,7 +256,7 @@ function roomCamera(plan: Plan, room: Plan['rooms'][number], wallId?: string): C
     id: `room:${room.id}${wallId ? ':' + wallId : ''}`, description }
 }
 export function listCameras(source: Plan, state: ModelState = 'original', opts: { all?: boolean; level?: string } = {}): CameraChoice[] {
-  const plan=preparedPlan(source,state), result:CameraChoice[]=[]
+  const plan=preparedPlan(source,state), result:CameraChoice[]=[], obstacles=decorObstacles(source,plan,{state})
   assertLevel(plan, opts.level)
   for(const level of levelsOf(plan)) {
     if (opts.level && level.id !== opts.level) continue
@@ -247,7 +266,7 @@ export function listCameras(source: Plan, state: ModelState = 'original', opts: 
       result.push({id,level:level.id,description:`${level.name}，${({ 'iso-sw':'西南斜视','iso-ne':'东北斜视','iso-se':'东南斜视','iso-nw':'西北斜视',top:'俯视剖切' })[id]}`,camera})
     }
     // A room without any spot clear of walls and door swings is left out; render room:<id> explains why.
-    const add=(room:Plan['rooms'][number],wallId?:string)=>{try{const camera=roomCamera(floor,room,wallId);result.push({id:camera.id!,description:camera.description!,level:level.id,camera})}catch{/* skipped */}}
+    const add=(room:Plan['rooms'][number],wallId?:string)=>{try{const camera=roomCamera(floor,room,wallId,obstacles);result.push({id:camera.id!,description:camera.description!,level:level.id,camera})}catch{/* skipped */}}
     for(const room of floor.rooms) {
       if (!cameraRoomEligible(room)) continue
       add(room)
@@ -278,7 +297,7 @@ export function resolveCamera(source: Plan, options: RenderOptions = {}): Camera
     // IDs may themselves contain colons. Match the longest room ID first.
     const suffix=options.camera.slice(5),room=[...plan.rooms].sort((a,b)=>b.id.length-a.id.length).find(r=>suffix===r.id||suffix.startsWith(r.id+':'))
     if(!room)throw new Error(`未知房间机位：${options.camera}`)
-    return roomCamera(plan,room,suffix===room.id?undefined:suffix.slice(room.id.length+1))
+    return roomCamera(plan,room,suffix===room.id?undefined:suffix.slice(room.id.length+1),decorObstacles(source,selected,options))
   }
   const view=(options.camera??options.view??'iso-sw') as RenderView
   if(!['iso-sw','iso-ne','iso-se','iso-nw','top'].includes(view))throw new Error(`未知视角：${view}`)
@@ -292,6 +311,68 @@ export function resolveCamera(source: Plan, options: RenderOptions = {}): Camera
   const span=Math.max(hi[1]-lo[1]+2*S.base.margin,(hi[0]-lo[0]+2*S.base.margin)*(options.height??1600)/(options.width??2400))/(1-2*S.camera.padding)*1000
   const distance=Math.max(span, (hi[2]-lo[2])*1000)*2+1000
   return {projection:'orthographic',id:view,pos:target.map((v,i)=>v+toward[i]*distance) as V3,target,up,span,near:1,far:distance*3,level:options.level}
+}
+
+type DecorItem = Omit<DecorView['visible'][number], 'visible_px'>
+const decorInfo = new WeakMap<MeshPart, DecorItem>()
+/** Library types → ADE20K classes; sized variants (bed-1500) fall back to their family, anything unknown is a box. */
+const FURNITURE_SEG: Record<string, SegClass> = {
+  sofa: 'sofa', armchair: 'armchair', 'coffee-table': 'table', 'dining-table': 'table', table: 'table', desk: 'desk', chair: 'chair', 'desk-chair': 'chair',
+  bed: 'bed', nightstand: 'cabinet', 'tv-stand': 'cabinet', bookshelf: 'shelf', wardrobe: 'wardrobe', fridge: 'refrigerator',
+  washer: 'cabinet', dryer: 'cabinet', oven: 'cabinet', steamer: 'cabinet', dishwasher: 'cabinet', microwave: 'cabinet',
+  rug: 'rug', toilet: 'toilet', basin: 'sink', bathtub: 'bathtub',
+}
+const furnitureSeg = (type: string): SegClass => FURNITURE_SEG[type] ?? FURNITURE_SEG[type.replace(/-\d+$/, '')] ?? 'box'
+/**
+ * The decor layer as the tool's decor mode shows it in clay: furniture boxes, cabinet and panel solids, recess shelves,
+ * and walls with niches swapped for their cut replacements (`replaced` keys the structural parts to drop).
+ */
+function decorSkipped(source: Plan, full: Plan, options: Pick<RenderOptions, 'state' | 'decor'>): DecorView['skipped'] {
+  if (options.decor === false) return 'disabled'
+  if (!full.decor) return 'none'
+  if ((options.state ?? 'original') === 'original' && source.changes.some(c => c.status === 'confirmed')) return 'original-state'
+}
+interface DecorObstacle { level?: string; z0: number; z1: number; rings: Vec2[][] }
+/** Footprints of the furniture and cabinets a render will draw, so room cameras stand clear of them. */
+function decorObstacles(source: Plan, full: Plan, options: Pick<RenderOptions, 'state' | 'decor'>): DecorObstacle[] {
+  if (decorSkipped(source, full, options)) return []
+  try {
+    return buildDecorSolids(full).filter(s => !s.replaces && !s.missing && (s.kind === 'decor-furniture' || s.kind.startsWith('decor-cabinet')))
+      .map(s => ({ level: s.level, z0: s.z0, z1: s.z1, rings: s.polygons.map(p => p[0]) }))
+  } catch { return [] }
+}
+function decorScene(source: Plan, full: Plan, options: RenderOptions, level: string | undefined, cutHeight: number | undefined) {
+  const parts: MeshPart[] = [], replaced = new Set<string>(), skip = (skipped: DecorView['skipped'], error?: string) => ({ parts, replaced, view: { drawn: false, skipped, ...(error ? { error } : {}), visible: [] } as DecorView })
+  const skipped = decorSkipped(source, full, options)
+  if (skipped) return skip(skipped)
+  let solids: ReturnType<typeof buildDecorSolids>
+  try { solids = buildDecorSolids(full) } catch (e) { return skip('error', e instanceof Error ? e.message : String(e)) }
+  const d = full.decor!, first = levelsOf(full)[0].id
+  for (const s of solids) {
+    const lv = s.level ?? first
+    if (s.missing || (level && lv !== level)) continue
+    const z1 = cutHeight === undefined ? s.z1 : Math.min(s.z1, levelOf(full, { level: lv }).elevation + cutHeight)
+    const kind = s.replaces ?? (s.kind === 'decor-furniture' ? 'furniture' : 'cabinet'), part = solidMesh({ kind, ids: s.ids, level: lv, polygons: s.polygons, z0: s.z0, z1 })
+    if (s.replaces) replaced.add(`${s.replaces}|${s.ids.join(',')}`)
+    if (!part.positions.length) continue
+    const id = s.ids[0], f = d.furniture.find(x => x.id === id), c = d.cabinets.find(x => x.id === id), panel = d.panels.find(x => x.id === id)
+    if (s.replaces) { /* structural surface: keeps its own class */ }
+    else if (f) decorInfo.set(part, { id, kind: 'furniture', type: f.type, name: f.name ?? FURNITURE_LIBRARY.find(e => e.type === f.type)?.name ?? f.type, seg: furnitureSeg(f.type) })
+    else if (c) decorInfo.set(part, { id, kind: 'cabinet', name: c.name ?? '柜体', seg: 'cabinet' })
+    else if (panel) decorInfo.set(part, { id, kind: 'panel', name: panel.name ?? '墙面造型', seg: 'wall' })
+    else decorInfo.set(part, { id, kind: 'shelf', name: '壁龛层板', seg: 'shelf' })
+    parts.push(part)
+  }
+  return { parts, replaced, view: { drawn: true, visible: [] } as DecorView }
+}
+/** Visible decor items in the final frame (supersampled hits folded back to output pixels), largest first. */
+function visibleDecor(frame: Pick<Frame, 'partAt' | 'parts' | 'ss'>): DecorView['visible'] {
+  const counts = new Map<string, { item: DecorItem; n: number }>()
+  for (const index of frame.partAt) {
+    const item = index >= 0 ? decorInfo.get(frame.parts[index]) : undefined
+    if (item) { const c = counts.get(item.id); if (c) c.n++; else counts.set(item.id, { item, n: 1 }) }
+  }
+  return [...counts.values()].map(({ item, n }) => ({ ...item, visible_px: Math.round(n / frame.ss ** 2) })).filter(v => v.visible_px > 0).sort((a, b) => b.visible_px - a.visible_px)
 }
 
 interface Frame {
@@ -385,9 +466,9 @@ function contactField(parts:MeshPart[],lo:number[],hi:number[]) {
     return 1-(a*(1-tz)+b*tz)
   }
 }
-/** Orthographic depth map seen from the key light; returns 0 (lit) … 1 (fully shadowed) with PCF softening. */
+/** Orthographic depth map seen from the key light; returns 0 (lit) … 1 (fully shadowed) with PCF softening. Furniture boxes do not cast, as in the tool. */
 function shadowMap(parts:MeshPart[],key:V3,strength:number) {
-  const S=RENDER_STYLE.shadow,casters=parts.filter(p=>!GLASS_KINDS.has(p.kind)&&p.kind!=='ceiling'&&p.kind!=='plinth')
+  const S=RENDER_STYLE.shadow,casters=parts.filter(p=>!GLASS_KINDS.has(p.kind)&&p.kind!=='ceiling'&&p.kind!=='plinth'&&p.kind!=='furniture')
   if(!casters.length||strength<=0)return (_:V3)=>0
   const toward=key,right=unit(cross(Math.abs(key[1])>.999?[0,0,1]:[0,1,0],toward)),up=cross(toward,right)
   const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity]
@@ -411,7 +492,8 @@ function renderFrame(source: Plan, options: RenderOptions = {}): Frame {
   if(options.section!==undefined&&(!Number.isFinite(options.section)||options.section<=0))throw new Error('--section 必须是正数 mm')
   const c=resolveCamera(source,options),full=preparedPlan(source,options.state),level=options.level??c.level,plan=level?selectedLevel(full,level):full
   const cutHeight=options.section!==undefined?options.section/1000:c.id==='top'?S.cutHeight:options.cutHeight
-  const parts=sharedMesh(plan,{cutHeight}).flatMap(g=>g.parts)
+  const decor=decorScene(source,full,options,level,cutHeight)
+  const parts=[...sharedMesh(plan,{cutHeight}).flatMap(g=>g.parts).filter(p=>!decor.replaced.has(`${p.kind}|${p.ids.join(',')}`)),...decor.parts]
   if(!parts.length)throw new Error('方案没有可渲染的实体')
   const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity]
   for(const part of parts)part.positions.forEach((v,i)=>{lo[i%3]=Math.min(lo[i%3],v);hi[i%3]=Math.max(hi[i%3],v)})
@@ -434,6 +516,7 @@ function renderFrame(source: Plan, options: RenderOptions = {}): Frame {
     intrinsics:{fx:fx/ss/(perspective?1:1000),fy:fy/ss/(perspective?1:1000),cx:width/2,cy:height/2},viewMatrix,projectionMatrix,world:'右手系 mm；x=平面 x，z=平面 y，y 向上；矩阵列主序，相机看向 -Z；bbox 为左上原点闭区间像素',openings:[]}
   const frame:Frame={width,height,W,H,ss,rgba:new Uint8Array(width*height*4),depth:new Float32Array(W*H).fill(Infinity),normals:new Float32Array(W*H*3),partAt:new Int32Array(W*H).fill(-1),parts,camera,plan,right,up,toward,pos,fx,fy}
   parts.forEach((part,index)=>rasterPart(frame,part,(i,z,n)=>{if(z>=frame.depth[i]-1e-6)return;frame.depth[i]=z;frame.partAt[i]=index;frame.normals.set(n,i*3)}))
+  camera.decor={...decor.view,visible:decor.view.drawn?visibleDecor(frame):[]}
   const contactAt=contactField(parts,lo,hi),floorElevations=parts.map(p=>p.positions.reduce((h,v,i)=>i%3===1?Math.max(h,v):h,-Infinity))
   const bg=rgb(S.background),line=rgb(S.outline.color),rim=rgb(S.glass.rimColor),palette=parts.map(p=>rgb(p.kind==='plinth'?S.base.color:S.colors[p.kind])),er=Math.max(1,Math.round(S.outline.width*ss))
   // Camera-relative lights: [viewer's left, world up, horizontal direction back toward the viewer].
@@ -502,8 +585,16 @@ function renderFrame(source: Plan, options: RenderOptions = {}): Frame {
 export function renderRgba(plan:Plan,options:RenderOptions={}) {const {width,height,rgba}=renderFrame(plan,options);return {width,height,rgba}}
 export function renderWithCamera(plan:Plan,options:RenderOptions={}) {const f=renderFrame(plan,options);return {png:encodePng(f.width,f.height,f.rgba),camera:f.camera}}
 
-export const SEG_CLASSES = {wall:[120,120,120],floor:[80,50,50],ceiling:[120,120,80],window:[230,230,230],door:[8,255,51],none:[0,0,0]} as const
-function classOf(kind:MeshPart['kind']):keyof typeof SEG_CLASSES {
+/** ADE20K palette. Decor classes come from the furniture type; their names are listed in DECOR_SEG_CLASSES. */
+export const SEG_CLASSES = {wall:[120,120,120],floor:[80,50,50],ceiling:[120,120,80],window:[230,230,230],door:[8,255,51],
+  bed:[204,5,255],cabinet:[224,5,255],table:[255,6,82],chair:[204,70,3],sofa:[11,102,255],shelf:[255,7,71],rug:[255,9,92],armchair:[8,255,214],desk:[10,255,71],
+  wardrobe:[7,255,255],bathtub:[102,8,255],box:[0,255,20],sink:[0,163,255],refrigerator:[20,255,0],toilet:[0,255,133],none:[0,0,0]} as const
+export type SegClass = keyof typeof SEG_CLASSES
+/** Furniture and cabinet classes: gen_score.py leaves their edges out of the structure score. */
+export const DECOR_SEG_CLASSES: SegClass[] = ['bed','cabinet','table','chair','sofa','shelf','rug','armchair','desk','wardrobe','bathtub','box','sink','refrigerator','toilet']
+function classOf(part:MeshPart):SegClass {
+  const decor=decorInfo.get(part);if(decor)return decor.seg
+  const kind=part.kind
   if(kind==='ceiling')return 'ceiling'
   if(['floor','platform','slab','stair','plinth'].includes(kind))return 'floor'
   if(['glass','pane','rail'].includes(kind))return 'window'
@@ -563,10 +654,10 @@ export function renderKit(plan:Plan,options:RenderOptions={}) {
   if(passes.includes('seg')) {
     files['seg-ade20k.png']=pixels(i=>{
       const opening=instance[i]?instances[instance[i]-1]:undefined,j=sample[i]
-      return SEG_CLASSES[opening?.cls??(j<0?'none':classOf(f.parts[f.partAt[j]].kind))]
+      return SEG_CLASSES[opening?.cls??(j<0?'none':classOf(f.parts[f.partAt[j]]))]
     });files['seg.png']=files['seg-ade20k.png']
   }
-  const camera={...f.camera,depth:{encoding:'depth16.png：16-bit gray，线性相机 z 毫米；0=无几何；超过65535截断。raw-depthmm.png：R*256+G。depth-inv.png：1/z 单张 min-max 归一化，近白远黑。',min_mm:Number.isFinite(min)?min:0,max_mm:max,clipped:max>65535},segClasses:SEG_CLASSES,openingId:'openings.png：16-bit gray = idx，0=无洞口；单扇 opening-NNN.png 为白色可见区域、黑色遮挡/背景；bbox 为闭区间',openingMasks:instances}
+  const camera={...f.camera,depth:{encoding:'depth16.png：16-bit gray，线性相机 z 毫米；0=无几何；超过65535截断。raw-depthmm.png：R*256+G。depth-inv.png：1/z 单张 min-max 归一化，近白远黑。',min_mm:Number.isFinite(min)?min:0,max_mm:max,clipped:max>65535},segClasses:SEG_CLASSES,segDecorClasses:DECOR_SEG_CLASSES,openingId:'openings.png：16-bit gray = idx，0=无洞口；单扇 opening-NNN.png 为白色可见区域、黑色遮挡/背景；bbox 为闭区间',openingMasks:instances}
   return {files,camera}
 }
 
