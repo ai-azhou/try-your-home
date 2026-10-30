@@ -7,7 +7,7 @@ import { applyChanges } from '@/core/changes'
 import { bakeChange } from '@/core/edit'
 import type { ImportReport } from '@/core/legacy'
 import { dicts, type Lang } from './i18n'
-import { computeView, type Mode, type Ref, type View } from './model'
+import { computeView, elementLabel, findAny, type Mode, type Ref, type View } from './model'
 
 export type { Mode, Ref, View }
 export type Tool = 'select' | 'wall' | 'opening' | 'beam' | 'room' | 'underlay' | 'column' | 'shaft' | 'stair' | 'void'
@@ -18,7 +18,7 @@ export type Style3D = 'struct' | 'clay'
 export interface Layers { underlay: boolean; dims: boolean; certainty: boolean; ceilings: boolean; otherLevels: boolean }
 export interface Notice { text: string; actions: { label: string; run(): void; primary?: boolean }[] }
 /** 二次确认：缺省是受保护墙 / 承重柱（珊瑚卡）；kind 'shaft' = 原始模式删管道井前的轻确认「这是在纠正读图吗？」 */
-export interface Confirm { text?: string; kind?: 'protect' | 'shaft' | 'merge'; yes(): void; no(): void }
+export interface Confirm { text?: string; kind?: 'protect' | 'shaft' | 'merge'; yes(): void; no(): void; /** 占地归属：能合成一间时才有「合成一间」（yes），其余选项在 choices */ canMerge?: boolean; choices?: { label: string; testId: string; run(): void }[] }
 export type Source = { kind: 'none' | 'local' | 'file' | 'demo' | 'new' | 'served' | 'linked' | 'paste'; file?: string; etag?: string | null }
 
 const MAX_HIST = 100
@@ -56,6 +56,10 @@ interface State {
   toast: string | null
   notice: Notice | null
   confirm: Confirm | null
+  /** 拖动里碰到受保护构件：改动只是预览，答「我确认」之前不进自动保存，也不能写回或导出 */
+  unconfirmed: boolean
+  /** 改造态「只拆一段」正在选的范围，画布上标出来 */
+  removeRange: { wall: string; from: number; to: number } | null
   /** 画墙 / 画梁：锚点、光标、这一串的起点（mm） */
   draw: { anchor: Vec2 | null; cursor: Vec2 | null; start: Vec2 | null }
   /** 手动描房间的顶点 */
@@ -158,7 +162,7 @@ function underlayNamesOf(p: Plan | null): Record<string, string> {
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined
 let lastKey: { key: string; at: number; ids: string[] } | null = null
-let tx: { snap: Plan; changed: boolean; needsConfirm: boolean } | null = null
+let tx: { snap: Plan; changed: boolean; needsConfirm: boolean; text?: string } | null = null
 
 const t = () => dicts[useStore.getState().lang]
 /** 装修态里结构只读（一次只改一层，撤销才不乱）：要改墙切回改造 */
@@ -167,7 +171,7 @@ const structureOf = (p: Plan) => p
 const withConfirm = (c: Change): Change => ({ ...c, confirm: c.confirm ?? { by: BY, at: today() } })
 
 /** 在 base 上试改：返回新 base，或错误 / 需要确认 */
-function tryApply(base: Plan, mode: Mode, changes: Change[], confirmed: boolean): { next: Plan } | { error: string } | { needsConfirm: true } {
+function tryApply(base: Plan, mode: Mode, changes: Change[], confirmed: boolean): { next: Plan } | { error: string } | { needsConfirm: true; text: string } {
   if (mode === 'original') {
     try {
       let next = base
@@ -181,7 +185,12 @@ function tryApply(base: Plan, mode: Mode, changes: Change[], confirmed: boolean)
   const { results } = applyChanges(base, all)
   const mine = results.slice(base.changes.length)
   const bad = mine.find(r => !r.ok)
-  if (bad?.needsConfirm) return { needsConfirm: true }
+  if (bad?.needsConfirm) {
+    // 确认文案写明动到了哪些构件：拖墙角可能带动不是选中的那面
+    const refs = stamped.filter((_, i) => mine[i].needsConfirm).map(c => c.target ? { type: c.type, id: c.target } : typeof c.data?.wall === 'string' ? { type: 'wall' as const, id: c.data.wall } : null)
+    const names = [...new Set(refs.flatMap(r => r && findAny(base, r.id) ? [elementLabel(base, r as Ref)] : []))]
+    return { needsConfirm: true, text: names.length ? (dicts[useStore.getState().lang].confirmTouches).replace('{names}', names.join('、')) : '' }
+  }
   if (bad) return { error: bad.error ?? '改造未执行' }
   return { next: { ...base, changes: all } }
 }
@@ -221,6 +230,8 @@ export const useStore = create<State & Actions>()((set, get) => ({
   toast: null,
   notice: null,
   confirm: null,
+  unconfirmed: false,
+  removeRange: null,
   draw: { anchor: null, cursor: null, start: null },
   roomPoly: null,
   calib: null,
@@ -242,7 +253,8 @@ export const useStore = create<State & Actions>()((set, get) => ({
   measure: null,
   saving: false,
 
-  setMode: m => set({ mode: m, tool: m === 'compare' || m === 'decor' ? 'select' : get().tool, sel: [], qOpen: null, panel: null, confirm: null, measure: null, draw: { anchor: null, cursor: null, start: null }, roomPoly: null }),
+  // 切模式会收起确认卡：没答就当「先不改」，预览的改动不能留下
+  setMode: m => { const c = get(); if (c.unconfirmed) c.confirm?.no(); set({ mode: m, tool: m === 'compare' || m === 'decor' ? 'select' : get().tool, sel: [], qOpen: null, panel: null, confirm: null, measure: null, draw: { anchor: null, cursor: null, start: null }, roomPoly: null }) },
   setTool: tool => {
     if ((get().mode === 'compare' || get().mode === 'decor') && tool !== 'select') { get().showToast(get().mode === 'decor' ? DECOR_RO : t().readOnly); return }
     set({ tool, draw: { anchor: null, cursor: null, start: null }, roomPoly: null, calib: null, hover: null, measure: null })
@@ -290,7 +302,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
     const error = p && planWriteError(p, true)
     if (error) { set({ loadFailure: error, booting: false }); get().showToast(error); return }
     lastKey = null; tx = null
-    set(s => ({ loadFailure: null, base: p, booting: false, sel: [], hover: null, qOpen: null, mode: 'original', tool: 'select', measure: null, level: p?.levels?.some(l => l.id === s.level) ? s.level : null, fitNonce: s.fitNonce + 1, camNonce: s.camNonce + 1, dragOver: false, hist: emptyHist(), dirty: false, cleanBase: p, underlayNames: underlayNamesOf(p), source, report, confirm: null, notice: null, draw: { anchor: null, cursor: null, start: null }, roomPoly: null, calib: null, simpleNote: false, layers: { ...s.layers, underlay: !!p?.underlay?.visible } }))
+    set(s => ({ loadFailure: null, base: p, booting: false, sel: [], hover: null, qOpen: null, mode: 'original', tool: 'select', measure: null, level: p?.levels?.some(l => l.id === s.level) ? s.level : null, fitNonce: s.fitNonce + 1, camNonce: s.camNonce + 1, dragOver: false, hist: emptyHist(), dirty: false, unconfirmed: false, cleanBase: p, underlayNames: underlayNamesOf(p), source, report, confirm: null, notice: null, draw: { anchor: null, cursor: null, start: null }, roomPoly: null, calib: null, simpleNote: false, layers: { ...s.layers, underlay: !!p?.underlay?.visible } }))
   },
   revertChange: id => set(s => {
     if (!s.base) return {}
@@ -332,7 +344,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
     }
     const r = tryApply(s.base, s.mode, changes, !!opts.confirmed)
     if ('needsConfirm' in r) {
-      set({ confirm: { yes: () => { set({ confirm: null }); get().edit(changes, { ...opts, confirmed: true }) }, no: () => set({ confirm: null }) } })
+      set({ confirm: { text: r.text, yes: () => { set({ confirm: null }); get().edit(changes, { ...opts, confirmed: true }) }, no: () => set({ confirm: null }) } })
       return false
     }
     if ('error' in r) { if (!opts.silent) s.showToast(r.error); return false }
@@ -352,11 +364,12 @@ export const useStore = create<State & Actions>()((set, get) => ({
     if (!tx || !s.base) return false
     let r = tryApply(tx.snap, s.mode, changes, false)
     let needsConfirm = false
+    const text = 'needsConfirm' in r ? r.text : ''
     if ('needsConfirm' in r) { r = tryApply(tx.snap, s.mode, changes, true); needsConfirm = true }
     if (!('next' in r)) return false
     if (!tx.changed) set({ hist: s.mode === 'original' ? pushOriginal({ ...s, base: tx.snap }) : pushRenovation({ ...s, base: tx.snap }) })
-    tx.changed = true; tx.needsConfirm = needsConfirm
-    set({ base: r.next, dirty: true })
+    tx.changed = true; tx.needsConfirm = needsConfirm; tx.text = text
+    set({ base: r.next, dirty: true, unconfirmed: needsConfirm })
     return true
   },
   txEnd: () => {
@@ -364,7 +377,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
     tx = null
     if (!cur?.changed || !cur.needsConfirm) return
     const snap = cur.snap
-    set({ confirm: { yes: () => set({ confirm: null }), no: () => set(s => ({ confirm: null, base: snap, hist: { ...s.hist, renovation: { past: s.hist.renovation.past.slice(0, -1), future: [] } } })) } })
+    set({ confirm: { text: cur.text, yes: () => set({ confirm: null, unconfirmed: false }), no: () => set(s => ({ confirm: null, unconfirmed: false, base: snap, hist: { ...s.hist, renovation: { past: s.hist.renovation.past.slice(0, -1), future: [] } } })) } })
   },
   undo: () => {
     const s = get()

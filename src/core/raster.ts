@@ -1,5 +1,6 @@
 import { assertLevel, levelOf, levelsOf, onLevel } from './levels.ts'
-import { labelPoint, pointInPolygon, polygonArea, projectToWall, openingSpan, columnFootprint, roomsBesideWall, roomCeiling, openingFootprint } from './geometry.ts'
+import { roomSpanOnWall } from './merge-rooms.ts'
+import { labelPoint, pointAt, pointInPolygon, polygonArea, projectToWall, openingSpan, columnFootprint, roomsBesideWall, roomCeiling, openingFootprint } from './geometry.ts'
 import { deflateSync } from 'node:zlib'
 import { modelPlan, buildMesh, solidMesh, CLAY_COLORS, GLASS_KINDS, GLASS_OPACITY, type ModelState, type MeshOptions, type MeshPart, type V3 } from './mesh.ts'
 import { buildDecorSolids } from './decor/solids.ts'
@@ -200,6 +201,8 @@ function roomCamera(plan: Plan, room: Plan['rooms'][number], wallId?: string, ob
   for (const w of walls) {
     if (!['exterior', 'bearing', 'partition'].includes(w.kind) || !Object.values(roomsBesideWall(plan, w.id)).flat().some(r => r.id === room.id)) continue
     let spans = room.poly.flatMap((a, i) => { const b = room.poly[(i + 1) % room.poly.length], pa = projectToWall(w, a), pb = projectToWall(w, b); return pa.dist <= w.thickness / 2 + 60 && pb.dist <= w.thickness / 2 + 60 ? [[Math.min(pa.s, pb.s), Math.max(pa.s, pb.s)]] : [] })
+    // 房间比墙长：边的两端都在墙端以外，上面一条也筛不出来
+    if (!spans.length) { const span = roomSpanOnWall(w, room.poly); if (span) spans = [span] }
     for (const o of plan.openings.filter(o => o.wall === w.id)) spans = spans.flatMap(([a, b]) => [[a, Math.min(b, o.offset)], [Math.max(a, o.offset + o.width), b]].filter(([p, q]) => q > p))
     focusWalls.set(w.id, Math.max(0, ...spans.map(([a, b]) => b - a)))
   }
@@ -209,7 +212,7 @@ function roomCamera(plan: Plan, room: Plan['rooms'][number], wallId?: string, ob
   const aimAt = (w: Plan['walls'][number]): Vec2 => {
     const edges = room.poly.map((a, i) => [a, room.poly[(i + 1) % room.poly.length]] as const).filter(e => e.every(p => projectToWall(w, p).dist <= w.thickness / 2 + 60))
     const total = edges.reduce((s, [a, b]) => s + dist2(a, b), 0)
-    return total ? edges.reduce((m, [a, b]) => [m[0] + (a[0] + b[0]) / 2 * dist2(a, b) / total, m[1] + (a[1] + b[1]) / 2 * dist2(a, b) / total] as Vec2, [0, 0] as Vec2) : projectToWall(w, labelPoint(room.poly)).point
+    return total ? edges.reduce((m, [a, b]) => [m[0] + (a[0] + b[0]) / 2 * dist2(a, b) / total, m[1] + (a[1] + b[1]) / 2 * dist2(a, b) / total] as Vec2, [0, 0] as Vec2) : (() => { const span = roomSpanOnWall(w, room.poly); return span ? pointAt(w, (span[0] + span[1]) / 2) : projectToWall(w, labelPoint(room.poly)).point })()
   }
   // A wall view looks straight at that wall. A living room looks at one of its key walls (the TV wall), give or take 12°.
   // TV wall: a key wall square to the room's main window / balcony wall (sofa and TV face each other across the room).

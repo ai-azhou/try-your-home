@@ -1342,6 +1342,88 @@ await step('L7 改开别的方案 → 断开连接，文件再变也不影响；
   return s.kind
 })
 
+/* ═════════ 改造态：拖接点只动这面墙、未确认不落盘、墙占地归属、只拆一段、房间不压房间 ═════════ */
+const pr = await newPage(1440, 900)
+const rs = () => S(pr, () => { const s = window.__fss.store.getState(), v = window.__fss.getView(), saved = JSON.parse(localStorage.getItem('floorplan-structure:autosave:v2') ?? 'null')
+  return { n: s.base.changes.length, confirm: !!s.confirm, touches: document.querySelector('[data-testid=confirm-touches]')?.innerText ?? '', wm: v.plan.walls.find(w => w.id === 'w-m'), wd: v.plan.walls.find(w => w.id === 'w-d'), saved: saved?.plan?.changes?.length, savedConfirm: saved?.plan?.changes?.filter(c => c.confirm).length, confirmed: s.base.changes.filter(c => c.confirm).length, last: s.base.changes.at(-1), rooms: v.plan.rooms.length, toast: s.toast ?? '' } })
+const dragTo = async (from, to, mid) => { const [x0, y0] = await P(pr, from), [x1, y1] = await P(pr, to); await pr.mouse.move(x0, y0); await pr.mouse.down(); for (let i = 1; i <= 8; i++) { await pr.mouse.move(x0 + (x1 - x0) * i / 8, y0 + (y1 - y0) * i / 8); await sleep(16) } if (mid) await mid(); await pr.mouse.up(); await sleep(250) }
+
+await step('R1 改造态拖白点：只动选中的这面墙；顺着墙拖不被网格带偏', pr, async () => {
+  await pr.goto(BASE + '/?mode=renovation&sel=w-m', { waitUntil: 'networkidle0' }); await sleep(1300)
+  const b = await rs()
+  await dragTo(b.wm.a, [b.wm.a[0] + 330, b.wm.a[1] + 8])
+  const a = await rs()
+  assert(a.wm.a[0] === b.wm.a[0] + 330 && a.wm.a[1] === b.wm.a[1], `端点 ${a.wm.a}`)
+  assert(JSON.stringify(a.wd) === JSON.stringify(b.wd), '相接的承重墙被带动了')
+  assert(a.n === b.n + 1 && a.last.target === 'w-m' && !a.confirm, JSON.stringify(a.last))
+  await S(pr, () => window.__fss.store.getState().undo()); await sleep(200)
+  return `w-m 端点 → ${a.wm.a}，w-d 没动`
+})
+await step('R2 按住 ⇧ 连相接的墙：高亮被带动的墙；确认卡写明动到哪面；没答不进自动保存', pr, async () => {
+  await S(pr, () => { const s = window.__fss.store.getState(); s.select({ type: 'wall', id: 'w-m' }) }); await sleep(800)
+  const b = await rs()
+  await pr.keyboard.down('Shift')
+  let lit = false
+  await dragTo(b.wm.a, [b.wm.a[0], b.wm.a[1] - 300], async () => { lit = !!(await pr.$('[data-testid=joint-dragged]')) })
+  await pr.keyboard.up('Shift')
+  await sleep(900)
+  let a = await rs()
+  assert(lit, '拖动时没有高亮被带动的墙')
+  assert(a.confirm && a.touches.includes('会动到') && JSON.stringify(a.wd) !== JSON.stringify(b.wd), JSON.stringify({ c: a.confirm, t: a.touches }))
+  assert(a.saved === b.saved && a.savedConfirm === b.savedConfirm, `没确认就进了自动保存：${b.saved} → ${a.saved}，confirm ${b.savedConfirm} → ${a.savedConfirm}`)
+  const touches = a.touches
+  await pr.click('[data-testid=confirm-no]'); await sleep(900)
+  a = await rs()
+  assert(!a.confirm && a.n === b.n && JSON.stringify(a.wd) === JSON.stringify(b.wd) && a.saved === b.saved, '「先不改」没有撤回')
+  await pr.keyboard.down('Shift'); await dragTo(b.wm.a, [b.wm.a[0], b.wm.a[1] - 300]); await pr.keyboard.up('Shift'); await sleep(300)
+  await pr.click('[data-testid=confirm-yes]'); await sleep(900)
+  a = await rs()
+  assert(a.n > b.n && a.saved === a.n && a.savedConfirm === a.confirmed, `确认后没进自动保存：${JSON.stringify([a.n, a.saved, a.savedConfirm, a.confirmed])}`)
+  return touches
+})
+await step('R3 拆墙后问占地：合成一间 / 算给一侧 / 先不管；算给一侧两间都在', pr, async () => {
+  await pr.goto(BASE + '/?mode=renovation&sel=w-c', { waitUntil: 'networkidle0' }); await sleep(1300)
+  const b = await rs()
+  await pr.keyboard.press('Delete'); await sleep(400)
+  await pr.waitForSelector('[data-testid=merge-confirm]', { visible: true, timeout: 4000 })
+  const labels = await S(pr, () => [...document.querySelectorAll('[data-testid=merge-confirm] button')].map(x => x.innerText.trim()))
+  assert(labels.length === 4 && labels[0] === '合成一间' && labels.at(-1) === '先不管' && labels.slice(1, 3).every(l => l.startsWith('算给 ')), labels.join(' / '))
+  await shot(pr, 'R3-footprint.png')
+  const area = () => S(pr, () => Object.fromEntries(window.__fss.getView().plan.rooms.map(r => [r.id, r.poly.reduce((s, p, i, a) => s + p[0] * a[(i + 1) % a.length][1] - a[(i + 1) % a.length][0] * p[1], 0)])))
+  const before = await area()
+  await pr.click('[data-testid=footprint-0]'); await sleep(400)
+  const after = await area(), a = await rs()
+  assert(a.rooms === b.rooms && !a.confirm && Object.keys(after).filter(k => Math.abs(after[k] - before[k]) > 1).length === 1, JSON.stringify(a.last))
+  return labels.join(' / ')
+})
+await step('R4 只拆一段：标出范围；门窗不能留在拆掉的墙上，可收缩避开；拆完再问占地', pr, async () => {
+  await pr.goto(BASE + '/?mode=renovation&sel=w-c', { waitUntil: 'networkidle0' }); await sleep(1300)
+  await pr.click('[data-testid=range-open]'); await pr.waitForSelector('[data-testid=range-preview]')
+  await pr.click('[data-testid=range-to]'); await sleep(80); await pr.keyboard.type('1800'); await pr.keyboard.press('Enter'); await sleep(250)
+  await pr.waitForSelector('[data-testid=range-covered]')
+  await shot(pr, 'R4-range.png')
+  await pr.click('[data-testid=range-avoid]'); await sleep(250)
+  assert(!(await pr.$('[data-testid=range-covered]')), '收缩后还压着门')
+  await pr.click('[data-testid=range-remove]'); await sleep(500)
+  const a = await rs(), keep = await S(pr, () => { const v = window.__fss.getView(); return { door: v.plan.openings.find(o => o.id === 'o-bath')?.wall, parts: v.plan.walls.filter(w => w.id === 'w-c' || w.id.startsWith('w-c~')).length } })
+  assert(JSON.stringify(a.last.range) === '[1500,1800]' && a.last.target === 'w-c', JSON.stringify(a.last))
+  assert(keep.door === 'w-c' && keep.parts === 2, JSON.stringify(keep))
+  assert(a.confirm && await pr.$('[data-testid=merge-confirm]'), '拆一段后没问占地')
+  await pr.click('[data-testid=confirm-no]'); await sleep(200)
+  return `range ${a.last.range}，门还在，墙分成 ${keep.parts} 段`
+})
+await step('R5 房间工具不会围出压住别的房间的一大片', pr, async () => {
+  await pr.goto(BASE + '/?mode=renovation&sel=w-c', { waitUntil: 'networkidle0' }); await sleep(1300)
+  await pr.keyboard.press('Delete'); await sleep(400); await pr.click('[data-testid=confirm-no]'); await sleep(300)
+  const b = await rs()
+  await S(pr, () => window.__fss.store.getState().setTool('room')); await sleep(200)
+  await clickPlan(pr, [4500, 2400]); await sleep(400)
+  const a = await rs()
+  assert(a.rooms === b.rooms, `建了压住别的房间的房间：${b.rooms} → ${a.rooms}`)
+  await pr.close()
+  return a.toast
+})
+
 await browser.close()
 try { process.kill(srvPid, 'SIGTERM') } catch {}
 

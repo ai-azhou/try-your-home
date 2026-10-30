@@ -22,7 +22,8 @@ import { getView, useStore, useT, useView, type Ref } from '../store'
 import { Defs, PlanLayers, isProtectedWall } from './PlanLayers'
 import { Hotspot } from '../kit'
 import { fmtLen, len2, mid, polyPath, segmentRect, spanOf, underlayHref } from '../geom'
-import { wallFootprint } from '@/core/geometry'
+import { sliceWall, wallFootprint } from '@/core/geometry'
+import { roomsOverlapping } from '@/core/merge-rooms'
 import { C } from './style'
 import { cn } from '@/lib/utils'
 import { freeRect, useIsMobile } from '../layout'
@@ -99,7 +100,7 @@ function pick(p: Vec2, tol: number): Ref | null {
 type Gesture =
   | { kind: 'pan'; sx: number; sy: number; x: number; y: number; moved: boolean }
   | { kind: 'pinch'; d: number; k: number; cx: number; cy: number; x: number; y: number; moved: true }
-  | { kind: 'joint'; sx: number; sy: number; from: Vec2; moved: boolean; snapPlan: Plan; start: Plan }
+  | { kind: 'joint'; sx: number; sy: number; from: Vec2; moved: boolean; snapPlan: Plan; start: Plan; wall: string; end: 'a' | 'b'; selfSnap: Plan }
   | { kind: 'bulge'; sx: number; sy: number; wall: string; moved: boolean }
   | { kind: 'opening'; sx: number; sy: number; id: string; grab: number; moved: boolean }
   | { kind: 'underlay'; sx: number; sy: number; origin: Vec2; start: Vec2; moved: boolean }
@@ -120,6 +121,9 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
   const [xf, setXf] = useState<Xf>({ k: 0.06, x: 0, y: 0 })
   const [preview, setPreview] = useState<{ opening?: Opening; error?: string; at?: Vec2 } | null>(null)
   const [snapKind, setSnapKind] = useState<SnapResult['kind']>('none')
+  /** 改造态按住 ⇧ 拖墙角时会被带动的墙，高亮出来 */
+  const [dragged, setDragged] = useState<string[]>([])
+  const removeRange = useStore(s => s.removeRange)
   const served = useStore(s => s.source.kind === 'served')
   const href = underlayHref(view?.plan.underlay?.src, served)
   const imgSize = useImageSize(href)
@@ -254,12 +258,12 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
   const snapDraw = (raw: Vec2, anchor: Vec2 | null, p: Plan = cur()!.plan) => snap(p, raw, { tolerance: px(12), anchor: anchor ?? undefined, gridSize: 100, grid: { tolerance: px(40) }, angles: { tolerance: px(10) } })
 
   /** 选中墙的手柄（端点 / 中点）*/
-  const handleAt = (s: Vec2): { kind: 'joint'; p: Vec2 } | { kind: 'bulge'; wall: string } | null => {
+  const handleAt = (s: Vec2): { kind: 'joint'; p: Vec2; wall: string; end: 'a' | 'b' } | { kind: 'bulge'; wall: string } | null => {
     const st = S()
     if (st.sel.length !== 1 || st.sel[0].type !== 'wall' || st.tool !== 'select') return null
     const w = cur()?.plan.walls.find(w => w.id === st.sel[0].id)
     if (!w) return null
-    for (const q of [w.a, w.b]) if (len2(toScreen(q), s) < 11) return { kind: 'joint', p: q }
+    for (const end of ['a', 'b'] as const) if (len2(toScreen(w[end]), s) < 11) return { kind: 'joint', p: w[end], wall: w.id, end }
     if (len2(toScreen(pointAt(w, wallLength(w) / 2)), s) < 11) return { kind: 'bulge', wall: w.id }
     return null
   }
@@ -366,7 +370,7 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
       const h = handleAt(s)
       if (h?.kind === 'joint') {
         const moving = new Set(jointsAt(v.plan, h.p).map(j => j.wall.id))
-        g.current = { kind: 'joint', sx: s[0], sy: s[1], from: h.p, moved: false, start: v.plan, snapPlan: { ...v.plan, walls: v.plan.walls.filter(w => !moving.has(w.id)), openings: v.plan.openings.filter(o => !moving.has(o.wall)) } }
+        g.current = { kind: 'joint', sx: s[0], sy: s[1], from: h.p, moved: false, start: v.plan, wall: h.wall, end: h.end, snapPlan: { ...v.plan, walls: v.plan.walls.filter(w => !moving.has(w.id)), openings: v.plan.openings.filter(o => !moving.has(o.wall)) }, selfSnap: { ...v.plan, walls: v.plan.walls.filter(w => w.id !== h.wall), openings: v.plan.openings.filter(o => o.wall !== h.wall) } }
         return
       }
       if (h?.kind === 'bulge') { g.current = { kind: 'bulge', sx: s[0], sy: s[1], wall: h.wall, moved: false }; return }
@@ -408,10 +412,21 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
       const p = toPlan(s), v = getView()
       if (!v) return
       if (d.kind === 'joint') {
-        const sn = snapDraw(p, null, d.snapPlan)
-        setSnapKind(sn.kind)
-        st.setDraw({ cursor: sn.point })
-        st.txSet(moveJoint(d.start, d.from, sn.point))
+        // 改造态默认只动选中的这面墙（用户多半只想改它）；按住 ⇧ 才连相接的墙一起挪。原始模式是纠正读图，墙角一起动
+        const together = st.mode !== 'renovation' || e.shiftKey
+        const sn = snapDraw(p, null, together ? d.snapPlan : d.selfSnap)
+        let point = sn.point
+        const w = d.start.walls.find(x => x.id === d.wall)
+        if (!together && w && !w.bulge && (sn.kind === 'grid' || sn.kind === 'none')) {
+          // 顺着墙拖不被网格带偏：离墙的延长线很近就贴在线上，只改长度
+          const fixed = d.end === 'a' ? w.b : w.a, dir: Vec2 = [d.from[0] - fixed[0], d.from[1] - fixed[1]], l = Math.hypot(dir[0], dir[1]) || 1, u: Vec2 = [dir[0] / l, dir[1] / l]
+          const along = (p[0] - fixed[0]) * u[0] + (p[1] - fixed[1]) * u[1], off = Math.abs((p[0] - fixed[0]) * u[1] - (p[1] - fixed[1]) * u[0])
+          if (off < px(10) && along > 0) { const n = Math.round(along / 10) * 10; point = [fixed[0] + u[0] * n, fixed[1] + u[1] * n] }
+        }
+        setSnapKind(point === sn.point ? sn.kind : 'none')
+        st.setDraw({ cursor: point })
+        setDragged(together && st.mode === 'renovation' ? jointsAt(d.start, d.from).map(j => j.wall.id) : [])
+        st.txSet(together ? moveJoint(d.start, d.from, point) : [updateWall(d.wall, { [d.end]: point })])
       } else if (d.kind === 'bulge') {
         const w = v.plan.walls.find(w => w.id === d.wall)
         if (!w) return
@@ -501,7 +516,7 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
     }
     if (d && d.kind !== 'pan' && d.kind !== 'pinch') {
       if (d.moved) {
-        st.txEnd(); st.setDraw({ cursor: null }); setSnapKind('none')
+        st.txEnd(); st.setDraw({ cursor: null }); setSnapKind('none'); setDragged([])
         if (d.kind === 'bulge' && bulgeBlocked.current) { st.showToast(bulgeBlocked.current); bulgeBlocked.current = null }
         return
       }
@@ -577,6 +592,9 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
   }
   const commitRoom = (poly: Vec2[]) => {
     const st = S(), c0 = cur()!
+    // 开敞区域点一下可能围出一大片：压住别的房间就不建
+    const over = roomsOverlapping(c0.full, poly, c0.lvId)
+    if (over.length) { st.setRoomPoly(null); st.showToast(fmt(t.roomOverlap, { names: over.map(r => r.name).join('、') })); return }
     const c = addRoom(poly, fmt(t.roomN, { n: c0.plan.rooms.length + 1 }))
     const id = newId(c0.full, 'room')
     c.data = { ...c.data, id, ...levelField(c0.full, c0.lvId) }
@@ -689,6 +707,8 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
           {/* 其他楼层：墙体轮廓淡显在上面（虚线 + 极淡填充），对位用，不接收点击 */}
           {otherLevels.map(o => <path key={'lv-' + o.id} d={o.d} fill="rgb(22 25 30 / 0.05)" stroke="rgb(22 25 30 / 0.34)" strokeWidth={px(1)} strokeDasharray={`${px(4)} ${px(3)}`} pointerEvents="none" data-other-level={o.id} />)}
           {!mini && editable && (tool === 'shaft' || tool === 'stair' || tool === 'void' || tool === 'column') && <RectOverlay k={xf.k} tool={tool} anchor={draw.anchor} cursor={draw.cursor} />}
+          {!mini && dragged.length > 0 && <g pointerEvents="none" data-testid="joint-dragged">{plan.walls.filter(w => dragged.includes(w.id)).map(w => <path key={w.id} d={polyPath(wallFootprint(w))} fill="rgb(255 122 89 / 0.28)" stroke="#d9543a" strokeWidth={px(1.6)} />)}</g>}
+          {!mini && removeRange && (() => { const w = plan.walls.find(x => x.id === removeRange.wall); return w && removeRange.to <= wallLength(w) + 1 ? <path d={polyPath(wallFootprint(sliceWall({ ...w, thickness: w.thickness + 40 }, removeRange.from, Math.min(removeRange.to, wallLength(w)))))} fill="rgb(255 122 89 / 0.55)" stroke="#d9543a" strokeWidth={px(1.4)} pointerEvents="none" data-testid="range-preview" /> : null })()}
           {measured && <MeasureOverlay k={xf.k} m={measured.m} a={measured.a} b={measured.b} t={t} onCopy={v => { void navigator.clipboard?.writeText(String(v)).catch(() => {}); S().showToast(fmt(t.s2a.measure.copied, { v: fmtMm(v) })) }} />}
           {drawing && <DrawOverlay k={xf.k} tool={tool} anchor={tool === 'room' ? roomPoly![roomPoly!.length - 1] : draw.anchor} cursor={draw.cursor} snapKind={snapKind} lang={lang} poly={tool === 'room' ? roomPoly : null} />}
           {!mini && draw.cursor && tool === 'select' && <circle cx={draw.cursor[0]} cy={draw.cursor[1]} r={px(snapKind === 'none' ? 0 : 8)} fill="rgb(85 211 165 / 0.18)" stroke={C.mint500} strokeWidth={px(2)} pointerEvents="none" />}

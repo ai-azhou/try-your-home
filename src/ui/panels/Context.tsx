@@ -210,7 +210,7 @@ export function NextStep() {
     // 有选中时「交给 Agent」在检查器里，这里只说怎么改，不再放第二个按钮（design.md §8）
     tone = 'ink'; icon = <MousePointerClick size={15} strokeWidth={2.4} />
     const ghost = !findEl(view.plan, sel[0])
-    lead = measuring ? t.s2a.measure.active : sel.length > 1 ? fmt(t.selHint.multi, { n: sel.length }) : ghost ? t.selHint.ghost : mode === 'compare' ? fmt(t.next.handoffSel.lead, { name: labelOf(view, sel[0]) }) : t.selHint[sel[0].type]
+    lead = measuring ? t.s2a.measure.active : sel.length > 1 ? fmt(t.selHint.multi, { n: sel.length }) : ghost ? t.selHint.ghost : mode === 'compare' ? fmt(t.next.handoffSel.lead, { name: labelOf(view, sel[0]) }) : mode === 'renovation' && sel[0].type === 'wall' ? t.selHint.wallReno : t.selHint[sel[0].type]
     if (measuring) { tone = 'ink'; icon = <Ruler size={15} strokeWidth={2.4} /> }
   } else if (mode === 'original' && fresh.length) {
     tone = 'lav'; icon = <Sparkles size={15} strokeWidth={2.4} />

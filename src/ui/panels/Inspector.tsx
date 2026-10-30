@@ -2,19 +2,19 @@
  * 选中什么才出现什么：墙 / 门窗 / 房间 / 梁 / 已拆除的构件 / 多选。
  * 原始模式下改属性 = 纠正读图（直接改 base）；改造模式 = 记一条改造；对比模式只读。
  */
-import { type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { AppWindow, BrickWall, ChevronRight, Columns2, DoorOpen, Lock, Rows2, Sparkles, Square, Undo2, X, Trash, TriangleAlert, Check, Scissors, Ruler } from 'lucide-react'
 import type { Beam, Change, Column, Opening, OpeningKind, Plan, Room, Shaft, Stair, Void, Wall, WallKind } from '@/core/types'
 import { DEFAULTS, PROTECTED_KINDS } from '@/core/types'
-import { arcParams, bulgeFromAngle, bulgeFromRadius, effectiveWallHeight, roomsBesideWall, pointInPolygon, wallLength } from '@/core/geometry'
+import { arcParams, bulgeFromAngle, bulgeFromRadius, clamp, effectiveWallHeight, projectToWall, roomsBesideWall, pointInPolygon, wallLength } from '@/core/geometry'
 import { levelCeiling, levelOf, levelsOf } from '@/core/levels'
 import { useStore, useT, useView, type Confirm } from '../store'
 import { CertaintyBadge, NumberField, Pill, RoundButton, SectionLabel, Switch, Tag, WallSwatch, Tip } from '../kit'
 import { RoomSection, WallElevation } from './Diagrams'
 import { openingsOn, len2, spanOf } from '../geom'
 import { elementLabel, findEl, roomArea, type Ref } from '../model'
-import { patchEl as patch, removeRefs, splitSelectedWall } from '../actions'
+import { patchEl as patch, removeRefs, removeWallRange, splitSelectedWall } from '../actions'
 import { fmt } from '../i18n'
 import { cn } from '@/lib/utils'
 import { ExtraIcon } from '../kit/extra-icons'
@@ -115,21 +115,23 @@ export function Actions({ onAgent, removeLabel, onRemove, disabledRemove, extra 
 /** 三种二次确认挑一种：管道井、受保护的墙、拆墙后合并房间 */
 export function ConfirmCard({ confirm }: { confirm: Confirm }) {
   if (confirm.kind === 'shaft') return <ShaftConfirm onConfirm={confirm.yes} onCancel={confirm.no} />
-  if (confirm.kind === 'merge') return <MergeConfirm text={confirm.text ?? ''} onConfirm={confirm.yes} onCancel={confirm.no} />
-  return <ProtectConfirm onConfirm={confirm.yes} onCancel={confirm.no} />
+  if (confirm.kind === 'merge') return <MergeConfirm confirm={confirm} />
+  return <ProtectConfirm text={confirm.text} onConfirm={confirm.yes} onCancel={confirm.no} />
 }
 
-/* 改造态手动拆墙后：两边的房间要不要合成一间（线上 bug B4；Agent 按手册自己写 update / remove room） */
-export function MergeConfirm({ text, onConfirm, onCancel }: { text: string; onConfirm(): void; onCancel(): void }) {
-  const lang = useStore(s => s.lang)
+/* 改造态手动拆墙后：墙占的地方怎么算——合成一间，或者两间都留着、算给其中一侧（线上 bug B4；Agent 按手册自己写 update / remove room） */
+export function MergeConfirm({ confirm }: { confirm: Confirm }) {
+  const lang = useStore(s => s.lang), t = useT()
+  const canMerge = !!confirm.canMerge
   return (
     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden" data-testid="merge-confirm">
       <div className="tile rounded-[18px] p-3.5">
-        <div className="text-[13.5px] font-semibold text-ink-900">{lang === 'zh' ? '合成一间吗？' : 'Make it one room?'}</div>
-        <p className="mt-1 text-[12.5px] leading-relaxed text-ink-600">{text}</p>
-        <div className="mt-3 flex gap-2">
-          <Pill tone="ink" size="sm" onClick={onConfirm} data-testid="confirm-yes">{lang === 'zh' ? '合并' : 'Merge'}</Pill>
-          <Pill tone="plain" size="sm" onClick={onCancel} data-testid="confirm-no">{lang === 'zh' ? '先不合并' : 'Keep two rooms'}</Pill>
+        <div className="text-[13.5px] font-semibold text-ink-900">{t.footprint.title}</div>
+        <p className="mt-1 text-[12.5px] leading-relaxed text-ink-600">{confirm.text}</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {canMerge && <Pill tone="ink" size="sm" onClick={confirm.yes} data-testid="confirm-yes">{lang === 'zh' ? '合成一间' : 'Merge'}</Pill>}
+          {confirm.choices?.map(c => <Pill key={c.testId} tone="tile" size="sm" onClick={c.run} data-testid={c.testId} className="max-w-full truncate">{c.label}</Pill>)}
+          <Pill tone="plain" size="sm" onClick={confirm.no} data-testid="confirm-no">{t.footprint.leave}</Pill>
         </div>
       </div>
     </motion.div>
@@ -153,12 +155,13 @@ export function ShaftConfirm({ onConfirm, onCancel }: { onConfirm(): void; onCan
 }
 
 /* 受保护墙的二次确认（参考图 2 的「锁」语义） */
-export function ProtectConfirm({ onConfirm, onCancel }: { onConfirm(): void; onCancel(): void }) {
+export function ProtectConfirm({ text, onConfirm, onCancel }: { text?: string; onConfirm(): void; onCancel(): void }) {
   const t = useT(), lang = useStore(s => s.lang), column = useStore(s => s.sel.length === 1 && s.sel[0].type === 'column')
   return (
     <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
       <div className="hatch-coral rounded-[18px] bg-coral-50 p-3.5 ring-1 ring-inset ring-coral-200">
         <div className="flex items-center gap-2 text-[13.5px] font-semibold text-coral-700"><TriangleAlert size={16} />{column ? (lang === 'zh' ? '这是承重柱' : 'Load-bearing column') : lang === 'zh' ? '涉及承重墙 / 外墙 / 承重情况不确定的墙' : 'Load-bearing / exterior / unknown load-bearing status wall'}</div>
+        {text && <p className="mt-1.5 text-[12.5px] font-semibold leading-relaxed text-coral-700" data-testid="confirm-touches">{text}</p>}
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-700">{t.protectedNote}</p>
         <div className="mt-3 flex gap-2">
           <Pill tone="coral" size="sm" onClick={onConfirm} className="bg-coral-500 text-white hover:bg-coral-700" data-testid="confirm-yes">{lang === 'zh' ? '我确认，记下这条改造' : 'Confirm & record'}</Pill>
@@ -276,6 +279,8 @@ function WallBody({ plan, w }: { plan: Plan; w: Wall }) {
         </div>
       )}
 
+      {mode === 'renovation' && <RemoveRange key={w.id} w={w} ops={ops} />}
+
       <Actions onAgent={() => openAgent(true)}
         removeLabel={mode === 'renovation' ? t.act.remove : undefined}
         onRemove={mode === 'compare' ? undefined : () => removeEl(ref)}
@@ -287,6 +292,49 @@ function WallBody({ plan, w }: { plan: Plan; w: Wall }) {
   )
 }
 
+
+/** 改造态只拆墙的一段：输入范围（从 a 端量），画布上标出来。范围里的门窗不能留在拆掉的墙上：要么一起拆，要么收缩范围避开 */
+function RemoveRange({ w, ops }: { w: Wall; ops: Opening[] }) {
+  const t = useT().rangeRemove, len = Math.round(wallLength(w))
+  const point = useStore(s => s.selPoint)
+  const [open, setOpen] = useState(false)
+  const [range, setRange] = useState<[number, number]>(() => {
+    const c = point ? projectToWall(w, point).s : len / 2, half = Math.min(450, len / 2), from = Math.round(clamp(c - half, 0, len - half * 2) / 10) * 10
+    return [from, Math.min(len, from + half * 2)]
+  })
+  const [from, to] = range
+  useEffect(() => { useStore.setState({ removeRange: open ? { wall: w.id, from, to } : null }) }, [open, w.id, from, to])
+  useEffect(() => () => useStore.setState({ removeRange: null }), [])
+  // 卡片在面板最下面，会被吸底的操作行盖住：展开时滚到中间
+  const card = useRef<HTMLDivElement>(null)
+  useEffect(() => { if (open) card.current?.scrollIntoView({ block: 'center' }) }, [open])
+  if (!open) return <Pill tone="tile" size="sm" onClick={() => setOpen(true)} className="self-start" data-testid="range-open"><Scissors size={13} />{t.open}</Pill>
+  const covered = ops.filter(o => o.offset < to && o.offset + o.width > from)
+  // 范围里最长的一段没有门窗的
+  const free = () => {
+    let best: [number, number] | null = null, at = from
+    for (const o of [...covered].sort((a, b) => a.offset - b.offset)) { if (o.offset > at && (!best || o.offset - at > best[1] - best[0])) best = [at, o.offset]; at = Math.max(at, o.offset + o.width) }
+    if (to > at && (!best || to - at > best[1] - best[0])) best = [at, to]
+    return best && best[1] - best[0] >= 100 ? best : null
+  }
+  const gap = free()
+  return (
+    <div ref={card} className="tile flex flex-col gap-2.5 rounded-[16px] p-3" data-testid="range-card">
+      <div className="text-[12.5px] font-semibold text-ink-800">{t.title}</div>
+      <div className="grid grid-cols-2 gap-2">
+        <NumberField label={t.from} value={from} unit="mm" step={10} min={0} max={to - 10} testId="range-from" onChange={v => setRange([Math.round(v), to])} />
+        <NumberField label={t.to} value={to} unit="mm" step={10} min={from + 10} max={len} testId="range-to" onChange={v => setRange([from, Math.round(v)])} />
+      </div>
+      <div className="text-[11.5px] leading-snug text-ink-500">{fmt(t.hint, { n: to - from, len })}</div>
+      {covered.length > 0 && <div className="text-[12px] font-semibold leading-snug text-coral-700" data-testid="range-covered">{fmt(t.covered, { names: covered.map(o => o.name ?? o.id).join('、') })}</div>}
+      <div className="flex flex-wrap gap-1.5">
+        <Pill tone="coral" size="sm" onClick={() => removeWallRange(w.id, from, to)} data-testid="range-remove">{covered.length ? t.removeWith : t.remove}</Pill>
+        {covered.length > 0 && gap && <Pill tone="tile" size="sm" onClick={() => setRange(gap)} data-testid="range-avoid">{t.avoid}</Pill>}
+        <Pill tone="plain" size="sm" onClick={() => setOpen(false)}>{t.cancel}</Pill>
+      </div>
+    </div>
+  )
+}
 
 function OpeningBody({ plan, o }: { plan: Plan; o: Opening }) {
   const t = useT()

@@ -2399,7 +2399,7 @@
     },
     {
       "id": "src/core/merge-rooms.ts",
-      "renderedLength": 1958
+      "renderedLength": 3889
     },
     {
       "id": "src/core/mirror-frame.ts",
@@ -2511,7 +2511,7 @@
     },
     {
       "id": "src/ui/actions.ts",
-      "renderedLength": 28847
+      "renderedLength": 30045
     },
     {
       "id": "src/ui/App.tsx",
@@ -2523,7 +2523,7 @@
     },
     {
       "id": "src/ui/canvas2d/PlanCanvas.tsx",
-      "renderedLength": 55440
+      "renderedLength": 57958
     },
     {
       "id": "src/ui/canvas2d/PlanLayers.tsx",
@@ -2651,7 +2651,7 @@
     },
     {
       "id": "src/ui/i18n.ts",
-      "renderedLength": 33984
+      "renderedLength": 35804
     },
     {
       "id": "src/ui/kit/extra-icons.tsx",
@@ -2691,7 +2691,7 @@
     },
     {
       "id": "src/ui/panels/Context.tsx",
-      "renderedLength": 35584
+      "renderedLength": 35655
     },
     {
       "id": "src/ui/panels/Diagrams.tsx",
@@ -2703,7 +2703,7 @@
     },
     {
       "id": "src/ui/panels/Inspector.tsx",
-      "renderedLength": 60449
+      "renderedLength": 65021
     },
     {
       "id": "src/ui/panels/Levels.tsx",
@@ -2739,7 +2739,7 @@
     },
     {
       "id": "src/ui/store.ts",
-      "renderedLength": 16121
+      "renderedLength": 16936
     },
     {
       "id": "src/ui/underlay-art.ts",

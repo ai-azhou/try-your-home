@@ -16,7 +16,7 @@ import { findEl } from './model'
 import { openChatIssuesFor } from './chat'
 import { diagnoseShape, isNotPlan, isSimplePlan } from '@/core/simple'
 import { canLink, forgetHandle, recallHandle, rememberHandle, stampOf, type PlanFileHandle } from './file-link'
-import { mergeAcrossWall } from '@/core/merge-rooms'
+import { mergeAcrossWall, wallFootprintSides, type FootprintSide } from '@/core/merge-rooms'
 
 const st = () => useStore.getState()
 const t = () => dicts[st().lang]
@@ -58,25 +58,42 @@ export function removeRefs(refs: Ref[], confirmedShaft = false) {
     return true
   }
   const ok = st().edit(list.map(r => removeElement(v.plan, r)), { select: null })
-  // 改造态拆墙：墙两边各一间时问一句要不要合成一间。受保护的墙先过二次确认，确认拆了再问
+  // 改造态拆墙：问墙占地怎么算。受保护的墙先过二次确认，确认拆了再问
   const walls = list.filter(r => r.type === 'wall').map(r => r.id)
-  if (s.mode === 'renovation' && walls.length) {
-    const pending = st().confirm
-    if (ok) offerMerge(v.plan, walls)
-    else if (pending) useStore.setState({ confirm: { ...pending, yes: () => { pending.yes(); if (!st().confirm) offerMerge(v.plan, walls) } } })
-  }
+  if (s.mode === 'renovation' && walls.length) afterWallRemoved(ok, v.plan, walls)
   return ok
 }
-/** 拆墙后两边的房间合成一间：update 留下的房间（轮廓 = 两间 + 墙占地），remove 另一间（线上 bug B4） */
-function offerMerge(before: Plan, wallIds: string[]) {
-  const m = wallIds.map(id => mergeAcrossWall(before, id)).find(x => x)
-  if (!m) return
-  const zh = st().lang === 'zh', area = (polygonArea(m.poly) / 1e6).toFixed(1)
-  const text = zh ? `墙拆了，${m.keep.name}和${m.drop.name}连成一片。合并后叫「${m.keep.name}」，约 ${area} m²（含原来墙占的地方）。` : `With the wall gone, ${m.keep.name} and ${m.drop.name} are one space. Merged as “${m.keep.name}”, about ${area} m² (including the wall’s footprint).`
-  useStore.setState({ confirm: { kind: 'merge', text, no: () => useStore.setState({ confirm: null }), yes: () => {
-    useStore.setState({ confirm: null })
+function afterWallRemoved(ok: boolean, before: Plan, walls: string[], range?: [number, number]) {
+  const pending = st().confirm
+  if (ok) offerFootprint(before, walls, range)
+  else if (pending) useStore.setState({ confirm: { ...pending, yes: () => { pending.yes(); if (!st().confirm) offerFootprint(before, walls, range) } } })
+}
+/** 改造态只拆墙的一段：core 的 remove wall 带 range。范围里的门窗会一起拆掉，界面先问清楚 */
+export function removeWallRange(id: string, from: number, to: number) {
+  const v = getView()
+  if (!v || st().mode !== 'renovation') return false
+  const ok = st().edit([{ ...removeElement(v.plan, { type: 'wall', id }), range: [from, to] }], { select: null })
+  afterWallRemoved(ok, v.plan, [id], [from, to])
+  return ok
+}
+/** 拆墙后墙占的地方怎么算：两边合成一间，或者两间都留着、算给其中一侧；不选就留一道缝（线上 bug B4，设计见 docs/design.md 7.2） */
+function offerFootprint(before: Plan, wallIds: string[], range?: [number, number]) {
+  const found = wallIds.map(id => ({ id, merge: mergeAcrossWall(before, id, range), ...wallFootprintSides(before, id, range) })).find(x => x.merge || x.positive || x.negative)
+  if (!found) return
+  const zh = st().lang === 'zh', t0 = t().footprint, { merge: m } = found
+  const sides = [found.positive, found.negative].filter((x): x is FootprintSide => !!x)
+  const gain = sides.length ? (Math.max(...sides.map(x => x.gained)) / 1e6).toFixed(1) : ''
+  const close = () => useStore.setState({ confirm: null })
+  const toSide = (side: FootprintSide) => {
+    close()
+    if (side.rooms.every(r => findEl(getView()?.plan ?? before, { type: 'room', id: r.room.id }))) st().edit(side.rooms.map(r => updateRoom(r.room.id, { poly: r.poly })), { select: { type: 'room', id: side.rooms[0].room.id } })
+  }
+  const choices = sides.map((side, i) => ({ label: fmt(t0.toSide, { names: side.rooms.map(r => r.room.name).join(zh ? '、' : ', ') }), testId: `footprint-${i}`, run: () => toSide(side) }))
+  const text = m ? fmt(t0.mergeText, { a: m.keep.name, b: m.drop.name, area: (polygonArea(m.poly) / 1e6).toFixed(1) }) : fmt(t0.sideText, { gain })
+  useStore.setState({ confirm: { kind: 'merge', text, canMerge: !!m, choices, no: close, yes: () => {
+    close()
     const v = getView()
-    if (!v || !findEl(v.plan, { type: 'room', id: m.keep.id }) || !findEl(v.plan, { type: 'room', id: m.drop.id })) return
+    if (!m || !v || !findEl(v.plan, { type: 'room', id: m.keep.id }) || !findEl(v.plan, { type: 'room', id: m.drop.id })) return
     st().edit([updateRoom(m.keep.id, { poly: m.poly }), removeElement(v.plan, { type: 'room', id: m.drop.id })], { select: { type: 'room', id: m.keep.id } })
   } } })
 }
@@ -279,7 +296,7 @@ function simpleLoadError(issues: { level: string; message: string }[]): string {
   return `${t().chat.simpleFailed}：\n${errors.slice(0, 3).map(i => i.message).join('\n')}${errors.length > 3 ? `\n${fmt(t().chat.more, { n: errors.length - 3 })}` : ''}`
 }
 function writeBlocked(): boolean {
-  const s = st(), error = s.loadFailure ? '上次载入失败，不能保存或导出。请修复文件后重新载入；原文件保持不变。' : planWriteError(s.base)
+  const s = st(), error = s.loadFailure ? '上次载入失败，不能保存或导出。请修复文件后重新载入；原文件保持不变。' : s.unconfirmed ? t().confirmFirst : planWriteError(s.base)
   if (error) { s.showToast(error); return true }
   return false
 }
@@ -415,13 +432,14 @@ export function startAutosave() {
   let timer: ReturnType<typeof setTimeout> | undefined
   return useStore.subscribe((s, prev) => {
     // dirty、source 也要跟上：连接文件时，刷新后靠它们判断本地有没有没写回的改动
-    if (s.base === prev.base && s.dirty === prev.dirty && s.source === prev.source) return
+    if (s.base === prev.base && s.dirty === prev.dirty && s.source === prev.source && s.unconfirmed === prev.unconfirmed) return
     clearTimeout(timer)
     timer = setTimeout(() => {
       const cur = st()
       try {
         // A failed load or blank/invalid document must never replace the last recovery copy.
-        if (!cur.base || cur.loadFailure || planWriteError(cur.base)) return
+        // 受保护改动还没答「我确认」：只是预览，刷新后不能算数
+        if (!cur.base || cur.loadFailure || cur.unconfirmed || planWriteError(cur.base)) return
         localStorage.setItem(KEY, JSON.stringify({ plan: JSON.parse(serializePlan(cur.base)), source: { kind: cur.source.kind, file: cur.source.file, etag: cur.source.etag }, dirty: cur.dirty, underlayNames: cur.underlayNames, savedAt: new Date().toISOString() }))
         cur.markSaved('saved')
       } catch { cur.markSaved('failed') }
