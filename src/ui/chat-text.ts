@@ -4,7 +4,8 @@
  *
  * 文字一律中文、长度 mm（和格式 v3、交接文字一致）；运行时方案里的高度是米，写出去时换成 mm。
  */
-import type { Plan, Wall, Opening, Room } from '@/core/types'
+import type { Plan, Wall, Opening, Room, Question } from '@/core/types'
+import { questionStatus } from '@/core/questions'
 import type { Issue } from '@/core/validate'
 import { parsePlanText, serializePlan, agentUnits } from '@/core/io'
 import { isEmptyPlan, loadError } from '@/core/persistence'
@@ -341,11 +342,18 @@ export function chatIssuesText({ plan, issues, raw, note, extracted }: ChatIssue
   const total = rooms.filter(r => r.counted && Number.isFinite(r.area)).reduce((s, r) => s + r.area, 0)
   if (rooms.length) lines.push(`合计（计入面积的房间）：${total.toFixed(2)} m²`)
 
-  const qs = ((plan && plan.questions.length ? plan.questions : (raw as { questions?: unknown })?.questions) ?? []) as { id?: string; text?: string; answer?: string; options?: string[]; targets?: string[] }[]
-  const pending = Array.isArray(qs) ? qs.filter(q => q && !q.answer?.trim()) : []
+  const qs = ((plan && plan.questions.length ? plan.questions : (raw as { questions?: unknown })?.questions) ?? []) as Question[]
+  const cards = Array.isArray(qs) ? qs.filter(q => q && typeof q === 'object').map(q => ({ ...q, answer: typeof q.answer === 'string' ? q.answer : undefined })) : []
+  const pending = cards.filter(q => questionStatus(q) === 'open')
   lines.push('', `## 还没答的问题卡（${pending.length} 个）`)
   if (!pending.length) lines.push('（没有）')
-  for (const q of pending) lines.push(`- ${q.id ?? '?'}：${agentUnits(String(q.text ?? ''))}${q.targets?.length ? `（问的是 ${q.targets.join('、')}）` : ''}${q.options?.length ? `（选项：${q.options.map(o => agentUnits(String(o))).join(' / ')}）` : ''}`)
+  const questionLine = (q: Question) => `- ${q.id ?? '?'}：${agentUnits(String(q.text ?? ''))}${Array.isArray(q.targets) && q.targets.length ? `（问的是 ${q.targets.join('、')}）` : ''}${Array.isArray(q.options) && q.options.length ? `（选项：${q.options.map(o => agentUnits(String(o))).join(' / ')}）` : ''}`
+  for (const q of pending) lines.push(`${questionLine(q)}${q.reply?.outcome === 'ask' ? `\n  Agent 追问：${q.reply.text}` : ''}`)
+  const answered = cards.filter(q => questionStatus(q) === 'answered')
+  lines.push('', `## 已答、等你处理的问题卡（${answered.length} 个）`)
+  if (!answered.length) lines.push('（没有）')
+  for (const q of answered) lines.push(questionLine(q), `  答：${q.answer ?? ''}（${q.answeredBy ?? '业主'} · ${q.answeredAt ?? '未记录日期'}）`)
+  lines.push('处理完，在这张问题卡上保留 answer，把 status 改成 resolved，加 reply：{"outcome":"changed 或 confirmed 或 inferred 或 noted","text":"一句话说明改了什么","by":"Chat","at":"日期"}。')
 
   const said = note?.trim()
   if (said) lines.push('', '## 我还想说', said)

@@ -473,7 +473,7 @@ export async function saveServed(): Promise<boolean> {
     if (etag) ownEtags.add(etag)
     // 保存期间用户又改了：仍算有未保存改动
     const changedSince = st().base !== base
-    useStore.setState(x => ({ source: { ...x.source, etag: etag ?? x.source.etag }, dirty: changedSince ? x.dirty : false }))
+    useStore.setState(x => ({ source: { ...x.source, etag: etag ?? x.source.etag }, dirty: changedSince ? x.dirty : false, cleanBase: base }))
     st().showToast(fmt(t().s2a.save.saved, { file }))
     return true
   } catch (e) {

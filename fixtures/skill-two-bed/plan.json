@@ -501,6 +501,13 @@
         "是",
         "不是"
       ],
+      "reply": {
+        "at": "2026-10-27",
+        "by": "Agent",
+        "outcome": "confirmed",
+        "text": "飘窗台离地按你量的 450 mm，和图上读的一致，模型不用改。"
+      },
+      "status": "resolved",
       "targets": [
         "r-bay"
       ],
@@ -620,6 +627,11 @@
       "evidence": {
         "basis": "飘窗符号",
         "certainty": "seen",
+        "confirmed": {
+          "at": "2026-10-27",
+          "by": "业主",
+          "note": "飘窗台离地 450 mm，业主量过"
+        },
         "pixelBox": [
           760,
           132,

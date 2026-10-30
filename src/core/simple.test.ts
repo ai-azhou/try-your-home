@@ -52,6 +52,7 @@ describe('规范文本与模板转换', () => {
     expect(p.openings.some(o => o.name?.includes('厨房'))).toBe(false)
     for (const e of [...p.walls, ...p.openings, ...p.rooms]) expect(e.evidence).toEqual({ certainty: 'inferred', basis: SIMPLE_BASIS })
     expect(p.questions.map(q => q.id)).toEqual(['simple-windows', 'simple-entry'])
+    expect(p.questions.every(q => q.status === 'open')).toBe(true)
     expect(p.questions[0].certainty).toBe('unknown'); expect(p.questions[1].targets).toEqual([p.openings[0].id])
     expect(p.meta?.source).toBe(SIMPLE_FORMAT); expect(isSimpleDerived(p)).toBe(true)
     expect(polygonArea(p.rooms[0].poly)).toBeCloseTo((3600 - 120 - 60) * (4000 - 120 - 60), 3)

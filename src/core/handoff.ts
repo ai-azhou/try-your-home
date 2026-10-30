@@ -1,12 +1,13 @@
 import { elements, replayOrigin } from './changes.ts'
-import { lengthUnit } from './io.ts'
+import { agentUnits, lengthUnit } from './io.ts'
+import { questionStatus } from './questions.ts'
 import { decorHandoff, isDecorRef } from './decor/integration.ts'
 import type { DecorRef } from './decor/integration.ts'
 import type { Plan } from './types.ts'
 import type { ElementRef, ExtraElementRef } from './geometry.ts'
 import { effectiveWallHeight, openingSpan, polygonArea, roomCeiling, roomsBesideWall, wallLength } from './geometry.ts'
 import { levelOf } from './levels.ts'
-export function agentHandoff(plan: Plan, refs: (ElementRef | ExtraElementRef | DecorRef)[], userText: string, opts: { planFile?: string; mode: 'original' | 'renovation' | 'compare' | '原始' | '改造' | '对比' | 'decor' | '装修' }): string {
+export function agentHandoff(plan: Plan, refs: (ElementRef | ExtraElementRef | DecorRef)[], userText: string, opts: { planFile?: string; mode: 'original' | 'renovation' | 'compare' | '原始' | '改造' | '对比' | 'decor' | '装修'; answers?: 'saved' | 'unsaved'; otherUnsaved?: boolean }): string {
   const mode = ({ 原始: 'original', 改造: 'renovation', 对比: 'compare', 装修: 'decor' } as Record<string, string>)[opts.mode] ?? opts.mode
   const origin = replayOrigin(plan), original = origin?.base ?? plan
   const file = opts.planFile ?? plan.meta?.planFile
@@ -15,8 +16,25 @@ export function agentHandoff(plan: Plan, refs: (ElementRef | ExtraElementRef | D
     '改之前先读 Agent 手册「格式」；涉及拆改再读「改造」3.2–3.6。Skill 内在 references/，工具内在 docs/agent手册/；工具连接 4.3 说明改文件的规矩。',
     '# 改改你的家 · 户型结构交接', `方案文件：${pathNote}`, `当前模式：${({ original: '原始', renovation: '改造', compare: '对比', decor: '装修' } as Record<string, string>)[mode]}`,
     '交接文字使用中文，与手册一致。',
-    '单位：全部长度 mm（文件 v3），面积 m²；法向 n=(-dy,dx)/长度；洞口 offset 从墙 a 端起量。', '', '## 选中构件',
+    '单位：全部长度 mm（文件 v3），面积 m²；法向 n=(-dy,dx)/长度；洞口 offset 从墙 a 端起量。',
   ]
+  const answered = plan.questions.filter(q => questionStatus(q) === 'answered')
+  if (opts.answers && answered.length) {
+    lines.push('', `## 待核对答复（${answered.length} 条，等你处理）`, opts.answers === 'saved'
+      ? '这些答复已经存进方案文件（status 是 answered）。处理方法见读图 2.8「答复之后」、工具连接 4.6。'
+      : '方案文件里还没有这些答复：先按下面原文写进对应问题卡的 answer、answeredBy、answeredAt，status 写 answered，再处理。处理方法见读图 2.8「答复之后」、工具连接 4.6。')
+    if (opts.otherUnsaved) lines.push('工具里还有答复以外的改动没导出，这段文字里没有；要一起处理，请用户先导出方案文件。')
+    for (const q of answered) {
+      const text = Array.from(agentUnits(q.text))
+      lines.push(`- ${q.id}（${q.category === 'original' ? '原始信息' : '改造'}）`, `  问：${text.length > 80 ? text.slice(0, 80).join('') + '……' : text.join('')}${q.options?.length ? `（选项：${q.options.map(agentUnits).join(' / ')}）` : ''}`)
+      if (q.targets?.length) lines.push(`  问的是：${q.targets.join('、')}`)
+      lines.push(`  答：${q.answer ?? ''}（${q.answeredBy ?? '业主'} · ${q.answeredAt ?? '未记录日期'}）`)
+      const user = [...(q.log ?? [])].reverse().find(e => e.role === 'user'), agent = [...(q.log ?? [])].reverse().find(e => e.role === 'agent')
+      if (user || agent) lines.push(`  上一轮：${[user && `答「${user.text}」`, agent && `你回复「${agent.text}」`].filter(Boolean).join('，')}。这次是用户有异议。`)
+    }
+  }
+  lines.push('', '## 选中构件')
+  if (!refs.length) lines.push('（没选构件）')
   if (mode !== 'original') lines.push('以下为重放全部改造记录（含待确认）后的值；缺二次确认等失败记录会跳过。原始数组见方案文件，勿把这些值抄回原始数组。')
 
   for (const ref of refs) {

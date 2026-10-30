@@ -1,8 +1,9 @@
 import { decorStatus, rehostDecor, decorItems } from '../src/core/decor/resolve.ts'
 import { materialTakeoff } from '../src/core/decor/surfaces.ts'
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, existsSync, openSync, closeSync, fsyncSync, renameSync, rmSync, statSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { isEmptyPlan, loadError } from '../src/core/persistence.ts'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { exportGlb } from '../src/core/glb.ts'
 import { createRenderSession, listCameras, type RenderPass, type CameraRecord, type CameraSpec, type RenderView } from '../src/core/raster.ts'
 import type { ModelState } from '../src/core/mesh.ts'
@@ -10,21 +11,83 @@ import { parsePlanText, serializePlan, agentUnits, lengthUnit, planFileValue } f
 import { applyChanges, validateReplay } from '../src/core/changes.ts'
 import { planStats } from '../src/core/summary.ts'
 import { validatePlan } from '../src/core/validate.ts'
+import { answerQuestion, resolveQuestion, questionStatus, questionElementIds, QUESTION_OUTCOMES, QUESTION_STATUSES } from '../src/core/questions.ts'
+import type { Question, QuestionOutcome, QuestionStatus } from '../src/core/types.ts'
 
 const [command, input, output, ...flags] = process.argv.slice(2)
 if (command === 'schema') {
   await import('../schema/generate.ts')
 } else try {
-  if (!['convert', 'validate', 'apply', 'stats', 'decor', 'export', 'render', 'cameras'].includes(command) || !input || ['convert', 'export', 'render'].includes(command) && !output) throw new Error('用法：先设置 $SKILL 为 Skill 根目录的绝对路径，$WORK 为用户工作目录的绝对路径；在 $WORK 执行，输入输出用全路径。\nSKILL="/绝对路径/see-your-home"\nWORK="/用户的/工作目录"\ncd "$WORK"\n' + [
+  if (!['convert', 'validate', 'apply', 'stats', 'decor', 'export', 'render', 'cameras', 'questions', 'answer', 'resolve'].includes(command) || !input || ['convert', 'export', 'render', 'answer', 'resolve'].includes(command) && !output) throw new Error('用法：先设置 $SKILL 为 Skill 根目录的绝对路径，$WORK 为用户工作目录的绝对路径；在 $WORK 执行，输入输出用全路径。\nSKILL="/绝对路径/see-your-home"\nWORK="/用户的/工作目录"\ncd "$WORK"\n' + [
     'schema', 'cameras "$WORK/方案.json" [--json] [--all] [--state original|renovated] [--level id]',
     'convert "$WORK/旧.json" "$WORK/新.json"', 'validate "$WORK/方案.json"', 'apply "$WORK/方案.json"', 'stats "$WORK/方案.json"', 'decor "$WORK/方案.json"',
+    'questions "$WORK/方案.json" [--status open|answered|resolved]',
+    'answer "$WORK/方案.json" <问题id> --text "答复" [--by 业主] [--at YYYY-MM-DD]（原地写入 v3）',
+    'resolve "$WORK/方案.json" <问题id> --outcome changed|confirmed|inferred|noted|ask|withdrawn --reply "回复" [--changed id,id] [--by Agent] [--at YYYY-MM-DD]（原地写入 v3）',
     'export "$WORK/方案.json" "$WORK/输出.glb" [--state original|renovated] [--level id]',
     'render "$WORK/方案.json" "$WORK/输出目录" [--camera 预设|room:id|"$WORK/相机.json"（可重复）] [--cameras "$WORK/列表.json"] [--state original|renovated] [--views iso-sw,iso-ne,iso-se,iso-nw,top] [--level id] [--section mm] [--passes clay,depth,lines,seg,openings] [--size 2400x1600] [--transparent] [--no-decor]',
     'render "$WORK/方案.json" "$WORK/输出目录" --camera "pos=2000,1450,1000;target=2000,1450,4000;fov=75"',
   ].map(line => 'node "$SKILL/scripts/plan-cli.mjs" ' + line).join('\n'))
-  const { plan, report, issues } = parsePlanText(readFileSync(input === '-' ? 0 : input, 'utf8'))
+  const source = readFileSync(input === '-' ? 0 : input, 'utf8')
+  const { plan, report, issues } = parsePlanText(source)
   if (issues.some(i => i.code === 'parse' || i.code === 'schema') && command !== 'validate') throw new Error(issues.map(i => i.message).join('\n'))
-  if (command === 'export' || command === 'render' || command === 'cameras') {
+  if (command === 'questions' || command === 'answer' || command === 'resolve') {
+    const args = command === 'questions' ? [output, ...flags].filter((v): v is string => v !== undefined) : flags
+    const allowed = command === 'questions' ? ['--status'] : command === 'answer' ? ['--text', '--by', '--at'] : ['--outcome', '--reply', '--changed', '--by', '--at']
+    const values: Record<string, string> = {}
+    for (let i = 0; i < args.length; i++) {
+      const flag = args[i]
+      if (!allowed.includes(flag)) throw new Error(`未知参数：${flag}`)
+      const value = args[++i]
+      if (value === undefined || value.startsWith('--')) throw new Error(`${flag} 缺少值`)
+      values[flag] = value
+    }
+    if (command === 'questions') {
+      const status = values['--status'] as QuestionStatus | undefined
+      if (status !== undefined && !QUESTION_STATUSES.includes(status)) throw new Error('--status 必须为 open、answered 或 resolved')
+      process.stdout.write(JSON.stringify(plan.questions.filter(q => !status || questionStatus(q) === status).map(q => ({
+        id: q.id, status: questionStatus(q), category: q.category, text: q.text, targets: q.targets, options: q.options,
+        answer: q.answer, answeredBy: q.answeredBy, answeredAt: q.answeredAt, reply: q.reply, log: q.log,
+      })), null, 2) + '\n')
+    } else {
+      if (input === '-') throw new Error('原地写入需要方案文件路径，不能使用标准输入')
+      const raw = JSON.parse(source.replace(/^\uFEFF/, ''))
+      if (raw.format !== 'floorplan-structure' || raw.version !== 3) throw new Error('原地写入只支持 v3 方案，请先用 convert 转换并核对')
+      const index = raw.questions?.findIndex((q: Question) => q.id === output) ?? -1
+      if (index < 0) throw new Error(`找不到问题卡 ${output}，请先用 questions 查看问题 id`)
+      const today = new Date(), at = values['--at'] ?? `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      let next: Question
+      if (command === 'answer') {
+        if (values['--text'] === undefined) throw new Error('--text 缺少答复文字')
+        next = answerQuestion(raw.questions[index], values['--text'], values['--by'] ?? '业主', at)
+      } else {
+        const outcome = values['--outcome'] as QuestionOutcome
+        if (!QUESTION_OUTCOMES.includes(outcome)) throw new Error(`--outcome 必须为 ${QUESTION_OUTCOMES.join('、')}`)
+        if (values['--reply'] === undefined) throw new Error('--reply 缺少回复文字')
+        const changed = values['--changed']?.split(',').map(id => id.trim())
+        if (changed) {
+          const ids = questionElementIds(plan), missing = changed.filter(id => !ids.has(id))
+          if (missing.length) throw new Error(`--changed 里的构件 ${missing.map(id => id || '（空 id）').join('、')} 在方案里找不到，请核对构件 id`)
+        }
+        next = resolveQuestion(raw.questions[index], { outcome, text: values['--reply'], changed, by: values['--by'], at })
+      }
+      raw.questions[index] = next
+      const text = JSON.stringify(raw, null, 2) + '\n', errors = parsePlanText(text).issues.filter(i => i.level === 'error')
+      if (errors.length) throw new Error(`修改后的方案校验未通过，文件未写入：\n${errors.map(i => i.message).join('\n')}`)
+      const temp = join(dirname(input), `.${basename(input)}.${randomUUID()}.tmp`)
+      let fd: number | undefined
+      try {
+        fd = openSync(temp, 'wx', statSync(input).mode & 0o777)
+        writeFileSync(fd, text); fsyncSync(fd); closeSync(fd); fd = undefined
+        renameSync(temp, input)
+      } finally {
+        if (fd !== undefined) closeSync(fd)
+        rmSync(temp, { force: true })
+      }
+      const { bbox, ...card } = next
+      process.stdout.write(JSON.stringify(card) + '\n')
+    }
+  } else if (command === 'export' || command === 'render' || command === 'cameras') {
     if (issues.some(i => i.level === 'error')) throw new Error(issues.filter(i => i.level === 'error').map(i => i.message).join('\n'))
     let all = false, json = false
     const cameras: { camera: string | CameraSpec; record: Partial<CameraRecord> }[] = []

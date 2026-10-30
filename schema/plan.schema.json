@@ -781,6 +781,92 @@
       ],
       "additionalProperties": false
     },
+    "QuestionStatus": {
+      "type": "string",
+      "enum": [
+        "open",
+        "answered",
+        "resolved"
+      ]
+    },
+    "QuestionOutcome": {
+      "type": "string",
+      "enum": [
+        "changed",
+        "confirmed",
+        "inferred",
+        "noted",
+        "ask",
+        "withdrawn"
+      ]
+    },
+    "QuestionReply": {
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "$ref": "#/$defs/QuestionOutcome"
+        },
+        "text": {
+          "type": "string"
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "by": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "outcome",
+        "text",
+        "by",
+        "at"
+      ],
+      "additionalProperties": false
+    },
+    "QuestionLogEntry": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "type": "string",
+          "enum": [
+            "user",
+            "agent"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "by": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/QuestionOutcome"
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "role",
+        "text"
+      ],
+      "additionalProperties": false
+    },
     "Question": {
       "type": "object",
       "properties": {
@@ -828,6 +914,18 @@
         },
         "answeredAt": {
           "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/QuestionStatus"
+        },
+        "reply": {
+          "$ref": "#/$defs/QuestionReply"
+        },
+        "log": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/QuestionLogEntry"
+          }
         }
       },
       "required": [

@@ -11,6 +11,8 @@ import { Glass, Pill, RoundButton, Slider, Switch, Tag, Tip } from '../kit'
 import { ConfirmCard, InspectorBody } from './Inspector'
 import { QuestionCardBody, QuestionList } from './Questions'
 import { describeChange } from '@/core/changes'
+import { questionStatus } from '@/core/questions'
+import { unseenReplies, useReplies } from '../replies'
 import { applyCalibration, pickFile } from '../actions'
 import { relinkUnderlay } from '../underlay-check'
 import { fmt } from '../i18n'
@@ -35,7 +37,8 @@ export function useCard(): Card {
   if (mobile && qOpen) return 'question'
   if (panel === 'questions') return 'questions'
   if (mobile) return panel === 'changes' ? 'changes' : null
-  if (mode === 'original') return base.questions.some(q => !q.answer) ? 'questions' : null
+  // 还有没答的、或者答了还没交给 Agent 处理的，默认摆出待核对（交接按钮在里面）
+  if (mode === 'original') return base.questions.some(q => questionStatus(q) !== 'resolved') ? 'questions' : null
   return 'changes'
 }
 
@@ -192,13 +195,16 @@ export function NextStep() {
   const view = useView()
   const mode = useStore(s => s.mode), sel = useStore(s => s.sel), qOpen = useStore(s => s.qOpen), agentOpen = useStore(s => s.agentOpen), panel = useStore(s => s.panel)
   const measuring = useStore(s => !!s.measure)
+  const demo = useStore(s => s.source.kind === 'demo'), seen = useReplies(s => s.seen)
   const { openQuestion, setMode, openAgent, setPanel } = useStore.getState()
   const mobile = useIsMobile(), narrow = useIsNarrow() && !mobile, shift = useStore(s => s.pipShift)
   if (mode === 'decor') return useStore.getState().main === '2d' ? <DecorNext /> : null
   if (!view || agentOpen) return null
   if (mobile && !measuring && (sel.length || qOpen || panel === 'questions' || panel === 'changes')) return null
   const { base, diff } = view
-  const pending = base.questions.filter(q => !q.answer)
+  const pending = base.questions.filter(q => questionStatus(q) === 'open'), waiting = base.questions.filter(q => questionStatus(q) === 'answered')
+  // Agent 的新回复（服务模式自动刷新、重新打开 Agent 改过的文件后）：先请用户看一眼；示例方案不提示
+  const fresh = demo || panel === 'questions' ? [] : unseenReplies(base, seen)
   let tone: 'lemon' | 'mint' | 'lav' | 'ink' = 'mint', icon = <Check size={15} strokeWidth={2.6} />, lead = '', cta = '', act = () => {}
   if (sel.length) {
     // 有选中时「交给 Agent」在检查器里，这里只说怎么改，不再放第二个按钮（design.md §8）
@@ -206,9 +212,16 @@ export function NextStep() {
     const ghost = !findEl(view.plan, sel[0])
     lead = measuring ? t.s2a.measure.active : sel.length > 1 ? fmt(t.selHint.multi, { n: sel.length }) : ghost ? t.selHint.ghost : mode === 'compare' ? fmt(t.next.handoffSel.lead, { name: labelOf(view, sel[0]) }) : t.selHint[sel[0].type]
     if (measuring) { tone = 'ink'; icon = <Ruler size={15} strokeWidth={2.4} /> }
+  } else if (mode === 'original' && fresh.length) {
+    tone = 'lav'; icon = <Sparkles size={15} strokeWidth={2.4} />
+    lead = fmt(t.next.replies.lead, { n: fresh.length }); cta = t.next.replies.cta; act = () => setPanel('questions')
   } else if (mode === 'original' && pending.length) {
     tone = 'lemon'; icon = <CircleQuestionMark size={16} strokeWidth={2.3} />
-    lead = fmt(t.next.check.lead, { n: pending.length }); cta = t.next.check.cta; act = () => { setPanel('questions'); openQuestion(pending[0].id) }
+    lead = fmt(waiting.length ? t.next.checkMore.lead : t.next.check.lead, { n: pending.length, m: waiting.length }); cta = t.next.check.cta; act = () => { setPanel('questions'); openQuestion(pending[0].id) }
+  } else if (mode === 'original' && waiting.length) {
+    // 答好了：先交给 Agent 对齐一轮，再试改造
+    tone = 'lav'; icon = <Sparkles size={15} strokeWidth={2.4} />
+    lead = fmt(t.next.handoffAnswers.lead, { m: waiting.length }); cta = t.next.handoffAnswers.cta; act = () => openAgent(true, true)
   } else if (mode === 'original') {
     lead = t.next.renovate.lead; cta = t.next.renovate.cta; act = () => setMode('renovation')
   } else if (mode === 'renovation') {

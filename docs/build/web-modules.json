@@ -966,6 +966,10 @@
       "renderedLength": 649
     },
     {
+      "id": "node_modules/lucide-react/dist/esm/icons/hourglass.mjs",
+      "renderedLength": 654
+    },
+    {
       "id": "node_modules/lucide-react/dist/esm/icons/image-down.mjs",
       "renderedLength": 645
     },
@@ -1048,6 +1052,10 @@
     {
       "id": "node_modules/lucide-react/dist/esm/icons/redo-2.mjs",
       "renderedLength": 429
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/rotate-ccw-clock.mjs",
+      "renderedLength": 567
     },
     {
       "id": "node_modules/lucide-react/dist/esm/icons/rotate-cw.mjs",
@@ -1147,7 +1155,7 @@
     },
     {
       "id": "node_modules/lucide-react/dist/esm/lucide-react.mjs",
-      "renderedLength": 1600
+      "renderedLength": 1645
     },
     {
       "id": "node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs",
@@ -1383,7 +1391,7 @@
     },
     {
       "id": "node_modules/motion-dom/dist/es/animation/waapi/transforms/TransformAnimation.mjs",
-      "renderedLength": 16672
+      "renderedLength": 16686
     },
     {
       "id": "node_modules/motion-dom/dist/es/animation/waapi/utils/accelerated-values.mjs",
@@ -2279,7 +2287,7 @@
     },
     {
       "id": "schema/plan.schema.json",
-      "renderedLength": 38805
+      "renderedLength": 39956
     },
     {
       "id": "src/assets/try-mark.svg?raw",
@@ -2367,7 +2375,7 @@
     },
     {
       "id": "src/core/handoff.ts",
-      "renderedLength": 5618
+      "renderedLength": 6909
     },
     {
       "id": "src/core/history.ts",
@@ -2375,7 +2383,7 @@
     },
     {
       "id": "src/core/io.ts",
-      "renderedLength": 7371
+      "renderedLength": 7948
     },
     {
       "id": "src/core/legacy.ts",
@@ -2414,12 +2422,16 @@
       "renderedLength": 191
     },
     {
+      "id": "src/core/questions.ts",
+      "renderedLength": 2294
+    },
+    {
       "id": "src/core/schema.ts",
       "renderedLength": 648
     },
     {
       "id": "src/core/simple.ts",
-      "renderedLength": 23936
+      "renderedLength": 23954
     },
     {
       "id": "src/core/solids.ts",
@@ -2427,7 +2439,7 @@
     },
     {
       "id": "src/core/summary.ts",
-      "renderedLength": 3538
+      "renderedLength": 3570
     },
     {
       "id": "src/core/types.ts",
@@ -2435,7 +2447,7 @@
     },
     {
       "id": "src/core/validate.ts",
-      "renderedLength": 11466
+      "renderedLength": 12280
     },
     {
       "id": "src/core/walls.ts",
@@ -2491,7 +2503,7 @@
     },
     {
       "id": "src/three/Scene3D.tsx",
-      "renderedLength": 45983
+      "renderedLength": 46020
     },
     {
       "id": "src/three/snapshot.ts",
@@ -2499,7 +2511,7 @@
     },
     {
       "id": "src/ui/actions.ts",
-      "renderedLength": 22359
+      "renderedLength": 22385
     },
     {
       "id": "src/ui/App.tsx",
@@ -2511,7 +2523,7 @@
     },
     {
       "id": "src/ui/canvas2d/PlanCanvas.tsx",
-      "renderedLength": 54717
+      "renderedLength": 55440
     },
     {
       "id": "src/ui/canvas2d/PlanLayers.tsx",
@@ -2523,7 +2535,7 @@
     },
     {
       "id": "src/ui/chat-text.ts",
-      "renderedLength": 16727
+      "renderedLength": 17558
     },
     {
       "id": "src/ui/chat.ts",
@@ -2635,7 +2647,7 @@
     },
     {
       "id": "src/ui/i18n.ts",
-      "renderedLength": 31088
+      "renderedLength": 33291
     },
     {
       "id": "src/ui/kit/extra-icons.tsx",
@@ -2655,7 +2667,7 @@
     },
     {
       "id": "src/ui/mock.ts",
-      "renderedLength": 18352
+      "renderedLength": 18595
     },
     {
       "id": "src/ui/model.ts",
@@ -2663,7 +2675,7 @@
     },
     {
       "id": "src/ui/panels/AgentSheet.tsx",
-      "renderedLength": 14013
+      "renderedLength": 16336
     },
     {
       "id": "src/ui/panels/ChatSheet.tsx",
@@ -2675,7 +2687,7 @@
     },
     {
       "id": "src/ui/panels/Context.tsx",
-      "renderedLength": 34598
+      "renderedLength": 35584
     },
     {
       "id": "src/ui/panels/Diagrams.tsx",
@@ -2695,7 +2707,7 @@
     },
     {
       "id": "src/ui/panels/Questions.tsx",
-      "renderedLength": 14882
+      "renderedLength": 24474
     },
     {
       "id": "src/ui/panels/SimpleNote.tsx",
@@ -2711,15 +2723,19 @@
     },
     {
       "id": "src/ui/panels/TopBar.tsx",
-      "renderedLength": 24860
+      "renderedLength": 25067
     },
     {
       "id": "src/ui/render-plan.ts",
       "renderedLength": 1374
     },
     {
+      "id": "src/ui/replies.ts",
+      "renderedLength": 1215
+    },
+    {
       "id": "src/ui/store.ts",
-      "renderedLength": 15340
+      "renderedLength": 16121
     },
     {
       "id": "src/ui/underlay-art.ts",

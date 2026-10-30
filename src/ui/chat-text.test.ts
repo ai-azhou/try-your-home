@@ -135,3 +135,28 @@ describe('复制给 Chat 的文字都用 core 的收尾', () => {
     expect(analysePaste(chatPlanText(p)).fatal).toBeNull()
   })
 })
+
+describe('问题卡三态交接给 Chat', () => {
+  it('open 含追问，answered 带完整答复和处理指引，resolved 不列出', () => {
+    const p = parsePlanText(v3).plan
+    p.questions = [
+      { id: 'q-open', text: '门高 2.1 m？', category: 'original', targets: ['w'], options: ['2 m', '不知道'] },
+      { id: 'q-ask', text: '量好了吗？', category: 'original', answer: '稍后量', reply: { outcome: 'ask', text: '请量净宽', by: 'Agent', at: '2026-10-30' } },
+      { id: 'q-answered', text: '要门吗？', category: 'original', status: 'answered', targets: ['o'], answer: '开放式，没有门', answeredBy: '业主', answeredAt: '2026-10-30' },
+      { id: 'q-old', text: '旧卡答复', category: 'original', answer: '保留', answeredBy: '家人', answeredAt: '2026-10-29' },
+      { id: 'q-done', text: '已处理', category: 'original', status: 'resolved', answer: '对', reply: { outcome: 'confirmed', text: '已确认', by: 'Agent', at: '2026-10-30' } },
+    ]
+    const text = chatIssuesText({ plan: p, issues: [] })
+    expect(text).toContain('## 还没答的问题卡（2 个）\n- q-open：门高 2100 mm？（问的是 w）（选项：2000 mm / 不知道）\n- q-ask：量好了吗？\n  Agent 追问：请量净宽')
+    expect(text).toContain('## 已答、等你处理的问题卡（2 个）\n- q-answered：要门吗？（问的是 o）\n  答：开放式，没有门（业主 · 2026-10-30）\n- q-old：旧卡答复\n  答：保留（家人 · 2026-10-29）')
+    expect(text).toContain('处理完，在这张问题卡上保留 answer，把 status 改成 resolved，加 reply：{"outcome":"changed 或 confirmed 或 inferred 或 noted","text":"一句话说明改了什么","by":"Chat","at":"日期"}。')
+    expect(text).not.toContain('q-done')
+  })
+  it('没有卡时两节写没有，格式错误原始数据仍能列出答复', () => {
+    const text = chatIssuesText({ plan: null, issues: [] })
+    expect(text).toContain('## 还没答的问题卡（0 个）\n（没有）')
+    expect(text).toContain('## 已答、等你处理的问题卡（0 个）\n（没有）')
+    expect(chatIssuesText({ plan: null, issues: [], raw: { questions: [{ id: 'q', text: '问题', answer: '已答' }] } })).toContain('## 已答、等你处理的问题卡（1 个）\n- q：问题\n  答：已答')
+    expect(() => chatIssuesText({ plan: null, issues: [], raw: { questions: [null, { answer: 42, options: '坏数据', targets: 2 }] } })).not.toThrow()
+  })
+})

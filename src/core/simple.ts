@@ -239,7 +239,7 @@ export function simpleToPlan(value: unknown): { plan: Plan | null; issues: Issue
   })
   if (issues.length) return { plan: null, issues, notes }
   const plan = { ...emptyPlan(), title: typeof input.title === 'string' ? input.title : '简版方案', meta: { source: SIMPLE_FORMAT } }
-  const question = (id: string, text: string, fields: Partial<Question> = {}) => plan.questions.push({ id: unique(id), text, category: 'original', certainty: 'inferred', ...fields })
+  const question = (id: string, text: string, fields: Partial<Question> = {}) => plan.questions.push({ id: unique(id), text, category: 'original', certainty: 'inferred', status: 'open', ...fields })
   const warn = (id: string, text: string, fields: Partial<Question> = {}) => { issues.push({ level: 'warn', code: id, message: text }); question(id, text, fields) }
   question('simple-windows', '这是简版方案：窗户没有读出来，请在工具里自己加。', { certainty: 'unknown' })
   if (coordinates.every(n => Math.abs(n) <= 100)) {

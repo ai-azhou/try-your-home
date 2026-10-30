@@ -1,3 +1,4 @@
+import { questionCounts } from './questions.ts'
 import { decorStats } from './decor/integration.ts'
 import type { Plan } from './types.ts'
 import { difference } from './decor/math.ts'
@@ -22,6 +23,7 @@ function areaValues(plan: Plan) {
   }
 }
 export function planStats(plan: Plan) {
+  const questions = questionCounts(plan)
   const roomAreas = plan.rooms.map(r => ({ id: r.id, name: r.name, area: Math.round(polygonArea(r.poly) / 1e5) / 10, counted: r.counted !== false }))
   const roundArea = (area: number) => Math.round(area / 1e5) / 10
   const extended = hasLevelData(plan), floors = levelsOf(plan).map(level => ({ level, view: onLevel(plan, level.id) }))
@@ -32,5 +34,5 @@ export function planStats(plan: Plan) {
   const byLevel = extended ? floors.map(({ level, view }, i) => ({ id: level.id, name: level.name, elevation: level.elevation,
     excludedRooms: excludedRooms(view), excludedArea: roundArea(raw[i].excludedArea), netArea: roundArea(raw[i].netArea), grossArea: roundArea(raw[i].grossArea), wallArea: roundArea(raw[i].wallArea),
     walls: view.walls.length, openings: view.openings.length, beams: view.beams.length, rooms: view.rooms.length, ...counts(view) })) : undefined
-  return { ...(plan.decor ? { decor: decorStats(plan) } : {}), netArea, grossArea, wallArea, ...(plan.rooms.some(r => r.counted === false) || extended ? { excludedRooms: excludedRooms(plan), excludedArea: roundArea(raw.reduce((s, x) => s + x.excludedArea, 0)) } : {}), walls: plan.walls.length, doors: plan.openings.filter(o => ['door', 'sliding', 'doorway'].includes(o.kind)).length, windows: plan.openings.filter(o => ['window', 'floor-window', 'bay-window', 'open-balcony'].includes(o.kind)).length, openings: plan.openings.length, beams: plan.beams.length, rooms: plan.rooms.length, area: netArea, roomAreas, unansweredQuestions: plan.questions.filter(q => !q.answer?.trim()).length, pendingChanges: plan.changes.filter(c => c.status === 'pending').length, ...(byLevel ? { byLevel, ...counts(plan) } : {}) }
+  return { ...(plan.decor ? { decor: decorStats(plan) } : {}), netArea, grossArea, wallArea, ...(plan.rooms.some(r => r.counted === false) || extended ? { excludedRooms: excludedRooms(plan), excludedArea: roundArea(raw.reduce((s, x) => s + x.excludedArea, 0)) } : {}), walls: plan.walls.length, doors: plan.openings.filter(o => ['door', 'sliding', 'doorway'].includes(o.kind)).length, windows: plan.openings.filter(o => ['window', 'floor-window', 'bay-window', 'open-balcony'].includes(o.kind)).length, openings: plan.openings.length, beams: plan.beams.length, rooms: plan.rooms.length, area: netArea, roomAreas, questions, unansweredQuestions: questions.open, pendingChanges: plan.changes.filter(c => c.status === 'pending').length, ...(byLevel ? { byLevel, ...counts(plan) } : {}) }
 }

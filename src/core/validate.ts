@@ -3,6 +3,7 @@ import type { Plan, Vec2 } from './types.ts'
 import type { ElementRef } from './geometry.ts'
 import { effectiveWallHeight, polygonArea, wallLength } from './geometry.ts'
 import { levelsOf } from './levels.ts'
+import { questionElementIds, questionStatus } from './questions.ts'
 
 export interface Issue { level: 'error' | 'warn'; code: string; message: string; ref?: ElementRef }
 export const WALL_KINDS = ['exterior', 'bearing', 'partition', 'glass', 'half', 'half-glass']
@@ -98,6 +99,15 @@ export function validatePlan(plan: Plan): Issue[] {
   }
   for (const b of plan.beams.filter(Boolean)) if (!point(b.a) || !point(b.b) || !finite(b.width) || b.width <= 0 || !finite(b.bottom) || b.bottom < 0) error('beam', `梁 ${b.id} 的端点、宽度或梁底无效`, { type: 'beam', id: b.id })
   for (const q of plan.questions.filter(Boolean)) if (!['original', 'renovation'].includes(q.category) || q.certainty !== undefined && !['seen', 'inferred', 'unknown'].includes(q.certainty)) error('enum', `问题 ${q.id} 的分类或确定度不认识`)
+  const questionIds = plan.questions.some(q => q?.reply?.changed?.length) ? questionElementIds(plan) : new Set<string>()
+  for (const q of plan.questions.filter(Boolean)) {
+    const status = questionStatus(q), warn = (message: string) => issues.push({ level: 'warn', code: 'question-status', message: `问题卡 ${q.id}：${message}` })
+    if (status === 'answered' && !q.answer?.trim()) warn('status 是 answered，但没有答复')
+    if (status === 'answered' && q.reply) warn('status 是 answered，但还挂着 reply')
+    if (status === 'resolved' && !q.reply) warn('status 是 resolved，但没有 reply')
+    if (q.reply?.outcome === 'ask' && status !== 'open') warn('reply.outcome 是 ask，但 status 不是 open')
+    for (const id of q.reply?.changed ?? []) if (!questionIds.has(id)) warn(`reply.changed 里的构件 ${id} 在方案里找不到`)
+  }
   for (const c of plan.changes.filter(Boolean)) {
     if (!['add', 'remove', 'update'].includes(c.op) || !['wall', 'opening', 'beam', 'room', 'column', 'shaft', 'stair', 'void'].includes(c.type) || !['user', 'agent'].includes(c.by) || !['pending', 'confirmed'].includes(c.status)) error('enum', `改造 ${c.id} 的操作、类型、作者或状态不认识`)
     if (c.op !== 'add' && !c.target || c.op !== 'remove' && (!c.data || typeof c.data !== 'object')) error('change-params', `改造 ${c.id} 缺少目标或参数`)

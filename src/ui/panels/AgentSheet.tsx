@@ -1,11 +1,12 @@
 /**
  * 交给 Agent：选中构件 + 一句话 → 复制。路径要顺：打开即聚焦输入框，⌘↵ 复制，复制后告诉用户下一步。
+ * 有已答、等处理的问题卡时可以附上「待核对答复」：服务模式先存回方案文件，否则答复原文写在交接文字里（工具连接 4.6）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Check, ChevronDown, Copy, FileBraces, Sparkles, X } from 'lucide-react'
+import { Check, ChevronDown, Copy, FileBraces, Hourglass, Sparkles, X } from 'lucide-react'
 import { useStore, useT, useView } from '../store'
-import { Pill, RoundButton, WallSwatch } from '../kit'
+import { Pill, RoundButton, Switch, WallSwatch } from '../kit'
 import { elementLabel, findEl } from '../model'
 import { agentHandoff } from '@/core/handoff'
 import { decorHandoff } from '@/core/decor/integration'
@@ -13,12 +14,16 @@ import { useDecor } from '../decor/dstore'
 import { findItem } from '../decor/model'
 import { useIsMobile } from '../layout'
 import { openingIcon } from './Inspector'
-import type { Opening, Wall } from '@/core/types'
+import type { Opening, Plan, Wall } from '@/core/types'
+import { questionStatus } from '@/core/questions'
+import { saveServed } from '../actions'
+import { fmt } from '../i18n'
 import { cn } from '@/lib/utils'
 
 export function AgentSheet() {
   const t = useT()
   const open = useStore(s => s.agentOpen), sel = useStore(s => s.sel), text = useStore(s => s.agentText), copied = useStore(s => s.copied), mode = useStore(s => s.mode)
+  const answersOn = useStore(s => s.agentAnswers), served = useStore(s => s.source.kind === 'served'), dirty = useStore(s => s.dirty), cleanBase = useStore(s => s.cleanBase)
   const { openAgent, setAgentText, setCopied, select } = useStore.getState()
   const view = useView()
   const mobile = useIsMobile()
@@ -30,19 +35,27 @@ export function AgentSheet() {
   // 装修态：选中的装修构件用 core decorHandoff 展开（白话位置、FaceRef、数据、受保护墙的事实），接在结构交接文字后面
   const decor = useStore(s => s.base?.decor), decorRefs = useDecor(s => s.agentRefs)
   const dRefs = mode === 'decor' && decor ? decorRefs.filter(id => findItem(decor, id) || decor.surfaces.some(x => x.id === id)) : []
-  const md = useMemo(() => {
+  const waiting = view ? view.base.questions.filter(q => questionStatus(q) === 'answered').length : 0
+  // 服务模式复制前会先存回文件，所以按「已存进文件」写；其余模式答复原文在交接文字里
+  const answers = answersOn && waiting ? (served ? 'saved' as const : 'unsaved' as const) : undefined
+  const otherUnsaved = !!answers && !served && dirty && !!view && otherEdits(view.base, cleanBase)
+  const build = (a: typeof answers) => {
     if (!view) return ''
-    const base = agentHandoff(view.plan, sel.filter(r => findEl(view.plan, r)), text.trim() || (lang === 'zh' ? '（没写）' : '(none)'), { mode, planFile: view.base.meta?.planFile })
+    const base = agentHandoff(view.plan, sel.filter(r => findEl(view.plan, r)), text.trim() || (lang === 'zh' ? '（没写）' : '(none)'), { mode, planFile: view.base.meta?.planFile, answers: a, otherUnsaved })
     if (!dRefs.length || !decor) return base
     const dp = { ...view.plan, decor }
     const refs = dRefs.map(id => { const it = findItem(decor, id); return decorHandoff(dp, { type: it ? it.k : 'surface', id }) })
     return `${base}\n\n## 装修构件（ref）\n${refs.join('\n')}`
-  }, [view, sel, text, mode, lang, decor, dRefs.join(',')])
+  }
+  const md = useMemo(() => build(answers), [view, sel, text, mode, lang, decor, dRefs.join(','), answers, otherUnsaved])
 
   const copy = async () => {
+    let out = md
+    // 服务模式：答复要先进方案文件，Agent 才读得到；存不进去就改成把原文写在文字里
+    if (answers === 'saved' && useStore.getState().dirty && !(await saveServed())) out = build('unsaved')
     try {
       if (!navigator.clipboard?.writeText) throw new Error('no clipboard')
-      await navigator.clipboard.writeText(md)
+      await navigator.clipboard.writeText(out)
       setCopied(true)
     } catch {
       // 浏览器不让写剪贴板（file:// 或没权限）：展开预览、选中全文，让用户手动复制
@@ -119,6 +132,17 @@ export function AgentSheet() {
               ) : <div className="tile-sunken rounded-[16px] px-3.5 py-3 text-[12.5px] text-ink-500">{t.agent.none}</div>}
             </div>
 
+            {waiting > 0 && (
+              <div className="tile flex items-center gap-3 rounded-[18px] px-3 py-2.5" data-testid="agent-answers">
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-lav-100 text-lav-600"><Hourglass size={15} strokeWidth={2.4} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[13px] font-semibold text-ink-900">{fmt(t.agent.withAnswers, { n: waiting })}</span>
+                  {answersOn && <span className="block text-[11.5px] leading-snug text-ink-500">{served ? t.agent.answersSaved : t.agent.answersInText}</span>}
+                </span>
+                <Switch on={answersOn} onChange={v => useStore.setState({ agentAnswers: v })} label={fmt(t.agent.withAnswers, { n: waiting })} />
+              </div>
+            )}
+
             <div>
               <div className="tile rounded-[22px] p-1.5 focus-within:ring-2 focus-within:ring-lav-300">
                 <textarea ref={ta} value={text} onChange={e => setAgentText(e.target.value)} rows={3} placeholder={t.agent.placeholder}
@@ -148,7 +172,7 @@ export function AgentSheet() {
                 <FileBraces size={14} className="shrink-0 text-ink-400" /><span className="shrink-0">{t.agent.file}</span>
                 <span className="num truncate font-semibold text-ink-700">{view.base.meta?.planFile ?? (lang === 'zh' ? '未指定（导出后告诉 Agent 路径）' : 'not set')}</span>
               </span>
-              <Pill tone={copied ? 'mint' : 'ink'} size="lg" onClick={copy} className="min-w-[168px]">
+              <Pill tone={copied ? 'mint' : 'ink'} size="lg" onClick={copy} className="min-w-[168px]" data-testid="agent-copy">
                 <AnimatePresence mode="wait" initial={false}>
                   {copied
                     ? <motion.span key="c" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="flex items-center gap-2"><Check size={17} strokeWidth={2.8} />{t.act.copied}</motion.span>
@@ -162,4 +186,11 @@ export function AgentSheet() {
       )}
     </AnimatePresence>
   )
+}
+
+/** 答复以外有没有没导出的改动：和上次载入 / 存回 / 导出时比，问题卡和 meta 不算 */
+function otherEdits(base: Plan, clean: Plan | null): boolean {
+  if (!clean) return false
+  const a = base as unknown as Record<string, unknown>, b = clean as unknown as Record<string, unknown>
+  return [...new Set([...Object.keys(a), ...Object.keys(b)])].some(k => k !== 'questions' && k !== 'meta' && a[k] !== b[k] && JSON.stringify(a[k]) !== JSON.stringify(b[k]))
 }

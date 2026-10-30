@@ -59,6 +59,8 @@ export function planFileValue(plan: Plan): any {
     if (typeof q.text === 'string') q.text = agentUnits(q.text)
     if (typeof q.answer === 'string') q.answer = agentUnits(q.answer)
     if (Array.isArray(q.options)) q.options = q.options.map(v => typeof v === 'string' ? agentUnits(v) : v)
+    if (typeof q.reply?.text === 'string') q.reply.text = agentUnits(q.reply.text)
+    for (const e of Array.isArray(q.log) ? q.log : []) if (typeof e?.text === 'string') e.text = agentUnits(e.text)
   }
   return value
 }
@@ -101,6 +103,11 @@ export function parsePlanText(text: string) {
       }
       if (value.legacy) delete value.legacy.__structureReplayFrame
       const schemaIssues = validatePlanFile(planFileValue(value as Plan))
+      const unknown = schemaIssues.find(i => /不允许的字段|additional propert/i.test(i.message))
+      if (unknown) {
+        const path = (/^格式错误 (.*?)：/.exec(unknown.message)?.[1] ?? '/').replace(/^\/\//, '/')
+        schemaIssues.push({ level: 'error', code: 'schema', message: `方案里有这个版本不认识的字段（${path}）：可能是更新版本的工具或 Skill 写的，请把 try-your-home 和 see-your-home 升级到最新版` })
+      }
       if (schemaIssues.length) return { plan: emptyPlan(), report, issues: schemaIssues }
       report.counts = Object.fromEntries(['walls', 'openings', 'beams', 'rooms', 'questions', 'changes'].map(k => [k, value[k].length]))
       const missing = filled.map(k => ({ level: 'warn' as const, code: 'missing-array', message: `方案里没写 ${k}，已按空数组 [] 载入` }))

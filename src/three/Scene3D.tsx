@@ -35,6 +35,7 @@ import { mats } from './materials'
 import { applyAOField } from './ao'
 import { solidToGeometry } from './geometry'
 import { unionPolygons } from '@/core/solids'
+import { questionStatus } from '@/core/questions'
 
 const M = (v: number) => v / 1000
 /** 构件所在楼层的楼面标高（m）；单层方案为 0 */
@@ -748,7 +749,7 @@ function useSpots(): Spot[] {
   const selIds = new Set(sel.map(s => s.id))
   const out: Spot[] = []
   // 同一处的几个问题（比如两个都问客厅）左右摊开，不叠成一个
-  const qs = mode === 'original' ? plan.questions.filter(q => q.bbox && !q.answer) : []
+  const qs = mode === 'original' ? plan.questions.filter(q => q.bbox && questionStatus(q) === 'open') : []
   const spot = (q: Question) => `${Math.round((q.bbox![0] + q.bbox![2]) / 600)}:${Math.round((q.bbox![1] + q.bbox![3]) / 600)}`
   for (const q of qs) {
     const b = q.bbox!, same = qs.filter(o => spot(o) === spot(q)), i = same.indexOf(q)

@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { planWriteError } from '@/core/persistence'
 import { useMemo } from 'react'
-import type { Change, OpeningKind, Plan, Underlay, Vec2 } from '@/core/types'
+import type { Change, OpeningKind, Plan, Question, Underlay, Vec2 } from '@/core/types'
+import { answerQuestion, questionStatus, resolveQuestion } from '@/core/questions'
 import { applyChanges } from '@/core/changes'
 import { bakeChange } from '@/core/edit'
 import type { ImportReport } from '@/core/legacy'
@@ -23,6 +24,9 @@ export type Source = { kind: 'none' | 'local' | 'file' | 'demo' | 'new' | 'serve
 const MAX_HIST = 100
 const BY = '业主'
 const today = () => new Date().toISOString().slice(0, 16)
+/** 本地日期 YYYY-MM-DD（问题卡的 answeredAt、reply.at） */
+const day = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+const withQuestion = (plan: Plan, id: string, f: (q: Question) => Question): Plan => ({ ...plan, questions: plan.questions.map(q => q.id === id ? f(q) : q) })
 
 interface State {
   base: Plan | null
@@ -39,6 +43,8 @@ interface State {
   panel: Panel
   agentOpen: boolean
   agentText: string
+  /** 「交给 Agent」时附上已答、等处理的问题卡（从「把答复交给 Agent」进来时打开） */
+  agentAnswers: boolean
   copied: boolean
   cam: Cam
   camNonce: number
@@ -60,6 +66,8 @@ interface State {
   hist: { original: { past: Plan[]; future: Plan[] }; renovation: { past: Change[][]; future: Change[][] } }
   /** 本地有没导出的改动（服务模式下 Agent 改了文件时据此决定能不能直接载入） */
   dirty: boolean
+  /** 上次载入 / 存回 / 导出时的方案：交接时据此判断答复以外还有没有没导出的改动 */
+  cleanBase: Plan | null
   loadFailure: string | null
   saveState: 'idle' | 'saved' | 'failed'
   source: Source
@@ -94,9 +102,11 @@ interface Actions {
   setHover(ref: Ref | null): void
   openQuestion(id: string | null): void
   answer(id: string, text: string): void
+  /** 「我自己改好了」：用户自己处理了已答的卡（reply.by = 业主） */
+  resolveSelf(id: string): void
   setPanel(p: Panel): void
   togglePanel(p: Exclude<Panel, null>): void
-  openAgent(open: boolean): void
+  openAgent(open: boolean, answers?: boolean): void
   setAgentText(s: string): void
   setCopied(b: boolean): void
   setCam(c: Cam): void
@@ -199,6 +209,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
   panel: null,
   agentOpen: false,
   agentText: '',
+  agentAnswers: false,
   copied: false,
   cam: 'iso',
   camNonce: 0,
@@ -216,6 +227,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
   sheetTall: false,
   hist: emptyHist(),
   dirty: false,
+  cleanBase: null,
   underlayNames: {},
   simpleNote: false,
   loadFailure: null,
@@ -244,17 +256,23 @@ export const useStore = create<State & Actions>()((set, get) => ({
   }),
   setHover: ref => { const h = get().hover; if (h?.id !== ref?.id || h?.type !== ref?.type) set({ hover: ref }) },
   openQuestion: id => set({ qOpen: id, sel: [] }),
+  // 只换问题卡，其余构件保持原引用（交接时据此判断答复以外有没有别的改动）
   answer: (id, text) => set(s => {
     if (!s.base) return {}
-    const base = structuredClone(s.base)
-    const q = base.questions.find(q => q.id === id)
-    if (q) { q.answer = text; q.answeredBy = BY; q.answeredAt = new Date().toISOString().slice(0, 10) }
-    const next = base.questions.find(q => !q.answer)
-    return { base, qOpen: next?.id ?? null, dirty: true }
+    const was = s.base.questions.find(q => q.id === id)
+    const base = withQuestion(s.base, id, q => answerQuestion(q, text, BY, day()))
+    // 第一次答：跳到下一张待回答的卡；改答复、有异议再答：留在这张卡上
+    const next = base.questions.find(q => q.id !== id && questionStatus(q) === 'open')
+    return { base, qOpen: was && questionStatus(was) === 'open' ? next?.id ?? null : id, dirty: true }
+  }),
+  resolveSelf: id => set(s => {
+    if (!s.base) return {}
+    const t = dicts[s.lang].q
+    return { base: withQuestion(s.base, id, q => resolveQuestion(q, { outcome: 'noted', text: t.selfDoneText, by: BY, at: day() })), dirty: true }
   }),
   setPanel: p => set({ panel: p }),
   togglePanel: p => set(s => ({ panel: s.panel === p ? null : p })),
-  openAgent: open => set({ agentOpen: open, copied: false }),
+  openAgent: (open, answers = false) => set({ agentOpen: open, copied: false, ...(open ? { agentAnswers: answers } : {}) }),
   setAgentText: agentText => set({ agentText }),
   setCopied: copied => set({ copied }),
   setCam: cam => set(s => ({ cam, camNonce: s.camNonce + 1 })),
@@ -272,7 +290,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
     const error = p && planWriteError(p, true)
     if (error) { set({ loadFailure: error, booting: false }); get().showToast(error); return }
     lastKey = null; tx = null
-    set(s => ({ loadFailure: null, base: p, booting: false, sel: [], hover: null, qOpen: null, mode: 'original', tool: 'select', measure: null, level: p?.levels?.some(l => l.id === s.level) ? s.level : null, fitNonce: s.fitNonce + 1, camNonce: s.camNonce + 1, dragOver: false, hist: emptyHist(), dirty: false, underlayNames: underlayNamesOf(p), source, report, confirm: null, notice: null, draw: { anchor: null, cursor: null, start: null }, roomPoly: null, calib: null, simpleNote: false, layers: { ...s.layers, underlay: !!p?.underlay?.visible } }))
+    set(s => ({ loadFailure: null, base: p, booting: false, sel: [], hover: null, qOpen: null, mode: 'original', tool: 'select', measure: null, level: p?.levels?.some(l => l.id === s.level) ? s.level : null, fitNonce: s.fitNonce + 1, camNonce: s.camNonce + 1, dragOver: false, hist: emptyHist(), dirty: false, cleanBase: p, underlayNames: underlayNamesOf(p), source, report, confirm: null, notice: null, draw: { anchor: null, cursor: null, start: null }, roomPoly: null, calib: null, simpleNote: false, layers: { ...s.layers, underlay: !!p?.underlay?.visible } }))
   },
   revertChange: id => set(s => {
     if (!s.base) return {}
@@ -393,7 +411,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
     s.replaceBase({ ...s.base, underlay: { ...s.base.underlay, ...patch } }, opts)
   },
   markSaved: saveState => { if (get().saveState !== saveState) set({ saveState }) },
-  markExported: () => set({ dirty: false }),
+  markExported: () => set(s => ({ dirty: false, cleanBase: s.base })),
   setSource: src => set(s => ({ source: { ...s.source, ...src } })),
   setLevel: level => set({ level, sel: [], hover: null, draw: { anchor: null, cursor: null, start: null }, roomPoly: null, measure: null, qOpen: null }),
   setSolo3d: solo3d => set({ solo3d }),

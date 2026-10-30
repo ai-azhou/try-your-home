@@ -88,12 +88,14 @@ const base: Omit<Plan, 'underlay'> = {
       id: 'q-kitchen', category: 'original', certainty: 'inferred',
       text: '厨房这扇门是推拉门还是平开门？图上的线太细，看不清门扇。',
       bbox: [6350, 3800, 6850, 5200], targets: ['o-k'], options: ['推拉门', '平开门', '只是门洞'],
+      status: 'answered', answer: '推拉门，往客厅那边推', answeredBy: '业主', answeredAt: '2026-10-28',
     },
     {
       id: 'q-bay', category: 'original', certainty: 'inferred',
       text: '飘窗台离地是 45cm 吗？',
       bbox: [6400, 120, 8600, 720], targets: ['r-bay'], options: ['是', '不是'],
       answer: '是，量过 45cm', answeredBy: '业主', answeredAt: '2026-10-27',
+      status: 'resolved', reply: { outcome: 'confirmed', text: '飘窗台按 450 mm，和图上读的一致，模型不用改。', by: 'Agent', at: '2026-10-27' },
     },
   ],
   changes: [

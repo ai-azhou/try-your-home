@@ -142,6 +142,10 @@ export interface Underlay {
 }
 
 export type QuestionCategory = 'original' | 'renovation'
+export type QuestionStatus = 'open' | 'answered' | 'resolved'
+export type QuestionOutcome = 'changed' | 'confirmed' | 'inferred' | 'noted' | 'ask' | 'withdrawn'
+export interface QuestionReply { outcome: QuestionOutcome; text: string; changed?: string[]; by: string; at: string }
+export interface QuestionLogEntry { role: 'user' | 'agent'; text: string; by?: string; at?: string; outcome?: QuestionOutcome; changed?: string[] }
 
 export interface Question {
   id: string
@@ -156,10 +160,13 @@ export interface Question {
   /** 问的是哪些构件 */
   targets?: string[]
   options?: string[]
-  /** 空或缺省 = 待答。工具只存答复文字，几何由 Agent 按答复去改 */
+  /** 用户最近一次答复，Agent 处理时不改 answer* */
   answer?: string
   answeredBy?: string
   answeredAt?: string
+  status?: QuestionStatus
+  reply?: QuestionReply
+  log?: QuestionLogEntry[]
 }
 
 /** 楼层：复式、跃层用。单层户型可以不写 levels */

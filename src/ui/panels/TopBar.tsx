@@ -10,6 +10,7 @@ import { copyPlan, openChatIssues, openPaste } from '../chat'
 import { LevelSwitch } from './Levels'
 import { useIsMobile } from '../layout'
 import { cn } from '@/lib/utils'
+import { questionStatus } from '@/core/questions'
 import { ExportMenuItem } from '../export/entry'
 import { GlobalExport } from '../export/GlobalExport'
 import { planStats } from '@/core/summary'
@@ -128,7 +129,9 @@ export function TopBar() {
   const mobile = useIsMobile()
   const base = useStore(s => s.base), mode = useStore(s => s.mode), panel = useStore(s => s.panel)
   const { setMode, openAgent, togglePanel, setPanel } = useStore.getState()
-  const pendingQ = base?.questions.filter(q => !q.answer).length ?? 0
+  // 角标：还有没答的（柠檬）；都答了但还没交给 Agent 处理的（淡紫）
+  const openQ = base?.questions.filter(q => questionStatus(q) === 'open').length ?? 0, waitingQ = base?.questions.filter(q => questionStatus(q) === 'answered').length ?? 0
+  const pendingQ = openQ || waitingQ, qTone = openQ ? 'lemon' as const : 'lav' as const
   const nChanges = base?.changes.length ?? 0
   // 结构的三段（原始 / 改造 / 对比）一个分段控件；「装修」是下一章，单独一颗杏色胶囊（D6 B4）
   const modes = (['original', 'renovation', 'compare'] as const).map(v => ({
@@ -143,7 +146,7 @@ export function TopBar() {
           <FileMenu compact />
           {base && <SaveButton compact />}
           {base && <GlobalExport compact />}
-          {base && <RoundButton size="lg" tone={panel === 'questions' ? 'ink' : 'glass'} badge={pendingQ || undefined} badgeTone="lemon" onClick={() => togglePanel('questions')} aria-label={t.q.title}><CircleQuestionMark size={19} /></RoundButton>}
+          {base && <RoundButton size="lg" tone={panel === 'questions' ? 'ink' : 'glass'} badge={pendingQ || undefined} badgeTone={qTone} onClick={() => togglePanel('questions')} aria-label={t.q.title}><CircleQuestionMark size={19} /></RoundButton>}
           {base && <LayersPopover><RoundButton size="lg" aria-label={t.act.layers}><Layers size={18} /></RoundButton></LayersPopover>}
         </div>
         {base && (
@@ -182,7 +185,7 @@ export function TopBar() {
               <span><Tip label={t.act.layers}><RoundButton size="lg" tone={panel === 'layers' ? 'ink' : 'glass'} aria-label={t.act.layers}><Layers size={18} /></RoundButton></Tip></span>
             </LayersPopover>
             <Tip label={t.q.title} kbd="Q">
-              <RoundButton size="lg" tone={panel === 'questions' ? 'ink' : 'glass'} badge={pendingQ || undefined} badgeTone="lemon" onClick={() => { togglePanel('questions') }} aria-label={t.q.title}>
+              <RoundButton size="lg" tone={panel === 'questions' ? 'ink' : 'glass'} badge={pendingQ || undefined} badgeTone={qTone} onClick={() => { togglePanel('questions') }} aria-label={t.q.title}>
                 <CircleQuestionMark size={19} />
               </RoundButton>
             </Tip>
@@ -214,7 +217,7 @@ export function TitleBlock() {
   // 露台、空调平台这类不计入的房间（core excludedRooms）：使用面积、含墙面积都不含它们，单列一行（backlog #13）
   const excl = stats.excludedRooms ?? []
   const net = stats.netArea ?? stats.area, gross = stats.grossArea
-  const pending = base.questions.filter(q => !q.answer).length
+  const pending = base.questions.filter(q => questionStatus(q) === 'open').length
   const diff = view.diff
   return (
     <motion.div key={mode} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1] }}

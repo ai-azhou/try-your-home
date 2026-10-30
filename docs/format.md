@@ -21,11 +21,44 @@
 - 底图 `underlay?`：`src` 本地相对路径或内嵌图片 data URL（位图 base64；SVG URL 编码或 base64，可带 charset=utf-8）；`mmPerPx` 比例；`mmPerPxY?` 纵向比例；`origin` 平面原点对应像素。
 - 底图 `rotation?`：旋转角；`flipX?,flipY?`：镜像；`opacity`：0–100；`visible`：显隐；`calibrations?=[{p1,p2,length,note?}]`：像素两点和实际 mm 距离。
 - 问题 `id,text,category`：标识、原话、original/renovation；`certainty?`：seen/inferred/unknown；`bbox?`：平面毫米框；`targets?`：构件 id 数组；`options?`：字符串选项。
-- 问题 `answer?`：空或缺省即待答；`answeredBy?,answeredAt?`：答复人和时间。
+- 问题 `answer?`：用户最近一次答复；`answeredBy?,answeredAt?`：答复人和时间。状态、回复及历史见下节。
 - 改造 `id,op,type`：标识、add/remove/update、wall/opening/beam/room/column/shaft/stair/void（S2a 起柱、管道井、楼梯、挑空也能被改造记录指向）；`target?`：remove/update 必填的目标 id。
 - 改造 `data?`：add 为完整构件，update 为局部字段，不能改 id；`range?=[from,to]`：只拆墙的一段，沿当前墙 a 端量。
 - 改造 `note?`：意图及近似；`group?`：同次操作分组；`by`：user/agent；`status`：pending/confirmed；`at?`：时间。
 - 改造 `confirm?={by,at?}`：拆除或开洞承重墙、外墙的用户二次确认；`by` 不可为空。status=confirmed 不能代替它。
+
+## 问题卡状态与回复
+
+问题卡新增三个可选字段：`status?: QuestionStatus`；`reply?: {outcome,text,changed?,by,at}`；`log?: [{role,text,by?,at?,outcome?,changed?}]`。reply 必填 outcome、text、by、at，changed 为构件 id 数组；log 每项必填 role（user/agent）和 text，其余可选，按时间顺序只追加。日期 at / answeredAt 使用 YYYY-MM-DD。未知字段仍报错。
+
+| status | 含义 |
+| --- | --- |
+| open | 待回答，包括 Agent 追问 |
+| answered | 已答，等 Agent 处理 |
+| resolved | 已处理 |
+
+| outcome | 使用情形 | 结构与 evidence | 工具里显示 | status |
+| --- | --- | --- | --- | --- |
+| changed | 答复与读图不一致，已按答复改原始结构 | 修改结构；改到的构件写 confirmed，certainty 按实际 | 已按答复修改 · 改了 N 处 | resolved |
+| confirmed | 答复证实现在的读法 | 不改结构；targets 写 confirmed | 已确认，没改 | resolved |
+| inferred | 用户也不确定，按最可能的保留 | 不改结构；不写 confirmed，certainty 不升级 | 按推断保留 | resolved |
+| noted | 偏好、以后再说等，不涉及结构 | 不改结构与 evidence | 已记下 | resolved |
+| ask | 答复不足或有歧义，需要追问 | 不改结构与 evidence | Agent 追问 | open |
+| withdrawn | 不用再问了，说明撤回理由 | 视情况处理 | 已撤回 | resolved |
+
+status 缺省按推导：没有非空答复 → open；有答复、没有 reply → answered；有答复且 reply.outcome 为 ask → open；有答复且有其他 reply → resolved。合法显式 status 优先。一致性问题只给 question-status 提醒，不拦载入；`reply.changed` 可引用原始构件及成功改造产生的构件。
+
+用户答复写入 answer / answeredBy / answeredAt，status 变为 answered；有旧 reply 时，先把上一轮用户答复（如有）及 Agent 回复追加进 log，再清掉 reply。没有 reply 时改答复直接覆盖。**Agent 不改 answer***：处理时只写 reply 和 status；除 withdrawn 可从 open 或 answered 撤回，其余 outcome（含 ask）都要求当前为 answered。用户选择「我自己改好了」时可写 outcome=noted、by=业主。
+
+`planStats(plan).questions` 返回全部楼层的 `{open,answered,resolved}`；兼容字段 `unansweredQuestions` 等于 open 数，包含追问卡。
+
+```sh
+node scripts/plan.ts questions 方案.json --status answered
+node scripts/plan.ts answer 方案.json q-kitchen --text "开放式，没有门" --by 业主 --at 2026-10-30
+node scripts/plan.ts resolve 方案.json q-kitchen --outcome changed --reply "已改成门洞，不装门" --changed o-kit-slide
+```
+
+questions 输出不含 bbox 或底图编码的 JSON 数组；--status 可省略。answer / resolve 只支持原地修改 v3 文件的指定问题卡，保留其他字段及键序；先校验新文本，再写同目录临时文件、fsync、rename。--by 缺省分别为业主 / Agent，--at 缺省本地日期。成功 stdout 输出该卡的一行 JSON（不带 bbox），退出码 0；错误写 stderr（以「错误：」开头），退出码 1，文件不写入。resolve 的 --changed 为逗号分隔的构件 id，不存在则拒绝。
 
 ## 方向与改造
 
@@ -357,7 +390,7 @@ node scripts/plan.ts cameras fixtures/example-v2.json --all --level L1
 6. 净面为吸附后的多边形减去所有墙占地矩形的并集（polygon-clipping difference），取面积最大块、去共线点。墙占地逐步合并，每步量化到 0.000001 mm，避免斜墙交接的浮点碎片。敞开边不内缩。扣墙后没有有效净面时省略该房间并给 warn/问题卡；如果重叠造成净面内孔，用 0.01 mm 细缝连到外缘，避免单环 Room.poly 填回已扣除的墙体，并记 note。
 7. 房间 id 默认 `r1`、`r2`…，有效显式 id 保留；为避免全局重复，生成 id 避开显式房间 id。重复/无效 id 或占用 `simple-` 问题卡前缀时自动换名并记录。墙、门洞、房间证据统一 `{certainty:'inferred',basis:'简版格式自动生成'}`（`SIMPLE_BASIS`）。层高取 `DEFAULTS.ceiling`。
 
-问题卡 category 都是 original，编号稳定。固定 `simple-windows`（unknown）提醒补窗。吸附后每对房间重叠超过 0.05 m²，生成 `simple-overlap-N`，带交集 bbox 和两房 targets；房间并集内孔超过 0.1 m²，生成 `simple-hole-N`。外墙平行相对、间距在 (150,600] mm、投影重叠至少 300 mm，且中间没有房间占用，生成 `simple-gap-N`，带 bbox、两房 targets 和毫米缝宽。另有入户门、失败门、米换算等问题卡。
+问题卡 category 都是 original，status 都是 open，编号稳定。固定 `simple-windows`（unknown）提醒补窗。吸附后每对房间重叠超过 0.05 m²，生成 `simple-overlap-N`，带交集 bbox 和两房 targets；房间并集内孔超过 0.1 m²，生成 `simple-hole-N`。外墙平行相对、间距在 (150,600] mm、投影重叠至少 300 mm，且中间没有房间占用，生成 `simple-gap-N`，带 bbox、两房 targets 和毫米缝宽。另有入户门、失败门、米换算等问题卡。
 
 转换结束运行 `validatePlan`。`parsePlanText` 在完整 v2/v3 和 legacy 之前识别简版，报告 `source:'simple'`，填充 counts、approximations、warnings。生成方案带 `meta.source='floorplan-simple'`（`SIMPLE_FORMAT`）；现有 v3 schema 的 meta.source 允许任意字符串，因此保存、重读后仍能用 `isSimpleDerived(plan)` 判断简版来源。
 

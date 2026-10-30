@@ -120,7 +120,7 @@ describe('C3 楼层与结构构件', () => {
   it('无新构件的旧方案保留统计/实体/点选的字段形状和示例面积', () => {
     const p = parsePlanText(readFileSync('fixtures/example-v2.json', 'utf8')).plan, stats = planStats(p)
     expect(stats).toMatchObject({ area: 31, netArea: 31, grossArea: 37.4, wallArea: 6.4 })
-    expect(Object.keys(stats).sort()).toEqual(['netArea', 'grossArea', 'wallArea', 'walls', 'doors', 'windows', 'openings', 'beams', 'rooms', 'area', 'roomAreas', 'unansweredQuestions', 'pendingChanges'].sort())
+    expect(Object.keys(stats).sort()).toEqual(['netArea', 'grossArea', 'wallArea', 'walls', 'doors', 'windows', 'openings', 'beams', 'rooms', 'area', 'roomAreas', 'questions', 'unansweredQuestions', 'pendingChanges'].sort())
     expect(buildSolids(p).every(s => !('level' in s) && !['slab', 'stair', 'column', 'shaft'].includes(s.kind))).toBe(true)
     expect(hitTest(p, p.walls[0].a)).toEqual(expect.objectContaining({ type: expect.any(String), id: expect.any(String) }))
   })

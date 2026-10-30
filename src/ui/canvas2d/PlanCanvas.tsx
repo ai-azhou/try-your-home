@@ -4,9 +4,10 @@
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { CircleQuestionMark, Check, Lock, Sparkles } from 'lucide-react'
+import { CircleQuestionMark, Check, Hourglass, Lock, Sparkles } from 'lucide-react'
 import type { Change, ElementType, Opening, OpeningKind, Plan, Room, Beam, Vec2, Wall } from '@/core/types'
 import { DEFAULTS } from '@/core/types'
+import { questionStatus } from '@/core/questions'
 import { distance, effectiveWallHeight, jointsAt, labelPoint, planBounds, pointAt, pointInPolygon, projectToWall, snap, wallLength, wallNormal, type SnapResult } from '@/core/geometry'
 import { addBeam, addElement, addOpening, addRoom, addWall, detectRoom, moveJoint, moveOpening, updateWall } from '@/core/edit'
 import { applyChanges } from '@/core/changes'
@@ -589,7 +590,8 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
   }
 
   // 问题针（同一处的摊开）和房间标签的排布：标签让开针、互不压字（canvas2d/labels）
-  const pinQs = useMemo(() => plan && mode === 'original' ? plan.questions.filter(q => !q.answer || q.id === qOpen) : [], [plan, mode, qOpen])
+  // 待回答、等 Agent 处理的钉在图上；已处理的只在展开那张卡时出现
+  const pinQs = useMemo(() => plan && mode === 'original' ? plan.questions.filter(q => questionStatus(q) !== 'resolved' || q.id === qOpen) : [], [plan, mode, qOpen])
   const pinMap = useMemo(() => plan ? pinPositions(plan, pinQs, xf.k) : new Map<string, Vec2>(), [plan, pinQs, xf.k])
   const diff = view?.diff
   // Agent 待确认提议的热点位置：先定下来，房间标签再让开它（选中这面墙时固定在尺寸胶囊的另一侧）
@@ -859,7 +861,7 @@ function Pins({ xf, plan: levelPlan, pinMap, propSpots, roomLabels }: { xf: Xf; 
   if (!placed) return null
   const { diff } = placed, plan = levelPlan
   const S = (p: Vec2) => ({ left: xf.x + p[0] * xf.k, top: xf.y + p[1] * xf.k })
-  const qs = mode === 'original' ? plan.questions.filter(q => !q.answer || q.id === qOpen) : []
+  const qs = mode === 'original' ? plan.questions.filter(q => questionStatus(q) !== 'resolved' || q.id === qOpen) : []
   const focusIds = new Set([...sel.map(s => s.id), hover?.id].filter(Boolean) as string[])
   const locks = mode !== 'original'
     ? plan.walls.filter(w => isProtectedWall(w) && focusIds.has(w.id)).map(w => ({ id: w.id, p: pointAt(w, wallLength(w) * 0.2), n: wallNormal(w), t: w.thickness }))
@@ -872,11 +874,13 @@ function Pins({ xf, plan: levelPlan, pinMap, propSpots, roomLabels }: { xf: Xf; 
         {qs.map((q, i) => {
           if (!q.bbox) return null
           const c: Vec2 = pinMap.get(q.id) ?? [(q.bbox[0] + q.bbox[2]) / 2, (q.bbox[1] + q.bbox[3]) / 2]
-          const done = !!q.answer, open = qOpen === q.id
+          const status = questionStatus(q), open = qOpen === q.id
           return (
             <motion.div key={q.id} className="pointer-events-auto absolute" style={{ ...S(c), x: '-50%', y: '-50%' }}
               initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1, transition: { delay: 0.15 + i * 0.06, type: 'spring', stiffness: 500, damping: 24 } }} exit={{ opacity: 0, scale: 0.6 }}>
-              {done
+              {status === 'answered'
+                ? <button onClick={() => openQuestion(open ? null : q.id)} onPointerDown={e => e.stopPropagation()} title={q.text} data-testid={`pin-waiting-${q.id}`} className={cn('grid size-7 place-items-center rounded-full bg-lav-200 text-lav-800 shadow-[0_4px_10px_-4px_rgb(0_0_0/0.3),inset_0_1px_0_rgb(255_255_255/0.6)] ring-1 ring-lav-300 transition hover:scale-110', open && 'ring-2 ring-ink-900')}><Hourglass size={13} strokeWidth={2.6} /></button>
+                : status === 'resolved'
                 ? <button onClick={() => openQuestion(q.id)} onPointerDown={e => e.stopPropagation()} className={cn('grid size-6 place-items-center rounded-full bg-white/90 text-mint-700 shadow-[0_4px_10px_-4px_rgb(0_0_0/0.3)] ring-1 ring-ink-900/5 transition hover:scale-110', open && 'ring-2 ring-ink-900')}><Check size={13} strokeWidth={3} /></button>
                 : <span onPointerDown={e => e.stopPropagation()}><Hotspot tone="lemon" active={open} pulse={!open && !qOpen} icon={<CircleQuestionMark size={18} strokeWidth={2.2} />} label={q.text} onClick={() => openQuestion(open ? null : q.id)} size={40} /></span>}
             </motion.div>

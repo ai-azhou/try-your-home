@@ -1158,6 +1158,101 @@ await step('B4 改造态拆隔墙 → 问要不要合成一间；合并后少一
   return `${text.slice(0, 40)}…；房间 ${before} → ${after.n}，改造记录 ${after.last.join(' → ')}`
 })
 
+/* ═════════ 问题卡状态：待回答 → 已答等 Agent → 已处理（设计-待核对状态-1030） ═════════ */
+const qstate = pg => S(pg, () => { const s = window.__fss.store.getState(); return {
+  next: document.querySelector('[data-testid=next-step]')?.innerText.replace(/\s+/g, ' ') ?? '',
+  qs: s.base.questions.map(q => ({ id: q.id, status: q.status, answer: q.answer, reply: q.reply?.outcome, log: q.log?.length ?? 0 })), dirty: s.dirty, sel: s.sel.map(r => r.id) } })
+const pq = await newPage(1440, 900)
+
+await step('Q1 示例：待核对分三组；提示条说「已答 1 条」；已处理的卡有 Agent 回复', pq, async () => {
+  await pq.goto(BASE + '/?mode=original', { waitUntil: 'networkidle0' }); await sleep(1200)
+  await pq.waitForSelector('[data-testid=q-waiting]'); await pq.waitForSelector('[data-testid=q-resolved]')
+  const s = await qstate(pq)
+  assert(/还有 2 处读图没把握，已答 1 条/.test(s.next), `提示条 ${s.next}`)
+  await pq.click('[data-testid=q-row-q-bay]'); await sleep(400)
+  const card = await S(pq, () => { const c = document.querySelector('[data-testid=q-card]'); return { status: c?.dataset.status, agent: c?.querySelector('[data-testid=q-said-agent]')?.innerText ?? '' } })
+  assert(card.status === 'resolved' && /飘窗台按 450 mm/.test(card.agent) && /已确认，没改/.test(card.agent), `卡片 ${JSON.stringify(card)}`)
+  await shot(pq, 'Q1-resolved-card.png')
+  return `${s.next}；q-bay：${card.agent.replace(/\s+/g, ' ').slice(0, 40)}`
+})
+
+await step('Q2 有异议再答一次 → 回到等处理，上一轮进 log；卡片留在这张', pq, async () => {
+  await pq.click('[data-testid=q-disagree]'); await sleep(200)
+  await pq.type('[data-testid=q-input]', '不对，量过是 50cm'); await pq.keyboard.press('Enter'); await sleep(400)
+  const s = await qstate(pq), q = s.qs.find(q => q.id === 'q-bay')
+  assert(q.status === 'answered' && q.answer === '不对，量过是 50cm' && !q.reply && q.log === 2, `q-bay ${JSON.stringify(q)}`)
+  const status = await S(pq, () => document.querySelector('[data-testid=q-card]')?.dataset.status)
+  assert(status === 'answered', `卡片状态 ${status}`)
+  await pq.click('[data-testid=q-history]'); await sleep(200)
+  await shot(pq, 'Q2-disagree.png')
+  return `q-bay：${q.status}，log ${q.log} 条`
+})
+
+await step('Q3 答完剩下的 → 提示条「把答复交给 Agent」→ 交接文字带「## 待核对答复」', pq, async () => {
+  await pq.keyboard.press('Escape'); await sleep(200)
+  await pq.click('[data-testid=next-cta]'); await sleep(400)
+  for (let i = 0; i < 2; i++) { await pq.waitForSelector('[data-testid=q-card][data-status=open] [data-testid=q-input]'); await pq.type('[data-testid=q-card] [data-testid=q-input]', `答复 ${i + 1}`); await pq.keyboard.press('Enter'); await sleep(400) }
+  const s = await qstate(pq)
+  assert(s.qs.every(q => q.status === 'answered'), `状态 ${JSON.stringify(s.qs)}`)
+  assert(/答好了 4 条，交给 Agent 按答复改/.test(s.next), `提示条 ${s.next}`)
+  await pq.click('[data-testid=next-cta]'); await pq.waitForSelector('[data-testid=agent-answers]'); await sleep(300)
+  const md = await S(pq, () => document.querySelector('[data-testid=agent-preview]').innerText)
+  assert(md.includes('## 待核对答复（4 条，等你处理）') && md.includes('方案文件里还没有这些答复') && md.includes('答：不对，量过是 50cm') && md.includes('上一轮：答「是，量过 45cm」，你回复「飘窗台按 450 mm'), `交接文字 ${md.slice(0, 400)}`)
+  assert(md.indexOf('## 待核对答复') < md.indexOf('## 选中构件') && md.includes('（没选构件）'), '待核对答复应在选中构件前面')
+  await pq.click('[data-testid=agent-answers] [role=switch]'); await sleep(200)
+  const off = await S(pq, () => document.querySelector('[data-testid=agent-preview]').innerText)
+  assert(!off.includes('## 待核对答复'), '关掉开关后交接文字里还有答复')
+  await shot(pq, 'Q3-handoff.png')
+  return md.split('\n').find(l => l.startsWith('## 待核对答复'))
+})
+await pq.close()
+
+await step('Q4 服务模式：打开就提示已有的 Agent 回复；答完交给 Agent 先存回文件；Agent 写回复后自动刷新再提示', page, async () => {
+  const ps = await newPage(1440, 900)
+  const file = path.join(served, 'q-status.json')
+  fs.writeFileSync(file, fs.readFileSync(path.join(root, 'fixtures/skill-two-bed/plan.json')))
+  fs.copyFileSync(path.join(root, 'fixtures/skill-two-bed/input.png'), path.join(served, 'input.png'))
+  await ps.goto(BASE + '/?plan=q-status.json', { waitUntil: 'networkidle0' }); await sleep(1500)
+  // 示例里 q-bay 已经有 Agent 回复，第一次打开算新回复；面板开了再收起就算看过
+  let s = await qstate(ps)
+  assert(/Agent 处理了 1 条答复/.test(s.next), `打开时提示条 ${s.next}`)
+  await ps.click('[data-testid=next-cta]'); await sleep(300)
+  await S(ps, () => window.__fss.store.getState().setPanel(null)); await sleep(300)
+  s = await qstate(ps)
+  assert(/还有 3 处读图没把握/.test(s.next), `看过以后提示条 ${s.next}`)
+  // 答厨房门那张（点选项）
+  await S(ps, () => window.__fss.store.getState().openQuestion('q-kitchen')); await sleep(400)
+  await ps.evaluate(() => [...document.querySelectorAll('[data-testid=q-card] button')].find(b => b.textContent === '只是门洞').click()); await sleep(400)
+  assert((await qstate(ps)).dirty, '答完应有未保存改动')
+  await S(ps, () => window.__fss.store.getState().openAgent(true, true)); await ps.waitForSelector('[data-testid=agent-copy]'); await sleep(300)
+  await ps.click('[data-testid=agent-copy]'); await sleep(1200)
+  const clip = await readClip(ps), disk = JSON.parse(fs.readFileSync(file, 'utf8'))
+  const k = disk.questions.find(q => q.id === 'q-kitchen')
+  assert(k.status === 'answered' && k.answer === '只是门洞', `文件里的 q-kitchen ${JSON.stringify(k)}`)
+  assert(clip.includes('## 待核对答复（1 条，等你处理）') && clip.includes('这些答复已经存进方案文件') && clip.includes('- q-kitchen（原始信息）'), `复制的文字 ${clip.slice(0, 300)}`)
+  assert(!(await qstate(ps)).dirty, '存回后还标着未保存')
+  await S(ps, () => window.__fss.store.getState().openAgent(false)); await sleep(300)
+  // 模拟 Agent：按手册写回复（原子写）
+  const plan = JSON.parse(fs.readFileSync(file, 'utf8'))
+  Object.assign(plan.questions.find(q => q.id === 'q-kitchen'), { status: 'resolved', reply: { outcome: 'changed', text: '厨房门改成门洞，不装门。', changed: ['o-k'], by: 'Agent', at: '2026-10-30' } })
+  fs.writeFileSync(file + '.tmp', JSON.stringify(plan, null, 2)); fs.renameSync(file + '.tmp', file)
+  await ps.waitForFunction(() => /Agent 处理了 1 条答复/.test(document.querySelector('[data-testid=next-step]')?.innerText ?? ''), { timeout: 8000 })
+  await shot(ps, 'Q4-replies-arrived.png')
+  await ps.click('[data-testid=next-cta]'); await sleep(400)
+  assert(await ps.$('[data-testid=q-row-q-kitchen] [data-testid=q-new-reply]'), '已处理的 q-kitchen 没有「新回复」点')
+  assert(!(await ps.$('[data-testid=q-row-q-bay] [data-testid=q-new-reply]')), 'q-bay 看过了还带「新回复」点')
+  await ps.click('[data-testid=q-row-q-kitchen]'); await sleep(400)
+  await shot(ps, 'Q4-reply-card.png')
+  await ps.click('[data-testid=q-changed]'); await sleep(300)
+  s = await qstate(ps)
+  assert(s.sel.join() === 'o-k', `点改到的构件后选中 ${s.sel}`)
+  await S(ps, () => { const st = window.__fss.store.getState(); st.select(null); st.setPanel(null) }); await sleep(300)
+  const after = (await qstate(ps)).next
+  assert(!/Agent 处理了/.test(after), `看过以后提示条还在：${after}`)
+  await ps.close()
+  return `文件 q-kitchen=${k.status}；刷新后看过 → ${after}`
+})
+
 await browser.close()
 try { process.kill(srvPid, 'SIGTERM') } catch {}
 
