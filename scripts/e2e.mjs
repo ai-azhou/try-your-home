@@ -1083,6 +1083,23 @@ await step('D7-6 打开格式不对的文件 → 不载入；提示条「复制�
   return notice.split('\n')[0]
 })
 
+await step('B8 打开根本不是方案的 JSON（相机参数）→ 不载入；提示「不是方案文件」，不提 Chat、不给简版', pd, async () => {
+  const before = (await d7state(pd)).title
+  const camFile = path.join(downloads, 'top-white.camera.json')
+  fs.writeFileSync(camFile, JSON.stringify({ projection: 'orthographic', id: 'top', format: 'floorplan-camera', version: 1, unit: 'mm', openings: [{ id: 'o-1' }] }))
+  await pd.waitForSelector('[data-testid=chat-sheet]', { hidden: true })
+  await pickFileVia(pd, 'menu-open', camFile); await sleep(500)
+  await pd.waitForSelector('[data-testid=notice]')
+  const notice = await pd.$eval('[data-testid=notice]', e => e.innerText)
+  assert(notice.includes('不是方案文件（top-white.camera.json）') && notice.includes('交付/方案.json') && notice.includes('选方案文件'), `提示条 ${notice}`)
+  assert(!/Chat|简版|格式不对/.test(notice), `提示条提了 Chat / 简版 ${notice}`)
+  assert((await d7state(pd)).title === before, '不是方案的文件替换了当前方案')
+  // 主按钮直接重新选文件
+  const [chooser] = await Promise.all([pd.waitForFileChooser(), pd.click('[data-testid=notice-primary]')])
+  await chooser.cancel(); await sleep(300)
+  return notice.split('\n')[0]
+})
+
 await step('D7-7 合法 v3 照旧能载入，没有简版说明条和标记', pd, async () => {
   await pasteVia(pd, chatReply(v3text)); await sleep(300)
   if (await pd.$('[data-testid=chat-replace]')) { await pd.click('[data-testid=chat-replace]'); await sleep(500) }

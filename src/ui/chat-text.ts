@@ -11,7 +11,7 @@ import { isEmptyPlan, loadError } from '@/core/persistence'
 import { applyChanges } from '@/core/changes'
 import { polygonArea, wallLength, effectiveWallHeight } from '@/core/geometry'
 import { levelsOf } from '@/core/levels'
-import { CHAT_REPLY_TAIL, diagnoseShape, isSimplePlan, simpleFormatChatText, SIMPLE_RULES, SIMPLE_TEMPLATE } from '@/core/simple'
+import { CHAT_REPLY_TAIL, diagnoseShape, isNotPlan, isSimplePlan, simpleFormatChatText, SIMPLE_RULES, SIMPLE_TEMPLATE } from '@/core/simple'
 
 /* ───────── 1. 从粘贴的文字里找 JSON ───────── */
 
@@ -133,7 +133,7 @@ export interface PasteResult {
   extracted: Extracted
   /** core 解析结果；只有找到完整 JSON 时才有 */
   parsed?: ReturnType<typeof parsePlanText>
-  /** 挡住载入的原因：core loadError 的文字，或 'none' / 'incomplete' / 'syntax' / 'empty'（解析出来是空方案）/ 'shape'（格式根本不对）；null = 可以载入 */
+  /** 挡住载入的原因：core loadError 的文字，或 'none' / 'incomplete' / 'syntax' / 'empty'（解析出来是空方案，或根本不是方案）/ 'shape'（格式根本不对）；null = 可以载入 */
   fatal: string | null
   /** 原始 JSON 值（v3，mm）：格式错误时 parsed.plan 是空方案，靠它找字段路径对应的构件 id、算房间面积 */
   raw?: unknown
@@ -148,6 +148,8 @@ export function analysePaste(text: string): PasteResult {
   const parsed = parsePlanText(extracted.json)
   let raw: unknown
   try { raw = JSON.parse(extracted.json) } catch { /* extract 已保证能解析 */ }
+  // 根本不是方案的 JSON（相机参数、统计之类，B8）：和空方案一样说「不像是方案」，不当成 Chat 写错格式、不给简版模板
+  if (isNotPlan(raw)) return { extracted, parsed, raw, fatal: 'empty' }
   const simple = isSimplePlan(raw)
   // 格式根本不对（多半是 Chat 写不对完整格式）：放在格式 / 几何错误之前，不列一长串字段错误，改让 Chat 用简版重写。
   // 合法 v3 和能转出墙的旧格式 diagnoseShape 返回 wrong=false，不受影响；「rooms 有、walls 空」的 v3 在这里拦下
@@ -156,7 +158,7 @@ export function analysePaste(text: string): PasteResult {
     if (d.wrong) return { extracted, parsed, raw, fatal: 'shape', shape: d.reasons }
   }
   const fatal = loadError(parsed.issues)
-  // 不是方案的 JSON（比如 {"a":1}）会被当成旧格式转成空方案：不能拿空方案替换当前方案
+  // 构件数组全是空的方案（比如旧格式 {"layout":{"walls":[]}}）：不能拿空方案替换当前方案
   return { extracted, parsed, raw, simple, fatal: fatal ?? (isEmptyPlan(parsed.plan) ? 'empty' : null) }
 }
 

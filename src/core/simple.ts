@@ -352,6 +352,20 @@ function addGeometryQuestions(rooms: SimpleRoom[], edges: Edge[], question: (id:
   }
 }
 
+/**
+ * 根本不是方案的 JSON（相机参数、统计、validate 结果、package.json……）：没有方案格式标记、没有旧版 layout，
+ * 本身和套的一层里都没有 walls / rooms / doors 数组。这不是「Chat 写错了格式」，不该给简版模板（B8）。
+ * see-your-home 的相机文件自己标着 floorplan-camera，里面的 openings 是画面里看得到的门窗，不算方案构件。
+ */
+export function isNotPlan(value: unknown): boolean {
+  if (isSimplePlan(value)) return false
+  if (!record(value)) return true
+  if (value.format === 'floorplan-structure' || 'floorplan-structure' in value || record(value.layout)) return false
+  if (typeof value.format === 'string' && /^floorplan-(?!structure|simple)/.test(value.format)) return true
+  const parts = (v: Record<string, unknown>) => ['walls', 'rooms', 'doors'].some(k => Array.isArray(v[k]))
+  return !parts(value) && !Object.values(value).some(v => record(v) && parts(v))
+}
+
 /** Diagnose shape, not individual full-format field/geometry errors. Legacy recognition comes first. */
 export function diagnoseShape(value: unknown): { wrong: boolean; reasons: string[] } {
   if (isSimplePlan(value)) return { wrong: false, reasons: [] }

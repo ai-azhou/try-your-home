@@ -113,6 +113,14 @@ describe('D7 简版：粘贴的三种情况', () => {
     expect(ok.shape).toBeUndefined()
     expect(ok.simple).toBe(false)
   })
+  it('根本不是方案的 JSON（B8）：说「不像是方案」，不给简版模板', () => {
+    const camera = { projection: 'orthographic', id: 'top', pos: [0, 30000, 6000], format: 'floorplan-camera', version: 1, unit: 'mm' }
+    for (const input of [camera, { walls: 14, rooms: 7, netArea: 80.2 }, {}]) {
+      const r = analysePaste('```json\n' + JSON.stringify(input) + '\n```')
+      expect(r.fatal).toBe('empty')
+      expect(r.shape).toBeUndefined()
+    }
+  })
 })
 
 describe('复制给 Chat 的文字都用 core 的收尾', () => {

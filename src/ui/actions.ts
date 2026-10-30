@@ -14,7 +14,7 @@ import { mockPlan } from './mock'
 import { loadError, planWriteError } from '@/core/persistence'
 import { findEl } from './model'
 import { openChatIssuesFor } from './chat'
-import { diagnoseShape, isSimplePlan } from '@/core/simple'
+import { diagnoseShape, isNotPlan, isSimplePlan } from '@/core/simple'
 import { mergeAcrossWall } from '@/core/merge-rooms'
 
 const st = () => useStore.getState()
@@ -253,6 +253,19 @@ function rejectLoad(message: string, text?: string) {
     { label: t().act.dismiss, run: () => st().setNotice(null) },
   ] })
 }
+/** 根本不是方案的 JSON（B8）：是选错了文件，不是谁写错了格式。说清楚该选哪个，主按钮直接重新选，不给「复制问题给 Chat」 */
+function rejectNotPlan(file?: string) {
+  const message = fmt(t().notPlan, { name: file?.split('/').pop() || 'JSON' })
+  useStore.setState({ loadFailure: message, booting: false })
+  st().setNotice({ text: message, actions: [
+    { label: t().pickPlan, primary: true, run: () => { st().setNotice(null); pickFile('.json,application/json') } },
+    { label: t().act.dismiss, run: () => st().setNotice(null) },
+  ] })
+}
+/** 是一个 JSON、但根本不是方案；写法有错的交给 parsePlanText 报 */
+function notPlanText(text: string): boolean {
+  try { return isNotPlan(JSON.parse(text.replace(/^﻿/, ''))) } catch { return false }
+}
 function shapeProblem(text: string): string[] | null {
   let raw: unknown
   try { raw = JSON.parse(text.replace(/^\uFEFF/, '')) } catch { return null }
@@ -271,6 +284,8 @@ function writeBlocked(): boolean {
 }
 export function openPlanText(text: string, source: Source, opts: { keepView?: boolean } = {}): boolean {
   const r = parsePlanText(text)
+  // 根本不是方案（相机参数、统计这类 JSON，B8）：放在最前面，不当成 Chat 写错格式
+  if (notPlanText(text)) { rejectNotPlan(source.file); return false }
   // 格式根本不对（D7，和粘贴同一条判断，放在格式 / 几何错误之前）：不载入；提示条「复制问题给 Chat」给的是简版模板
   const shape = shapeProblem(text)
   if (shape) { rejectLoad(`${t().chat.shape}：${shape.slice(0, 2).join('；')}`, text); return false }
@@ -489,6 +504,7 @@ export function startPolling(file: string) {
       // Validate even while local edits are dirty; a bad external revision blocks writeback.
       const revision = etag ?? text
       if (revision === rejected || retryFailedLoad && revision === failedServedRevision) return
+      if (notPlanText(text)) { rejected = revision; rejectNotPlan(file); return }
       const error = loadError(parsePlanText(text).issues)
       if (error) { rejected = revision; rejectLoad(error, text); return }
       if (st().base !== s.base || st().source !== s.source) return
