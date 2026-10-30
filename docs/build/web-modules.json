@@ -183,7 +183,7 @@
     },
     {
       "id": "node_modules/@react-three/fiber/dist/events-e51d7528.esm.js",
-      "renderedLength": 259548
+      "renderedLength": 259556
     },
     {
       "id": "node_modules/@react-three/fiber/dist/react-three-fiber.esm.js",
@@ -2511,11 +2511,11 @@
     },
     {
       "id": "src/ui/actions.ts",
-      "renderedLength": 22385
+      "renderedLength": 28847
     },
     {
       "id": "src/ui/App.tsx",
-      "renderedLength": 13414
+      "renderedLength": 13455
     },
     {
       "id": "src/ui/canvas2d/labels.ts",
@@ -2642,12 +2642,16 @@
       "renderedLength": 5910
     },
     {
+      "id": "src/ui/file-link.ts",
+      "renderedLength": 1025
+    },
+    {
       "id": "src/ui/geom.ts",
       "renderedLength": 1091
     },
     {
       "id": "src/ui/i18n.ts",
-      "renderedLength": 33159
+      "renderedLength": 33984
     },
     {
       "id": "src/ui/kit/extra-icons.tsx",
@@ -2675,7 +2679,7 @@
     },
     {
       "id": "src/ui/panels/AgentSheet.tsx",
-      "renderedLength": 16336
+      "renderedLength": 16343
     },
     {
       "id": "src/ui/panels/ChatSheet.tsx",
@@ -2695,7 +2699,7 @@
     },
     {
       "id": "src/ui/panels/EmptyState.tsx",
-      "renderedLength": 6327
+      "renderedLength": 6322
     },
     {
       "id": "src/ui/panels/Inspector.tsx",
@@ -2723,7 +2727,7 @@
     },
     {
       "id": "src/ui/panels/TopBar.tsx",
-      "renderedLength": 25067
+      "renderedLength": 25039
     },
     {
       "id": "src/ui/render-plan.ts",

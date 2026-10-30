@@ -6,7 +6,7 @@ import { motion } from 'motion/react'
 import { ArrowRight, ClipboardPaste, FileBraces, ImageUp } from 'lucide-react'
 import { useStore, useT } from '../store'
 import { Glass, Pill } from '../kit'
-import { newPlan, openDemo, pickFile } from '../actions'
+import { newPlan, openDemo, pickFile, pickPlanFile } from '../actions'
 import { openPaste } from '../chat'
 import { useIsMobile } from '../layout'
 import { cn } from '@/lib/utils'
@@ -16,7 +16,7 @@ export function EmptyState() {
   const drag = useStore(s => s.dragOver)
 
   const mobile = useIsMobile()
-  const pick = (kind: 'image' | 'plan') => pickFile(kind === 'image' ? 'image/*' : '.json,application/json')
+  const pick = (kind: 'image' | 'plan') => kind === 'image' ? pickFile('image/*') : void pickPlanFile()
   const ease = [0.2, 0.8, 0.2, 1] as const
   return (
     <div className="absolute inset-0 z-20 grid place-items-center overflow-y-auto px-4 pb-8 pt-24">

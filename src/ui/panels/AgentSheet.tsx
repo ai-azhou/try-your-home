@@ -1,6 +1,6 @@
 /**
  * 交给 Agent：选中构件 + 一句话 → 复制。路径要顺：打开即聚焦输入框，⌘↵ 复制，复制后告诉用户下一步。
- * 有已答、等处理的问题卡时可以附上「待核对答复」：服务模式先存回方案文件，否则答复原文写在交接文字里（工具连接 4.6）。
+ * 有已答、等处理的问题卡时可以附上「待核对答复」：服务模式、连接文件先存回方案文件，否则答复原文写在交接文字里（工具连接 4.6）。
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
@@ -16,14 +16,14 @@ import { useIsMobile } from '../layout'
 import { openingIcon } from './Inspector'
 import type { Opening, Plan, Wall } from '@/core/types'
 import { questionStatus } from '@/core/questions'
-import { saveServed } from '../actions'
+import { isConnected, saveToFile } from '../actions'
 import { fmt } from '../i18n'
 import { cn } from '@/lib/utils'
 
 export function AgentSheet() {
   const t = useT()
   const open = useStore(s => s.agentOpen), sel = useStore(s => s.sel), text = useStore(s => s.agentText), copied = useStore(s => s.copied), mode = useStore(s => s.mode)
-  const answersOn = useStore(s => s.agentAnswers), served = useStore(s => s.source.kind === 'served'), dirty = useStore(s => s.dirty), cleanBase = useStore(s => s.cleanBase)
+  const answersOn = useStore(s => s.agentAnswers), connected = useStore(s => isConnected(s.source)), dirty = useStore(s => s.dirty), cleanBase = useStore(s => s.cleanBase)
   const { openAgent, setAgentText, setCopied, select } = useStore.getState()
   const view = useView()
   const mobile = useIsMobile()
@@ -36,9 +36,9 @@ export function AgentSheet() {
   const decor = useStore(s => s.base?.decor), decorRefs = useDecor(s => s.agentRefs)
   const dRefs = mode === 'decor' && decor ? decorRefs.filter(id => findItem(decor, id) || decor.surfaces.some(x => x.id === id)) : []
   const waiting = view ? view.base.questions.filter(q => questionStatus(q) === 'answered').length : 0
-  // 服务模式复制前会先存回文件，所以按「已存进文件」写；其余模式答复原文在交接文字里
-  const answers = answersOn && waiting ? (served ? 'saved' as const : 'unsaved' as const) : undefined
-  const otherUnsaved = !!answers && !served && dirty && !!view && otherEdits(view.base, cleanBase)
+  // 服务模式、连接文件复制前会先存回文件，所以按「已存进文件」写；其余模式答复原文在交接文字里
+  const answers = answersOn && waiting ? (connected ? 'saved' as const : 'unsaved' as const) : undefined
+  const otherUnsaved = !!answers && !connected && dirty && !!view && otherEdits(view.base, cleanBase)
   const build = (a: typeof answers) => {
     if (!view) return ''
     const base = agentHandoff(view.plan, sel.filter(r => findEl(view.plan, r)), text.trim() || (lang === 'zh' ? '（没写）' : '(none)'), { mode, planFile: view.base.meta?.planFile, answers: a, otherUnsaved })
@@ -52,7 +52,7 @@ export function AgentSheet() {
   const copy = async () => {
     let out = md
     // 服务模式：答复要先进方案文件，Agent 才读得到；存不进去就改成把原文写在文字里
-    if (answers === 'saved' && useStore.getState().dirty && !(await saveServed())) out = build('unsaved')
+    if (answers === 'saved' && useStore.getState().dirty && !(await saveToFile())) out = build('unsaved')
     try {
       if (!navigator.clipboard?.writeText) throw new Error('no clipboard')
       await navigator.clipboard.writeText(out)
@@ -137,7 +137,7 @@ export function AgentSheet() {
                 <span className="grid size-8 shrink-0 place-items-center rounded-full bg-lav-100 text-lav-600"><Hourglass size={15} strokeWidth={2.4} /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[13px] font-semibold text-ink-900">{fmt(t.agent.withAnswers, { n: waiting })}</span>
-                  {answersOn && <span className="block text-[11.5px] leading-snug text-ink-500">{served ? t.agent.answersSaved : t.agent.answersInText}</span>}
+                  {answersOn && <span className="block text-[11.5px] leading-snug text-ink-500">{connected ? t.agent.answersSaved : t.agent.answersInText}</span>}
                 </span>
                 <Switch on={answersOn} onChange={v => useStore.setState({ agentAnswers: v })} label={fmt(t.agent.withAnswers, { n: waiting })} />
               </div>

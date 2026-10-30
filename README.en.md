@@ -6,7 +6,7 @@
 
 # try-your-home
 
-**v0.10.1 preview** — a local browser tool for editing floor-plan structure, comparing renovation ideas, and previewing interior layouts. Interior features are still being developed. [中文完整说明](README.md)
+**v0.11.0 preview** — a local browser tool for editing floor-plan structure, comparing renovation ideas, and previewing interior layouts. Interior features are still being developed. [中文完整说明](README.md)
 
 Edit walls, openings, rooms and levels; inspect a 3D model; arrange materials, furniture and cabinetry; export plan JSON, images, models and a renovation PDF. This is **not a construction drawing or a basis for structural or demolition decisions**. Dimensions and material quantities need independent verification.
 
@@ -47,7 +47,7 @@ node scripts/serve.mjs fixtures 5180
 
 The first argument is a directory containing plan JSON and referenced images, relative to the terminal's working directory or an absolute path. The optional port defaults to `5180`. Build first: the server serves `dist/index.html`. Open `http://127.0.0.1:5180/?plan=example-v2.json`; `plan` is a URL-encoded filename relative to the plan directory. The page checks for file changes about every two seconds. Save writes back to an existing JSON file, with validation and conflict checks. Stop the server with Ctrl+C.
 
-Use the companion [see-your-home Skill](https://github.com/ai-azhou/see-your-home) to read a floor-plan image into a plan, then inspect or edit it here. Since v0.10.0, review questions carry a status (open / waiting for the agent / handled) and the agent’s reply; answer them in the tool and use “Send answers to agent”. Pair with see-your-home v1.2.0 or later; v0.9.x cannot open plans with these fields. The JSON format identifier remains `floorplan-structure`. Select elements and use **Hand to Agent / 交给 Agent** to copy context and your request. Nothing is sent automatically. A local service provides the full file path; standalone mode usually provides only a filename. Any data you subsequently share is subject to your chosen Agent's operation and service.
+Use the companion [see-your-home Skill](https://github.com/ai-azhou/see-your-home) to read a floor-plan image into a plan, then inspect or edit it here. In Chrome or Edge, opening a plan file keeps a link to it: the page updates when the agent edits the file, and ⌘S writes back. Since v0.10.0, review questions carry a status (open / waiting for the agent / handled) and the agent’s reply; answer them in the tool and use “Send answers to agent”. Pair with see-your-home v1.2.0 or later; v0.9.x cannot open plans with these fields. The JSON format identifier remains `floorplan-structure`. Select elements and use **Hand to Agent / 交给 Agent** to copy context and your request. Nothing is sent automatically. A local service provides the full file path; standalone mode usually provides only a filename. Any data you subsequently share is subject to your chosen Agent's operation and service.
 
 All eight [Agent manual chapters](docs/agent手册/README.md), plus the camera appendix, are included in Chinese. The interior chapter is still a placeholder; see [the format contract](docs/format.md). Four fictional-example screenshots are in the [Chinese README](README.md); they predate the branding update.
 

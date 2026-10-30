@@ -46,6 +46,8 @@ function watch(page, tag) {
 }
 async function newPage(w = W, h = H, dsf = 1) {
   const page = await browser.newPage()
+  // 无头浏览器选不了文件：老用例走隐藏 input 的退回路径（也就是 Safari、Firefox 的路径）；连接文件见 L 步骤
+  await page.evaluateOnNewDocument(() => { window.showOpenFilePicker = undefined })
   await page.setViewport({ width: w, height: h, deviceScaleFactor: dsf })
   const cdp = await page.createCDPSession()
   await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads, eventsEnabled: true })
@@ -1253,6 +1255,91 @@ await step('Q4 服务模式：打开就提示已有的 Agent 回复；答完交�
   assert(!/Agent 处理了/.test(after), `看过以后提示条还在：${after}`)
   await ps.close()
   return `文件 q-kitchen=${k.status}；刷新后看过 → ${after}`
+})
+
+/* ═════════ 连接方案文件：真实句柄（OPFS 代替用户选的文件），存句柄、刷新、读写都走真接口 ═════════ */
+const linkText = title => { const p = JSON.parse(fs.readFileSync(path.join(root, 'fixtures/skill-two-bed/plan.json'), 'utf8')); delete p.underlay; p.title = title; return JSON.stringify(p, null, 2) + '\n' }
+const pl = await newPage(1440, 900)
+await pl.evaluateOnNewDocument(() => { window.showOpenFilePicker = async () => [await (await navigator.storage.getDirectory()).getFileHandle('link.json', { create: true })] })
+// 外部改文件：写临时文件再改名盖上去，和手册 4.3 要求 Agent 的做法一样
+const extWrite = text => pl.evaluate(async t => { const r = await navigator.storage.getDirectory(), tmp = await r.getFileHandle('link.tmp', { create: true }), w = await tmp.createWritable(); await w.write(t); await w.close(); await tmp.move(r, 'link.json') }, text)
+const extRead = () => pl.evaluate(async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('link.json')).getFile()).text())
+const ls = () => S(pl, () => { const s = window.__fss.store.getState(); return { kind: s.source.kind, title: s.base?.title, dirty: s.dirty, notice: s.notice?.text ?? '', toast: s.toast ?? '', k: s.base?.questions.find(q => q.id === 'q-kitchen')?.answer, status: document.querySelector('[data-testid=file-menu]')?.innerText ?? '' } })
+const waitTitle = t => pl.waitForFunction(t => window.__fss.store.getState().base?.title === t, { timeout: 8000 }, t)
+const waitNotice = re => pl.waitForFunction(r => new RegExp(r).test(window.__fss.store.getState().notice?.text ?? ''), { timeout: 8000 }, re)
+
+await step('L1 打开文件 → 连接；状态写「Agent 改完会自动刷新」，有保存按钮', pl, async () => {
+  await pl.goto(BASE + '/', { waitUntil: 'networkidle0' }); await sleep(800)
+  await extWrite(linkText('连接-A'))
+  await pl.click('[data-testid=file-menu]'); await pl.waitForSelector('[data-testid=menu-open]'); await pl.click('[data-testid=menu-open]')
+  await waitTitle('连接-A'); await sleep(200)
+  const s = await ls()
+  assert(s.kind === 'linked' && /已连接 link\.json/.test(s.toast) && /Agent 改完会自动刷新/.test(s.status) && await pl.$('[data-testid=save]'), JSON.stringify(s))
+  return s.toast
+})
+await step('L2 Agent 改名覆盖文件 → 2 秒内自动更新，不用重新拖', pl, async () => {
+  await extWrite(linkText('连接-B')); await waitTitle('连接-B'); await sleep(100)
+  const s = await ls()
+  assert(!s.dirty && s.kind === 'linked' && /Agent 更新了方案/.test(s.toast), JSON.stringify(s))
+  return s.toast
+})
+await step('L3 刷新：读文件的最新内容，不是自动保存的旧副本', pl, async () => {
+  await sleep(600); await extWrite(linkText('连接-C'))
+  await pl.reload({ waitUntil: 'networkidle0' }); await waitTitle('连接-C')
+  const s = await ls()
+  assert(s.kind === 'linked' && !s.dirty, JSON.stringify(s))
+  return `${s.title}，${s.kind}`
+})
+await step('L4 有没写回的改动：刷新不丢；文件变了先问；⌘S 不盖 Agent 的版本，可载入', pl, async () => {
+  await S(pl, () => window.__fss.store.getState().answer('q-kitchen', '只是门洞')); await sleep(800)
+  await pl.reload({ waitUntil: 'networkidle0' }); await sleep(800)
+  let s = await ls()
+  assert(s.kind === 'linked' && s.dirty && s.k === '只是门洞' && s.title === '连接-C', `刷新后 ${JSON.stringify(s)}`)
+  await extWrite(linkText('连接-D')); await waitNotice('Agent 更新了方案文件')
+  s = await ls()
+  assert(s.title === '连接-C' && s.k === '只是门洞', `被盖掉了 ${JSON.stringify(s)}`)
+  await sleep(500); await pl.click('[data-testid=notice-secondary]'); await sleep(300)
+  await pl.click('[data-testid=save]'); await waitNotice('文件刚被改过')
+  assert(JSON.parse(await extRead()).title === '连接-D', '⌘S 盖掉了 Agent 的版本')
+  await sleep(500); await pl.click('[data-testid=notice-primary]'); await waitTitle('连接-D'); await sleep(200)
+  s = await ls()
+  assert(!s.dirty && !s.k, JSON.stringify(s))
+  return '刷新不丢、先问、不盖、可载入'
+})
+await step('L5 保存写回原文件；自己写的不当成 Agent 更新；交给 Agent 前先写回', pl, async () => {
+  await S(pl, () => window.__fss.store.getState().answer('q-kitchen', '推拉门')); await sleep(200)
+  await pl.click('[data-testid=save]'); await pl.waitForFunction(() => !window.__fss.store.getState().dirty, { timeout: 5000 })
+  let disk = JSON.parse(await extRead()), q = disk.questions.find(q => q.id === 'q-kitchen')
+  assert(q.status === 'answered' && q.answer === '推拉门' && disk.format === 'floorplan-structure', JSON.stringify(q))
+  await sleep(2600)
+  assert(!/Agent/.test((await ls()).notice), `自己写的被当成更新：${(await ls()).notice}`)
+  await S(pl, () => window.__fss.store.getState().answer('q-beam', '约 2600 mm')); await sleep(200)
+  await S(pl, () => window.__fss.store.getState().openAgent(true, true)); await pl.waitForSelector('[data-testid=agent-copy]'); await sleep(300)
+  const preview = await S(pl, () => document.querySelector('[data-testid=agent-preview]').innerText)
+  assert(preview.includes('这些答复已经存进方案文件'), preview.slice(0, 300))
+  await pl.click('[data-testid=agent-copy]'); await sleep(1000)
+  disk = JSON.parse(await extRead())
+  assert(disk.questions.find(q => q.id === 'q-beam').status === 'answered', '复制前没有写回')
+  await S(pl, () => window.__fss.store.getState().openAgent(false)); await sleep(300)
+  return '写回、不误报、交接前先写回'
+})
+await step('L6 文件变成不是方案 → 提示不载入；修好后自动恢复', pl, async () => {
+  await extWrite('{"a":1}'); await waitNotice('不是方案文件')
+  assert((await ls()).title === '连接-D', '坏文件替换了当前方案')
+  await extWrite(linkText('连接-E')); await waitTitle('连接-E'); await sleep(100)
+  const s = await ls()
+  assert(!s.notice && s.kind === 'linked', JSON.stringify(s))
+  return s.title
+})
+await step('L7 改开别的方案 → 断开连接，文件再变也不影响；刷新后不再连接', pl, async () => {
+  await S(pl, () => { const s = window.__fss.store.getState(); s.loadPlan({ ...structuredClone(s.base), title: '另一份' }, { kind: 'file', file: '另一份.json' }) }); await sleep(800)
+  await extWrite(linkText('连接-F')); await sleep(3000)
+  assert((await ls()).title === '另一份', '断开后还在跟文件')
+  await pl.reload({ waitUntil: 'networkidle0' }); await sleep(1000)
+  const s = await ls()
+  assert(s.kind !== 'linked' && s.title === '另一份', JSON.stringify(s))
+  await pl.close()
+  return s.kind
 })
 
 await browser.close()

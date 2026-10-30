@@ -5,7 +5,7 @@ import { ArrowLeftRight, ArrowUpDown, Box, ChevronDown, CircleQuestionMark, Clip
 import { useStore, useT, useView, type Layers as L } from '../store'
 import { Glass, Pill, RoundButton, Segmented, Switch, Slider, Tip } from '../kit'
 import { fmt } from '../i18n'
-import { exportPlan, mirror, newPlan, openDemo, pickFile, saveServed } from '../actions'
+import { exportPlan, isConnected, mirror, newPlan, openDemo, pickFile, pickPlanFile, saveToFile } from '../actions'
 import { copyPlan, openChatIssues, openPaste } from '../chat'
 import { LevelSwitch } from './Levels'
 import { useIsMobile } from '../layout'
@@ -29,9 +29,9 @@ function FileMenu({ compact }: { compact?: boolean }) {
   const item = 'flex h-10 cursor-pointer select-none items-center gap-3 rounded-[12px] px-3 text-[13.5px] font-medium text-ink-800 outline-none data-[highlighted]:bg-ink-100'
   const status = !base ? t.app.tagline
     : saveState === 'failed' ? t.saveFailed
-    : source.kind === 'served' ? (dirty ? t.unexported : t.served)
+    : isConnected(source) ? (dirty ? t.unexported : t.served)
     : t.savedLocal
-  const dot = saveState === 'failed' ? 'bg-coral-500' : source.kind === 'served' && dirty ? 'bg-lemon-600' : 'bg-mint-500'
+  const dot = saveState === 'failed' ? 'bg-coral-500' : isConnected(source) && dirty ? 'bg-lemon-600' : 'bg-mint-500'
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
@@ -48,10 +48,10 @@ function FileMenu({ compact }: { compact?: boolean }) {
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content align="start" sideOffset={10} className="glass-strong z-[70] w-64 rounded-[20px] p-1.5 data-[state=open]:animate-[shimmer-in_180ms_var(--ease-out)]">
-          <DropdownMenu.Item className={item} data-testid="menu-open" onSelect={() => pickFile('.json,application/json')}><Upload size={16} className="text-ink-500" />{t.act.open}</DropdownMenu.Item>
+          <DropdownMenu.Item className={item} data-testid="menu-open" onSelect={() => void pickPlanFile()}><Upload size={16} className="text-ink-500" />{t.act.open}</DropdownMenu.Item>
           <DropdownMenu.Item className={item} data-testid="menu-paste" onSelect={openPaste}><ClipboardPaste size={16} className="text-lav-600" />{t.chat.paste}</DropdownMenu.Item>
           <DropdownMenu.Item className={item} onSelect={() => pickFile('image/*')}><ImageUp size={16} className="text-ink-500" />{t.act.importImage}</DropdownMenu.Item>
-          <DropdownMenu.Item className={item} data-testid="menu-export" disabled={!base} onSelect={exportPlan}><Download size={16} className="text-ink-500" />{t.act.export}{source.kind !== 'served' && <span className="kbd ml-auto">⌘S</span>}</DropdownMenu.Item>
+          <DropdownMenu.Item className={item} data-testid="menu-export" disabled={!base} onSelect={exportPlan}><Download size={16} className="text-ink-500" />{t.act.export}{!isConnected(source) && <span className="kbd ml-auto">⌘S</span>}</DropdownMenu.Item>
           <ExportMenuItem className={item} />
           {report && <DropdownMenu.Item className={item} onSelect={() => setPanel('report')}><ListChecks size={16} className="text-ink-500" />{t.act.report}<span className="num ml-auto text-[11.5px] text-ink-400">{report.approximations.length}</span></DropdownMenu.Item>}
           <DropdownMenu.Separator className="mx-2 my-1 h-px bg-ink-900/6" />
@@ -244,16 +244,16 @@ export function TitleBlock() {
     </motion.div>
   )
 }
-/** 服务模式才有：写回方案文件（⌘S）。有未保存改动时是墨底主按钮，存完退成玻璃 */
+/** 服务模式、连接文件才有：写回方案文件（⌘S）。有未保存改动时是墨底主按钮，存完退成玻璃 */
 function SaveButton({ compact }: { compact?: boolean }) {
   const t = useT()
-  const served = useStore(s => s.source.kind === 'served'), dirty = useStore(s => s.dirty), saving = useStore(s => s.saving)
-  if (!served) return null
+  const connected = useStore(s => isConnected(s.source)), dirty = useStore(s => s.dirty), saving = useStore(s => s.saving)
+  if (!connected) return null
   const label = saving ? t.s2a.save.saving : t.s2a.save.btn
-  if (compact) return <RoundButton size="lg" tone={dirty ? 'ink' : 'glass'} onClick={() => void saveServed()} disabled={saving} aria-label={label} data-testid="save"><Save size={18} /></RoundButton>
+  if (compact) return <RoundButton size="lg" tone={dirty ? 'ink' : 'glass'} onClick={() => void saveToFile()} disabled={saving} aria-label={label} data-testid="save"><Save size={18} /></RoundButton>
   return (
     <Tip label={t.s2a.save.tip} kbd="⌘S">
-      <Pill tone={dirty ? 'ink' : 'glass'} size="lg" onClick={() => void saveServed()} disabled={saving} data-testid="save" data-dirty={dirty || undefined} className="px-4">
+      <Pill tone={dirty ? 'ink' : 'glass'} size="lg" onClick={() => void saveToFile()} disabled={saving} data-testid="save" data-dirty={dirty || undefined} className="px-4">
         <Save size={16} strokeWidth={2.3} />{label}
       </Pill>
     </Tip>

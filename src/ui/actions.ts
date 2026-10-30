@@ -15,6 +15,7 @@ import { loadError, planWriteError } from '@/core/persistence'
 import { findEl } from './model'
 import { openChatIssuesFor } from './chat'
 import { diagnoseShape, isNotPlan, isSimplePlan } from '@/core/simple'
+import { canLink, forgetHandle, recallHandle, rememberHandle, stampOf, type PlanFileHandle } from './file-link'
 import { mergeAcrossWall } from '@/core/merge-rooms'
 
 const st = () => useStore.getState()
@@ -258,7 +259,7 @@ function rejectNotPlan(file?: string) {
   const message = fmt(t().notPlan, { name: file?.split('/').pop() || 'JSON' })
   useStore.setState({ loadFailure: message, booting: false })
   st().setNotice({ text: message, actions: [
-    { label: t().pickPlan, primary: true, run: () => { st().setNotice(null); pickFile('.json,application/json') } },
+    { label: t().pickPlan, primary: true, run: () => { st().setNotice(null); void pickPlanFile() } },
     { label: t().act.dismiss, run: () => st().setNotice(null) },
   ] })
 }
@@ -399,7 +400,8 @@ export function applyCalibration(p1: [number, number], p2: [number, number], len
 
 /* ───────── 本地自动保存 ───────── */
 const KEY = 'floorplan-structure:autosave:v2'
-export function readAutosave(): { plan: Plan; source?: Source; underlayNames?: Record<string, string> } | null {
+export type Autosave = { plan: Plan; source?: Source; underlayNames?: Record<string, string>; dirty?: boolean }
+export function readAutosave(): Autosave | null {
   try {
     const raw = localStorage.getItem(KEY)
     if (!raw) return null
@@ -412,18 +414,35 @@ export function readAutosave(): { plan: Plan; source?: Source; underlayNames?: R
 export function startAutosave() {
   let timer: ReturnType<typeof setTimeout> | undefined
   return useStore.subscribe((s, prev) => {
-    if (s.base === prev.base) return
+    // dirty、source 也要跟上：连接文件时，刷新后靠它们判断本地有没有没写回的改动
+    if (s.base === prev.base && s.dirty === prev.dirty && s.source === prev.source) return
     clearTimeout(timer)
     timer = setTimeout(() => {
       const cur = st()
       try {
         // A failed load or blank/invalid document must never replace the last recovery copy.
         if (!cur.base || cur.loadFailure || planWriteError(cur.base)) return
-        localStorage.setItem(KEY, JSON.stringify({ plan: JSON.parse(serializePlan(cur.base)), source: { kind: cur.source.kind, file: cur.source.file }, underlayNames: cur.underlayNames, savedAt: new Date().toISOString() }))
+        localStorage.setItem(KEY, JSON.stringify({ plan: JSON.parse(serializePlan(cur.base)), source: { kind: cur.source.kind, file: cur.source.file, etag: cur.source.etag }, dirty: cur.dirty, underlayNames: cur.underlayNames, savedAt: new Date().toISOString() }))
         cur.markSaved('saved')
       } catch { cur.markSaved('failed') }
     }, 400)
   })
+}
+
+/* ───────── 外部版本（服务模式、连接文件共用）：坏的不载入；没有未保存改动直接载入，有就先问 ───────── */
+type Watch = { skipped: string | null; rejected: string | null; offered: string | null }
+const newWatch = (): Watch => ({ skipped: null, rejected: null, offered: null })
+function takeRevision(w: Watch, text: string, revision: string, file: string, s: ReturnType<typeof st>, reload: () => void) {
+  if (notPlanText(text)) { w.rejected = revision; rejectNotPlan(file); return }
+  const error = loadError(parsePlanText(text).issues)
+  // Validate even while local edits are dirty; a bad external revision blocks writeback.
+  if (error) { w.rejected = revision; rejectLoad(error, text); return }
+  if (st().base !== s.base || st().source !== s.source) return
+  if (!st().dirty) reload()
+  else if (revision !== w.offered && (!st().notice || st().loadFailure)) {
+    w.offered = revision
+    st().setNotice({ text: t().agentUpdated, actions: [{ label: t().act.load, primary: true, run: reload }, { label: t().act.later, run: () => { w.skipped = revision; st().setNotice(null) } }] })
+  }
 }
 
 /* ───────── 本地服务模式：?plan=<文件>，2 秒用 ETag 查一次 ───────── */
@@ -483,12 +502,16 @@ export async function saveServed(): Promise<boolean> {
 }
 /** ⌘S：服务模式写回方案文件，否则导出 JSON */
 export function saveOrExport() {
-  if (st().source.kind === 'served') void saveServed()
+  if (isConnected(st().source)) void saveToFile()
   else exportPlan()
 }
+/** 服务模式、连接文件：改动能直接写回方案文件 */
+export const isConnected = (source: Source) => source.kind === 'served' || source.kind === 'linked'
+export const saveToFile = () => st().source.kind === 'linked' ? saveLinked() : saveServed()
 
 export function startPolling(file: string) {
-  let skipped: string | null = null, rejected: string | null = null, offered: string | null = null, busy = false
+  const w = newWatch()
+  let busy = false
   const tick = async () => {
     const s = st()
     const retryFailedLoad = !!s.loadFailure && failedServedFile === file
@@ -499,27 +522,145 @@ export function startPolling(file: string) {
       if (res.status === 304 || !res.ok) return
       const etag = res.headers.get('etag')
       if (saveInFlight || st().base !== s.base || st().source !== s.source) return
-      if (etag && (etag === st().source.etag || etag === skipped || ownEtags.has(etag))) { if (etag && ownEtags.has(etag) && etag !== st().source.etag) st().setSource({ etag }); return }
+      if (etag && (etag === st().source.etag || etag === w.skipped || ownEtags.has(etag))) { if (etag && ownEtags.has(etag) && etag !== st().source.etag) st().setSource({ etag }); return }
       const text = await res.text()
-      // Validate even while local edits are dirty; a bad external revision blocks writeback.
       const revision = etag ?? text
-      if (revision === rejected || retryFailedLoad && revision === failedServedRevision) return
-      if (notPlanText(text)) { rejected = revision; rejectNotPlan(file); return }
-      const error = loadError(parsePlanText(text).issues)
-      if (error) { rejected = revision; rejectLoad(error, text); return }
-      if (st().base !== s.base || st().source !== s.source) return
-      const reload = () => {
+      if (revision === w.rejected || retryFailedLoad && revision === failedServedRevision) return
+      takeRevision(w, text, revision, file, s, () => {
         if (openPlanText(text, servedSource(file, res), { keepView: true })) { failedServedFile = null; st().showToast(t().agentReloaded) }
-      }
-      if (!st().dirty) reload()
-      else if (revision !== offered && (!st().notice || st().loadFailure)) {
-        offered = revision
-        st().setNotice({ text: t().agentUpdated, actions: [{ label: t().act.load, primary: true, run: reload }, { label: t().act.later, run: () => { skipped = etag; st().setNotice(null) } }] })
-      }
+      })
     } catch { /* 服务停了：下次再试 */ } finally { busy = false }
   }
   const id = setInterval(tick, 2000)
   return () => clearInterval(id)
+}
+
+/* ───────── 连接方案文件（Chrome / Edge，见 file-link.ts）：2 秒比一次修改时间和大小 ───────── */
+let linkedHandle: PlanFileHandle | null = null
+let pendingHandle: PlanFileHandle | null = null
+/** 连接着、但最后读到的版本是坏的：记下它，文件再变才重试 */
+let failedLinkStamp: string | null = null
+const linkedSource = (f: File): Source => ({ kind: 'linked', file: f.name, etag: stampOf(f) })
+function dropLink() {
+  linkedHandle = null; pendingHandle = null; failedLinkStamp = null
+  void forgetHandle()
+}
+async function openHandle(h: PlanFileHandle) {
+  const f = await h.getFile()
+  if (!/\.json$/i.test(f.name)) { await handleFiles([f]); return }
+  if (!openPlanText(await f.text(), linkedSource(f))) return
+  linkedHandle = h; pendingHandle = null; failedLinkStamp = null
+  void rememberHandle(h)
+  if (st().report?.source !== 'simple') st().showToast(fmt(t().linked, { name: f.name }))
+}
+/** 打开方案文件：能连接就连接，不能就走一次性读取 */
+export async function pickPlanFile() {
+  if (!canLink()) { pickFile('.json,application/json'); return }
+  try {
+    const [h] = await window.showOpenFilePicker!({ types: [{ description: t().empty.plan, accept: { 'application/json': ['.json'] } }] })
+    await openHandle(h)
+  } catch (e) {
+    if ((e as Error).name !== 'AbortError') pickFile('.json,application/json')
+  }
+}
+/** 拖进窗口：句柄和文件列表都要在 drop 事件里同步取，事件结束就没了 */
+export async function handleDrop(data: DataTransfer | null | undefined) {
+  if (!data) return
+  const files = [...data.files], item = [...data.items].find(i => i.kind === 'file')
+  const pending = item?.getAsFileSystemHandle?.()
+  const h = await pending?.catch(() => null)
+  if (h?.kind === 'file' && /\.json$/i.test(h.name)) await openHandle(h).catch(() => handleFiles(files))
+  else await handleFiles(files)
+}
+/** 写回连接的文件。Agent 刚改过就不写，免得盖掉；写回要的权限比读高，第一次会问 */
+export async function saveLinked(): Promise<boolean> {
+  const s = st(), h = linkedHandle
+  if (s.source.kind !== 'linked' || !h || saveInFlight || writeBlocked() || !s.base) return false
+  saveInFlight = true
+  useStore.setState({ saving: true })
+  const base = s.base
+  try {
+    if (await h.queryPermission({ mode: 'readwrite' }) !== 'granted' && await h.requestPermission({ mode: 'readwrite' }) !== 'granted') { s.showToast(t().linkNoWrite); return false }
+    if (stampOf(await h.getFile()) !== s.source.etag) {
+      s.setNotice({ text: t().linkConflict, actions: [{ label: t().act.load, primary: true, run: () => { st().setNotice(null); void openHandle(h) } }, { label: t().act.dismiss, run: () => st().setNotice(null) }] })
+      return false
+    }
+    const w = await h.createWritable()
+    await w.write(serializePlan({ ...base, meta: { ...base.meta, updatedAt: new Date().toISOString().slice(0, 10) } }))
+    await w.close()
+    const etag = stampOf(await h.getFile()), changedSince = st().base !== base
+    useStore.setState(x => ({ source: { ...x.source, etag }, dirty: changedSince ? x.dirty : false, cleanBase: base }))
+    st().showToast(fmt(t().s2a.save.saved, { file: h.name }))
+    return true
+  } catch (e) {
+    st().showToast(fmt(t().s2a.save.failed, { e: e instanceof Error ? e.message : String(e) }))
+    return false
+  } finally { saveInFlight = false; useStore.setState({ saving: false }) }
+}
+/** 本地有没写回的改动：恢复它们，文件的新版本交给轮询来问，不直接盖掉 */
+function restoreUnsaved(h: PlanFileHandle, saved: Autosave) {
+  st().loadPlan(saved.plan, { kind: 'linked', file: h.name, etag: saved.source?.etag })
+  useStore.setState({ dirty: true, saveState: 'saved', ...(saved.underlayNames ? { underlayNames: saved.underlayNames } : {}) })
+  linkedHandle = h; pendingHandle = null
+}
+/** 启动时：上次连着文件就接着读文件，没有就走 local（本地自动保存或空状态） */
+export async function resumeLinked(saved: Autosave | null, local: () => void) {
+  useStore.subscribe((s, prev) => { if (s.source !== prev.source && s.source.kind !== 'linked' && (linkedHandle || pendingHandle)) dropLink() })
+  const tick = linkTicker()
+  setInterval(tick, 2000)
+  window.addEventListener('focus', () => void tick())
+  const h = await recallHandle()
+  if (!h) { local(); return }
+  const unsaved = !!saved?.dirty && saved.source?.kind === 'linked' && saved.source.file === h.name
+  const permission = await h.queryPermission({ mode: 'read' }).catch(() => 'prompt' as const)
+  if (permission !== 'granted') {
+    // 关过浏览器以后权限要重新确认，而确认必须由用户点一下触发
+    local()
+    pendingHandle = h
+    st().setNotice({ text: fmt(t().linkAsk, { name: h.name }), actions: [
+      { label: t().linkResume, primary: true, run: () => { st().setNotice(null); void h.requestPermission({ mode: 'read' }).then(p => { if (p !== 'granted') return; return unsaved ? restoreUnsaved(h, saved!) : openHandle(h) }) } },
+      { label: t().linkDrop, run: () => { st().setNotice(null); dropLink() } },
+    ] })
+    return
+  }
+  try {
+    if (unsaved) { restoreUnsaved(h, saved!); return }
+    const f = await h.getFile(), text = await f.text()
+    if (notPlanText(text) || loadError(parsePlanText(text).issues)) { local(); linkedHandle = h; failedLinkStamp = stampOf(f); openPlanText(text, linkedSource(f)); return }
+    openPlanText(text, linkedSource(f))
+    linkedHandle = h
+  } catch {
+    // 文件被移走或删掉：显示最后的副本，说清楚
+    local()
+    st().setNotice({ text: fmt(t().linkGone, { name: h.name }), actions: [{ label: t().pickPlan, primary: true, run: () => { st().setNotice(null); void pickPlanFile() } }, { label: t().act.dismiss, run: () => st().setNotice(null) }] })
+    void forgetHandle()
+  }
+}
+function linkTicker() {
+  const w = newWatch()
+  let busy = false, warned = false
+  return async () => {
+    const s = st(), h = linkedHandle
+    if (!h || busy || saveInFlight || s.source.kind !== 'linked' && !s.loadFailure) return
+    busy = true
+    try {
+      const f = await h.getFile(), stamp = stampOf(f)
+      warned = false
+      if (saveInFlight || st().base !== s.base || st().source !== s.source) return
+      if (s.source.kind === 'linked' && stamp === s.source.etag || [w.skipped, w.rejected, failedLinkStamp].includes(stamp)) return
+      const text = await f.text()
+      takeRevision(w, text, stamp, f.name, s, () => {
+        if (openPlanText(text, linkedSource(f), { keepView: true })) { failedLinkStamp = null; st().showToast(t().agentReloaded) }
+      })
+    } catch (e) {
+      // 正在写的文件读不出来，下次再试；只有真的不见了才提示，而且只提示一次
+      const name = (e as Error).name
+      if ((name === 'NotFoundError' || name === 'NotAllowedError') && !warned && !st().notice) {
+        warned = true
+        st().setNotice({ text: fmt(t().linkGone, { name: h.name }), actions: [{ label: t().act.dismiss, run: () => st().setNotice(null) }] })
+      }
+    } finally { busy = false }
+  }
 }
 
 /** 新建构件默认值（检查器的「类型」切换用） */

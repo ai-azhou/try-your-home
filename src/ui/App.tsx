@@ -19,7 +19,7 @@ import { serializePlan } from '@/core/io'
 import { arcParams, planBounds } from '@/core/geometry'
 import { buildSolids } from '@/core/solids'
 import { getView } from './store'
-import { handleFiles, loadServed, readAutosave, removeRefs, saveOrExport, startAutosave, startPolling } from './actions'
+import { handleDrop, loadServed, readAutosave, removeRefs, resumeLinked, saveOrExport, startAutosave, startPolling } from './actions'
 import { Compass } from './panels/Compass'
 import { LevelSwitch } from './panels/Levels'
 import { cn } from '@/lib/utils'
@@ -40,7 +40,7 @@ if (typeof window !== 'undefined') Object.assign(window, { __fss: { store: useSt
 let urlApplied = false
 const DEMO_KEYS = ['state', 'data', 'sel', 'mode', 'view', 'q', 'cam', 'tool', 'layers', 'style', 'probe']
 /**
- * 启动时载入什么：?plan=<文件>（本地服务模式）> 演示参数（?state= 等，用示例方案）> 本地自动保存 > 空状态。
+ * 启动时载入什么：?plan=<文件>（本地服务模式）> 演示参数（?state= 等，用示例方案）> 上次连接的文件 > 本地自动保存 > 空状态。
  */
 function boot() {
   if (urlApplied) return
@@ -57,8 +57,10 @@ function boot() {
   }
   if (DEMO_KEYS.some(k => p.has(k))) { applyUrlState(p); return }
   const saved = readAutosave()
+  void resumeLinked(saved, () => {
   if (saved) { s.loadPlan(saved.plan, { kind: 'local', file: saved.source?.file }); useStore.setState({ saveState: 'saved', ...(saved.underlayNames && typeof saved.underlayNames === 'object' ? { underlayNames: { ...useStore.getState().underlayNames, ...saved.underlayNames } } : {}) }); return }
   s.loadPlan(null)
+  })
 }
 function applyUrlState(p: URLSearchParams) {
   const s = useStore.getState()
@@ -231,7 +233,7 @@ function useDropFiles() {
     const leave = () => { depth = Math.max(0, depth - 1); if (!depth) s().setDragOver(false) }
     const drop = async (e: DragEvent) => {
       e.preventDefault(); depth = 0; s().setDragOver(false)
-      await handleFiles(e.dataTransfer?.files)
+      await handleDrop(e.dataTransfer)
     }
     window.addEventListener('dragenter', enter); window.addEventListener('dragover', over); window.addEventListener('dragleave', leave); window.addEventListener('drop', drop)
     return () => { window.removeEventListener('dragenter', enter); window.removeEventListener('dragover', over); window.removeEventListener('dragleave', leave); window.removeEventListener('drop', drop) }
