@@ -12,6 +12,8 @@ import { Check, Download, FileBraces, FileDown, ImageDown } from 'lucide-react'
 import { useStore, useT } from '../store'
 import { useDecor } from '../decor/dstore'
 import { exportPlan, safeName } from '../actions'
+import { dicts, fmt } from '../i18n'
+import { pendingCount } from '@/core/decor/resolve'
 import { Tip } from '../kit'
 import { cn } from '@/lib/utils'
 import { openExportPanel } from './entry'
@@ -20,12 +22,17 @@ import { openExportPanel } from './entry'
 export function shoot3d(bg: 'white' | 'transparent', aspect: 'view' | '16:9' = 'view') {
   const s = useStore.getState(), D = useDecor.getState(), zh = s.lang === 'zh'
   const t = { iso: zh ? '斜视' : 'iso', top: zh ? '俯视' : 'top', eye: zh ? '平视' : 'eye' }
-  const view = s.mode === 'decor' && D.probe ? (zh ? '对准' : 'aim') : t[s.cam]
+  const camName = s.mode === 'decor' && D.probe ? (zh ? '对准' : 'aim') : t[s.cam]
   const look = s.mode === 'decor' ? (D.look3d === 'clay' ? (zh ? '装修白模' : 'decor-clay') : (zh ? '装修平涂' : 'decor-flat')) : s.style3d === 'clay' ? (zh ? '白模' : 'clay') : (zh ? '结构色' : 'structure')
-  const name = `${safeName(s.base?.title ?? 'plan')}-${look}${s.mode === 'decor' && D.section3d ? (zh ? '-剖切' : '-section') : ''}-${view}${aspect === '16:9' ? '-16x9' : ''}.png`
-  const fire = () => window.dispatchEvent(new CustomEvent('export-3d', { detail: { bg, aspect, glass: bg === 'transparent' ? D.exportGlass : 'clear', name, done: (ok: boolean, w: number, h: number) => { useStore.getState().showToast(ok ? (zh ? `已导出 ${name}` : `Exported ${name}`) : 'PNG ×'); (window as unknown as Record<string, unknown>).__lastShot = { ok, w, h, name } } } }))
-  if (s.main !== '3d') { s.setMain('3d'); setTimeout(fire, 1400) } // 主画布换成 3D、相机落定后再拍
-  else fire()
+  const name = `${safeName(s.base?.title ?? 'plan')}-${look}${s.mode === 'decor' && D.section3d ? (zh ? '-剖切' : '-section') : ''}-${camName}${aspect === '16:9' ? '-16x9' : ''}.png`
+  // 装修态：有待确认的时候，图里默认只有已确认的（和 render 一致）；Scene3D 按 exportView 重画一遍再拍，拍完换回来
+  const pending = s.mode === 'decor' ? pendingCount(s.base?.decor) : 0
+  const view = pending ? (D.exportPending ? 'all' as const : 'confirmed' as const) : null
+  const tail = pending && !D.exportPending ? `（${fmt(dicts[s.lang].decorAgent.exportHidden, { n: pending })}）` : ''
+  const fire = () => window.dispatchEvent(new CustomEvent('export-3d', { detail: { bg, aspect, glass: bg === 'transparent' ? D.exportGlass : 'clear', name, done: (ok: boolean, w: number, h: number) => { useDecor.getState().set({ exportView: null }); useStore.getState().showToast(ok ? (zh ? `已导出 ${name}${tail}` : `Exported ${name}${tail}`) : 'PNG ×'); (window as unknown as Record<string, unknown>).__lastShot = { ok, w, h, name, exportView: view, pendingHidden: view === 'confirmed' ? pending : 0 } } } }))
+  const shoot = () => { if (view) { useDecor.getState().set({ exportView: view }); setTimeout(fire, 400) } else fire() }
+  if (s.main !== '3d') { s.setMain('3d'); setTimeout(shoot, 1400) } // 主画布换成 3D、相机落定后再拍
+  else shoot()
 }
 
 export function GlobalExport({ compact }: { compact?: boolean }) {
@@ -34,6 +41,7 @@ export function GlobalExport({ compact }: { compact?: boolean }) {
   const mode = useStore(s => s.mode)
   const nChanges = useStore(s => s.base?.changes.length ?? 0)
   const decor = useStore(s => s.base?.decor)
+  const includePending = useDecor(s => s.exportPending), nPending = useStore(s => s.mode === 'decor' ? pendingCount(s.base?.decor) : 0)
   const look = useDecor(s => s.look3d), style3d = useStore(s => s.style3d)
   const [open, setOpen] = useState(false)
   const [structure, setStructure] = useState(true)
@@ -120,6 +128,8 @@ export function GlobalExport({ compact }: { compact?: boolean }) {
               </button>
             ))}
           </div>
+          {/* 有待确认的：图里默认不画（和 render 一致），想看提议的效果可以打开 */}
+          {nPending > 0 && <div className="px-1.5 pb-1"><Check2 testId="gexp-pending" on={includePending} onClick={() => useDecor.getState().set({ exportPending: !includePending })} label={dicts[lang].decorAgent.exportInclude} sub={fmt(dicts[lang].decorAgent.exportIncludeSub, { n: nPending })} /></div>}
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

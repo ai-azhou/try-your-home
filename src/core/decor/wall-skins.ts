@@ -8,12 +8,14 @@ import { faceAxis, faceRun, runS } from './faces.ts'
 import { resolveSurfaces, type FinishPreview } from './surfaces.ts'
 import { checkEmbed, embedsOf } from './embed.ts'
 import { decorItems } from './resolve.ts'
-import { difference, intersection, rectPoly } from './math.ts'
+import { difference, intersection, ordered, rectPoly } from './math.ts'
 
 export interface WallSkin {
   key: string
   /** Canonical anchor; faces lists every contributing wall and its local side. */
   wall: string; side: 1 | -1; face: FaceRef; faces: FaceRef[]; wallIds: string[]; room?: string; level: string
+  /** No room faces this patch, yet it is shut in: each end meets a room's patch or a neighbouring wall, and at least one meets a room (the slot a demolished wall leaves between two rooms). */
+  enclosed?: boolean
   material: Material; materialId: string; overridden: boolean; surfaceIds: string[]
   /** Unfolded anchor-face u (mm), floor-relative z (m); outer ring then holes. */
   polygons: Vec2[][][]; area: number
@@ -37,6 +39,15 @@ export function wallSkins(plan: Plan, opts: WallSkinOptions = {}): WallSkin[] {
     if (opts.level && level.id !== opts.level) continue
     for (const part of run) seen.add(JSON.stringify(part.face))
     const groups = new Map<string, WallSkin>()
+    const isEnclosed = (part: typeof run[number], surface: typeof resolved[number]) => {
+      if (surface.room || !('face' in surface.target) || !surface.target.s || !surface.polygons.length) return false
+      const ss = surface.polygons.flat(2).map(p => p[0]), [s0, s1] = ordered(surface.target.s[0], surface.target.s[1])
+      const touchesRoom = (s: number) => run.some(other => resolved.some(r => r.room && 'face' in r.target && r.target.face.wall === other.face.wall && r.target.face.side === other.face.side
+        && r.polygons.flat(2).some(p => Math.abs(axis.toU(runS(other, p[0])) - axis.toU(runS(part, s))) <= 1)))
+      // A patch stops short of its own interval only where faceIntervals cut it, i.e. against a neighbouring wall.
+      const low = Math.min(...ss), high = Math.max(...ss), roomLow = touchesRoom(low), roomHigh = touchesRoom(high)
+      return (roomLow || roomHigh) && (roomLow || low - s0 > 1e-3) && (roomHigh || s1 - high > 1e-3)
+    }
     for (const part of run) for (const surface of resolved) {
       if (!('face' in surface.target) || surface.target.face.wall !== part.face.wall || surface.target.face.side !== part.face.side) continue
       let polygons = surface.polygons
@@ -47,10 +58,11 @@ export function wallSkins(plan: Plan, opts: WallSkinOptions = {}): WallSkin[] {
         polygons = difference(polygons, [[rectPoly({ u: [ss[0], ss[1]], z: cut.z })]])
       }
       if (!polygons.length) continue
-      const key = JSON.stringify([face.wall, face.side, surface.room ?? null, surface.materialId])
+      const enclosed = isEnclosed(part, surface)
+      const key = JSON.stringify([face.wall, face.side, surface.room ?? null, surface.materialId, ...(enclosed ? ['enclosed'] : [])])
       let skin = groups.get(key)
       if (!skin) {
-        skin = { key, wall: face.wall, side: face.side, face, faces: [], wallIds: [], room: surface.room, level: level.id, material: surface.material, materialId: surface.materialId, overridden: false, surfaceIds: [], polygons: [], area: 0, positions: [], normals: [] }
+        skin = { key, wall: face.wall, side: face.side, face, faces: [], wallIds: [], room: surface.room, ...(enclosed ? { enclosed } : {}), level: level.id, material: surface.material, materialId: surface.materialId, overridden: false, surfaceIds: [], polygons: [], area: 0, positions: [], normals: [] }
         groups.set(key, skin)
       }
       if (!skin.wallIds.includes(part.wall.id)) { skin.wallIds.push(part.wall.id); skin.faces.push(part.face) }

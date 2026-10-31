@@ -1,0 +1,673 @@
+{
+  "beams": [],
+  "ceiling": 2800,
+  "changes": [],
+  "decor": {
+    "cabinets": [],
+    "components": [
+      {
+        "basis": "虚构测试尺寸，非产品参数",
+        "category": "appliance",
+        "front": [
+          {
+            "d": "M20 20H1430V810H20Z",
+            "stroke": "#222",
+            "style": "detail"
+          }
+        ],
+        "height": 830,
+        "id": "tv65",
+        "name": "65 寸电视示例",
+        "parts": [
+          {
+            "color": "#222222",
+            "outline": "M0 0H1450V80H0Z",
+            "z": [
+              0,
+              830
+            ]
+          }
+        ],
+        "size": [
+          1450,
+          80
+        ]
+      },
+      {
+        "category": "soft",
+        "height": 10,
+        "id": "round-rug",
+        "name": "圆地毯",
+        "parts": [
+          {
+            "outline": "M1600 800A800 800 0 1 1 0 800A800 800 0 1 1 1600 800Z",
+            "z": [
+              0,
+              10
+            ]
+          }
+        ],
+        "size": [
+          1600,
+          1600
+        ]
+      },
+      {
+        "category": "furniture",
+        "height": 850,
+        "id": "l-sofa",
+        "name": "L 形沙发",
+        "parts": [
+          {
+            "outline": "M0 0H2400V850H0Z",
+            "z": [
+              0,
+              450
+            ]
+          },
+          {
+            "outline": "M0 850H800V1600H0Z",
+            "z": [
+              0,
+              450
+            ]
+          },
+          {
+            "along": "width",
+            "kind": "side",
+            "profile": "M0 0H180L280 400H0Z",
+            "span": [
+              0,
+              2400
+            ]
+          }
+        ],
+        "size": [
+          2400,
+          1600
+        ]
+      },
+      {
+        "category": "furniture",
+        "height": 750,
+        "id": "four-leg-table",
+        "name": "四腿餐桌",
+        "parts": [
+          {
+            "outline": "M0 0H1600V800H0Z",
+            "z": [
+              700,
+              750
+            ]
+          },
+          {
+            "outline": "M60 60h80v80h-80Z",
+            "z": [
+              0,
+              700
+            ]
+          },
+          {
+            "outline": "M1460 60h80v80h-80Z",
+            "z": [
+              0,
+              700
+            ]
+          },
+          {
+            "outline": "M60 660h80v80h-80Z",
+            "z": [
+              0,
+              700
+            ]
+          },
+          {
+            "outline": "M1460 660h80v80h-80Z",
+            "z": [
+              0,
+              700
+            ]
+          }
+        ],
+        "size": [
+          1600,
+          800
+        ]
+      },
+      {
+        "category": "lighting",
+        "height": 600,
+        "id": "lamp",
+        "name": "台灯",
+        "parts": [
+          {
+            "kind": "revolve",
+            "profile": "M0 580H160V600H0Z"
+          },
+          {
+            "kind": "revolve",
+            "profile": "M0 220H15V580H0Z"
+          },
+          {
+            "color": "#efc",
+            "kind": "revolve",
+            "profile": "M80 0H100L200 240H180Z"
+          }
+        ],
+        "size": [
+          400,
+          400
+        ]
+      }
+    ],
+    "furniture": [
+      {
+        "against": {
+          "face": {
+            "side": 1,
+            "wall": "north"
+          },
+          "gap": 0
+        },
+        "at": [
+          3500,
+          140
+        ],
+        "by": "agent",
+        "height": 830,
+        "id": "example-tv65",
+        "rot": 0,
+        "size": [
+          1450,
+          80
+        ],
+        "status": "confirmed",
+        "type": "custom:tv65",
+        "z": 900
+      },
+      {
+        "at": [
+          3500,
+          3100
+        ],
+        "by": "agent",
+        "height": 10,
+        "id": "example-round-rug",
+        "rot": 0,
+        "size": [
+          1600,
+          1600
+        ],
+        "status": "confirmed",
+        "type": "custom:round-rug"
+      },
+      {
+        "at": [
+          2200,
+          4900
+        ],
+        "by": "agent",
+        "height": 850,
+        "id": "example-l-sofa",
+        "rot": 0,
+        "size": [
+          2400,
+          1600
+        ],
+        "status": "confirmed",
+        "type": "custom:l-sofa"
+      },
+      {
+        "at": [
+          5100,
+          4500
+        ],
+        "by": "agent",
+        "height": 750,
+        "id": "example-four-leg-table",
+        "rot": 0,
+        "size": [
+          1600,
+          800
+        ],
+        "status": "confirmed",
+        "type": "custom:four-leg-table"
+      },
+      {
+        "at": [
+          6000,
+          1000
+        ],
+        "by": "agent",
+        "height": 600,
+        "id": "example-lamp",
+        "rot": 0,
+        "size": [
+          400,
+          400
+        ],
+        "status": "pending",
+        "type": "custom:lamp"
+      }
+    ],
+    "materials": [
+      {
+        "category": "wood-floor",
+        "color": "#cfb28a",
+        "id": "oak",
+        "name": "浅橡木地板",
+        "texture": {
+          "kind": "planks",
+          "size": [
+            1200,
+            190
+          ]
+        }
+      },
+      {
+        "category": "wood-floor",
+        "color": "#c9a77c",
+        "id": "oakHb",
+        "name": "橡木人字拼",
+        "texture": {
+          "kind": "herringbone"
+        }
+      },
+      {
+        "category": "wood-floor",
+        "color": "#7f5a3d",
+        "id": "walnut",
+        "name": "胡桃木地板",
+        "texture": {
+          "kind": "herringbone"
+        }
+      },
+      {
+        "category": "wood-floor",
+        "color": "#e2d2b4",
+        "id": "ash",
+        "name": "白蜡木地板",
+        "texture": {
+          "kind": "planks",
+          "size": [
+            1200,
+            160
+          ]
+        }
+      },
+      {
+        "category": "wood-floor",
+        "color": "#8f7d69",
+        "id": "smokeOak",
+        "name": "烟熏橡木地板",
+        "texture": {
+          "kind": "planks",
+          "size": [
+            1500,
+            200
+          ]
+        }
+      },
+      {
+        "category": "tile",
+        "color": "#cdc8bf",
+        "id": "tileWarm",
+        "name": "暖灰哑光砖",
+        "texture": {
+          "kind": "tiles",
+          "size": [
+            600,
+            600
+          ]
+        }
+      },
+      {
+        "category": "tile",
+        "color": "#d4d4d1",
+        "id": "tileGrey",
+        "name": "浅灰大板砖",
+        "texture": {
+          "kind": "tiles",
+          "size": [
+            900,
+            1800
+          ]
+        }
+      },
+      {
+        "category": "tile",
+        "color": "#aeb8a8",
+        "id": "tileSage",
+        "name": "灰绿小方砖",
+        "texture": {
+          "kind": "tiles",
+          "size": [
+            200,
+            200
+          ]
+        }
+      },
+      {
+        "category": "microcement",
+        "color": "#c6bcae",
+        "id": "micro",
+        "name": "暖灰微水泥",
+        "texture": {
+          "kind": "speckle"
+        }
+      },
+      {
+        "category": "microcement",
+        "color": "#d5ccbf",
+        "id": "microPale",
+        "name": "米灰微水泥",
+        "texture": {
+          "kind": "speckle"
+        }
+      },
+      {
+        "category": "texture-paint",
+        "color": "#d7ccbc",
+        "id": "limewash",
+        "name": "肌理艺术涂料",
+        "texture": {
+          "kind": "speckle"
+        }
+      },
+      {
+        "category": "paint",
+        "color": "#efe7da",
+        "id": "cream",
+        "name": "奶油白乳胶漆"
+      },
+      {
+        "category": "paint",
+        "color": "#f3f2ee",
+        "id": "white",
+        "name": "暖白乳胶漆"
+      },
+      {
+        "category": "paint",
+        "color": "#a9b6bf",
+        "id": "mist",
+        "name": "雾霾蓝乳胶漆"
+      },
+      {
+        "category": "paint",
+        "color": "#3f5b4d",
+        "id": "forest",
+        "name": "墨绿乳胶漆"
+      },
+      {
+        "category": "paint",
+        "color": "#59686e",
+        "id": "daiqing",
+        "name": "黛青乳胶漆"
+      },
+      {
+        "category": "paint",
+        "color": "#eee8dc",
+        "id": "rice",
+        "name": "宣纸白乳胶漆"
+      },
+      {
+        "category": "veneer",
+        "color": "#d4bc95",
+        "id": "oakVeneer",
+        "name": "白橡木饰面",
+        "texture": {
+          "kind": "grain"
+        }
+      },
+      {
+        "category": "veneer",
+        "color": "#9d8669",
+        "id": "elm",
+        "name": "老榆木饰面",
+        "texture": {
+          "kind": "grain"
+        }
+      },
+      {
+        "category": "veneer",
+        "color": "#9b6b44",
+        "id": "teak",
+        "name": "柚木饰面",
+        "texture": {
+          "kind": "grain"
+        }
+      },
+      {
+        "category": "veneer",
+        "color": "#5b4231",
+        "id": "walnutV",
+        "name": "黑胡桃木饰面",
+        "texture": {
+          "kind": "grain"
+        }
+      },
+      {
+        "category": "laminate",
+        "color": "#ebe3d5",
+        "id": "creamDoor",
+        "name": "奶油白哑光柜门"
+      },
+      {
+        "category": "laminate",
+        "color": "#c9c8c4",
+        "id": "greyDoor",
+        "name": "雾灰哑光柜门"
+      },
+      {
+        "category": "stone",
+        "color": "#e8e5df",
+        "id": "slab",
+        "name": "鱼肚白岩板",
+        "texture": {
+          "kind": "veins"
+        }
+      },
+      {
+        "category": "stone",
+        "color": "#d8ccb6",
+        "id": "travertine",
+        "name": "米黄洞石",
+        "texture": {
+          "kind": "veins"
+        }
+      },
+      {
+        "category": "stone",
+        "color": "#3a3a3c",
+        "id": "blackSlab",
+        "name": "黑色岩板",
+        "texture": {
+          "kind": "veins"
+        }
+      },
+      {
+        "category": "metal",
+        "color": "#b9a079",
+        "id": "brass",
+        "name": "香槟金"
+      },
+      {
+        "category": "metal",
+        "color": "#4a4b4e",
+        "id": "gunmetal",
+        "name": "枪灰金属"
+      },
+      {
+        "category": "metal",
+        "color": "#8b6a48",
+        "id": "bronze",
+        "name": "古铜"
+      },
+      {
+        "category": "fabric",
+        "color": "#d8ccb8",
+        "id": "oat",
+        "name": "燕麦色布艺"
+      },
+      {
+        "category": "fabric",
+        "color": "#d6cab6",
+        "id": "linen",
+        "name": "亚麻原色"
+      },
+      {
+        "category": "fabric",
+        "color": "#77797b",
+        "id": "charcoal",
+        "name": "炭灰布艺"
+      },
+      {
+        "category": "fabric",
+        "color": "#c89b3c",
+        "id": "mustard",
+        "name": "芥末黄布艺"
+      },
+      {
+        "category": "leather",
+        "color": "#a8673a",
+        "id": "caramel",
+        "name": "焦糖皮革"
+      },
+      {
+        "category": "fabric",
+        "color": "#c9ccca",
+        "id": "fog",
+        "name": "雾灰布艺"
+      },
+      {
+        "category": "fabric",
+        "color": "#e7e0d3",
+        "id": "rugWool",
+        "name": "米白羊毛地毯"
+      },
+      {
+        "category": "fabric",
+        "color": "#d6d6d2",
+        "id": "rugGrey",
+        "name": "浅灰手工毯"
+      },
+      {
+        "category": "rattan",
+        "color": "#c7a87a",
+        "id": "rattan",
+        "name": "藤编",
+        "texture": {
+          "kind": "weave"
+        }
+      }
+    ],
+    "panels": [],
+    "recesses": [],
+    "style": "cream",
+    "surfaces": [],
+    "version": 1
+  },
+  "format": "floorplan-structure",
+  "north": 0,
+  "openings": [
+    {
+      "head": 2100,
+      "id": "entry",
+      "kind": "doorway",
+      "offset": 1000,
+      "sill": 0,
+      "wall": "south",
+      "width": 900
+    },
+    {
+      "head": 2300,
+      "id": "window",
+      "kind": "window",
+      "offset": 1000,
+      "sill": 900,
+      "wall": "east",
+      "width": 2400
+    }
+  ],
+  "questions": [],
+  "rooms": [
+    {
+      "id": "living",
+      "name": "虚构客厅",
+      "poly": [
+        [
+          100,
+          100
+        ],
+        [
+          6900,
+          100
+        ],
+        [
+          6900,
+          6400
+        ],
+        [
+          100,
+          6400
+        ]
+      ]
+    }
+  ],
+  "title": "C8 虚构装修示例",
+  "version": 3,
+  "walls": [
+    {
+      "a": [
+        0,
+        0
+      ],
+      "b": [
+        7000,
+        0
+      ],
+      "id": "north",
+      "kind": "partition",
+      "thickness": 200
+    },
+    {
+      "a": [
+        7000,
+        0
+      ],
+      "b": [
+        7000,
+        6500
+      ],
+      "id": "east",
+      "kind": "partition",
+      "thickness": 200
+    },
+    {
+      "a": [
+        7000,
+        6500
+      ],
+      "b": [
+        0,
+        6500
+      ],
+      "id": "south",
+      "kind": "partition",
+      "thickness": 200
+    },
+    {
+      "a": [
+        0,
+        6500
+      ],
+      "b": [
+        0,
+        0
+      ],
+      "id": "west",
+      "kind": "partition",
+      "thickness": 200
+    }
+  ]
+}

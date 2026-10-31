@@ -5,16 +5,18 @@
  */
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Vec2 } from '@/core/types'
-import type { Cabinet } from '@/core/decor/types'
 import { layoutCabinet } from '@/core/decor/cabinets'
+import { isCustomType } from '@/core/decor/components'
+import { isFlatFurniture } from '@/core/decor/furniture'
 import { useStore } from '../store'
 import { freeRect, useIsMobile } from '../layout'
 import { C } from '../canvas2d/style'
 import { useDecor, type DSel } from './dstore'
-import { decorIssues, useDecorPlan, findItem } from './model'
+import { decorIssues, doorOfOpening, overheadIds, useDecorPlan, findItem } from './model'
 import { elevationModel, type ElevModel } from './elev-model'
 import { ElevDefs, ElevDrawing, Pill, rectOfSel, X, Y, type Frame } from './ElevDrawing'
-import { addCabinet, addCut, addPanel, paintFace, patchCabinet, patchPanel, patchRecess, patchFurniture } from './actions'
+import { addCabinet, addCut, addPanel, paintFace, patchCabinet, patchPanel, patchRecess } from './actions'
+import { applyElevRect } from './nudge'
 
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; tx: number; ty: number; moved: boolean }
@@ -132,9 +134,11 @@ export function ElevationCanvas() {
   const local = (e: { clientX: number; clientY: number }): Vec2 => { const r = box.current!.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top] }
 
   /** 点到了什么：家电 → 洞 / 壁龛 → 柜子（柜体编辑里是格子）→ 造型 → 墙面 */
+  const overhead = overheadIds(dp.plan, decor)
   const hitAt = (u: number, z: number): DSel | null => {
     const inR = (r: { u: [number, number]; z: [number, number] } | null) => !!r && u >= r.u[0] && u <= r.u[1] && z >= r.z[0] && z <= r.z[1]
-    for (const f of m.furniture) if (f.held && inR({ u: f.u, z: f.z })) return { k: 'furniture', id: f.f.id }
+    // 放在洞里的家电；Agent 画的构件和待确认的家具也能在立面上点（选中以后在卡片上确认或挪位置）；其余靠墙的家具只是帮你认墙
+    for (const f of m.furniture) if ((f.held || isCustomType(f.f.type) || f.f.status === 'pending') && (overhead.has(f.f.id) || !isFlatFurniture(decor, f.f)) && inR({ u: f.u, z: f.z })) return { k: 'furniture', id: f.f.id }
     for (const r of decor?.recesses ?? []) if (inR(rectOfSel(m, decor, 'recess', r.id))) return { k: 'recess', id: r.id }
     for (const c of m.cabinets) {
       if (!inR({ u: [c.u0, c.u0 + c.c.width], z: c.c.z })) continue
@@ -142,15 +146,19 @@ export function ElevationCanvas() {
       return { k: 'cabinet', id: c.c.id }
     }
     for (const p of m.panels) if (inR(rectOfSel(m, decor, 'panel', p.p.id))) return { k: 'panel', id: p.p.id }
+    // 有外观的门点门板选门；没外观的门洞口还是这面墙
+    for (const o of m.openings) { const door = doorOfOpening(decor, o.o.id); if (door && inR({ u: o.u, z: [o.o.sill, o.o.head] })) return { k: 'door', id: door.id } }
     if (u >= m.u[0] && u <= m.u[1] && z >= 0 && z <= m.H) return { k: 'face', face }
     return null
   }
   const handleAt = (s: Vec2): 'body' | 'l' | 'r' | 't' | 'b' | null => {
-    if (!sel || !('id' in sel) || sel.k === 'cell') return null
+    if (!sel || !('id' in sel) || sel.k === 'cell' || sel.k === 'door') return null
+    if (sel.k === 'panel' && decor?.panels.find(x => x.id === sel.id)?.type === 'arch') return null // 拱形门套跟着门洞走，不能拖
     const r = rectOfSel(m, decor, sel.k, sel.id)
     if (!r) return null
     const x0 = X(F, r.u[0]), x1 = X(F, r.u[1]), y0 = Y(F, r.z[1]), y1 = Y(F, r.z[0]), t = 7
     const inY = s[1] > y0 - t && s[1] < y1 + t, inX = s[0] > x0 - t && s[0] < x1 + t
+    if (sel.k === 'furniture') return inX && inY ? 'body' : null // 家具在立面上只能挪，不改尺寸
     if (inY && Math.abs(s[0] - x0) < t) return 'l'
     if (inY && Math.abs(s[0] - x1) < t) return 'r'
     if (inX && Math.abs(s[1] - y0) < t) return 't'
@@ -230,6 +238,8 @@ export function ElevationCanvas() {
         const sh = su.label ? su.u - r.u[0] : su2.label ? su2.u - r.u[1] : Math.round(du / 10) * 10
         r.u = [r.u[0] + sh, r.u[1] + sh]; lbl = su.label ?? su2.label
         if (d.sel.k === 'recess') { const dzz = Math.round(dz * 100) / 100; r.z = [r.z[0] + dzz, r.z[1] + dzz] }
+        // 顶上的东西只沿墙挪，离地高度不被吸附带走（要调高度用卡片上的「离地」或方向键）
+        if (d.sel.k === 'furniture' && !overhead.has(d.sel.id)) { const zz = snapZ(m, r.z[0] + dz, tolZ, skip), dzz = Math.max(-r.z[0], Math.round((zz.z - r.z[0]) * 100) / 100); r.z = [r.z[0] + dzz, r.z[1] + dzz]; lbl = lbl ?? zz.label }
       } else if (d.handle === 'l' || d.handle === 'r') {
         const i = d.handle === 'l' ? 0 : 1, su = snapU(m, r.u[i] + du, tolU, skip)
         r.u[i] = su.u; lbl = su.label
@@ -240,28 +250,7 @@ export function ElevationCanvas() {
         if (r.z[1] - r.z[0] < 0.1) return
       }
       setSnapLbl(lbl ? { text: lbl, u: d.handle === 'r' ? r.u[1] : d.handle === 'l' ? r.u[0] : (r.u[0] + r.u[1]) / 2, z: d.handle === 'b' ? r.z[0] : r.z[1] } : null)
-      applyRect(d.sel, r, `edit-${skip}`)
-    }
-  }
-  const applyRect = (sl: DSel, r: { u: [number, number]; z: [number, number] }, key: string) => {
-    if (!('id' in sl) || !decor) return
-    const ax = m.ax
-    const sOf = (u: [number, number]): [number, number] => { const a = ax.toS(u[0]), b = ax.toS(u[1]); return [Math.round(Math.min(a, b)), Math.round(Math.max(a, b))] }
-    if (sl.k === 'panel') patchPanel(sl.id, p => { if (p.span) p.span = { ...p.span, s: sOf(r.u), z: [Math.max(0, r.z[0]), Math.min(m.H, r.z[1])] } }, key)
-    else if (sl.k === 'cabinet') patchCabinet(sl.id, c => {
-      const ss = sOf(r.u), w = ss[1] - ss[0]
-      if ('face' in c.place) c.place = { ...c.place, s: ss[0] }
-      if (Math.abs(w - c.width) > 1) { rescaleColumns(c, w) }
-      if (Math.abs(r.z[1] - c.z[1]) > 0.001 || Math.abs(r.z[0] - c.z[0]) > 0.001) { const dzTop = r.z[1] - c.z[1]; c.z = [r.z[0], r.z[1]]; growTopCells(c, dzTop) }
-    }, key)
-    else if (sl.k === 'recess') {
-      const rc = decor.recesses.find(x => x.id === sl.id)
-      if (!rc) return
-      if ('panel' in rc.host) { const p = m.panels.find(x => x.p.id === (rc.host as { panel: string }).panel); if (p) patchRecess(sl.id, x => { x.rect = { u: [Math.round(r.u[0] - p.u0), Math.round(r.u[1] - p.u0)], z: r.z } }, key) }
-      else patchRecess(sl.id, x => { x.rect = { s: sOf(r.u), z: r.z } }, key)
-    } else if (sl.k === 'furniture') {
-      const f = decor.furniture.find(x => x.id === sl.id)
-      if (f) patchFurniture(sl.id, { z: r.z[0] }, key)
+      if (decor) applyElevRect(m, decor, d.sel, r, `edit-${skip}`)
     }
   }
   const onUp = (e: React.PointerEvent) => {
@@ -298,7 +287,7 @@ export function ElevationCanvas() {
       if (hit?.k === 'panel') patchPanel(hit.id, x => { x.material = ds.brush })
       else if (hit?.k === 'cabinet' || hit?.k === 'cell') patchCabinet(hit.id, c => { c.materials.front = ds.brush })
       else if (hit?.k === 'recess') patchRecess(hit.id, r => { r.back = ds.brush })
-      else if (hit?.k === 'face') paintFace(face, ds.brush)
+      else if (hit?.k === 'face' || hit?.k === 'door') paintFace(face, ds.brush)
       return
     }
     ds.select(hit)
@@ -329,18 +318,6 @@ export function ElevationCanvas() {
   )
 }
 
-/** 改柜宽：按比例缩各列（最后一列取剩下的） */
-function rescaleColumns(c: Cabinet, w: number) {
-  const L = layoutCabinet(c), f = w / c.width
-  let acc = 0
-  c.columns = c.columns.map((col, i) => { if (i === c.columns.length - 1) return { ...col, width: undefined }; const ww = Math.max(150, Math.round(L.columns[i].width * f)); acc += ww; return { ...col, width: ww } })
-  void acc
-  c.width = Math.round(w)
-}
-/** 改柜高：最上一格吃掉变化（省略 h 的格子本来就取剩下的） */
-function growTopCells(c: Cabinet, _dz: number) {
-  c.columns = c.columns.map(col => ({ ...col, cells: col.cells.map((cell, i) => i === col.cells.length - 1 ? { ...cell, h: undefined } : cell) }))
-}
 export function addColumn(id: string) {
   patchCabinet(id, c => {
     const L = layoutCabinet(c), n = c.columns.length + 1, w = Math.round(c.width / n)

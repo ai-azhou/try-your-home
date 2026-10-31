@@ -1,6 +1,7 @@
 import earcut from 'earcut'
 import { openingSymbol, openingStrip } from './opening-symbol.ts'
 import { applyChanges, validateReplay } from './changes.ts'
+import { blocksPersistence } from './persistence.ts'
 import { buildSolids, buildFixtures, type Solid, type SolidKind } from './solids.ts'
 import { assertLevel, levelOf, onLevel, levelsOf } from './levels.ts'
 import { openingFootprint } from './geometry.ts'
@@ -32,7 +33,7 @@ export function modelPlan(plan: Plan, state: ModelState = 'original'): Plan {
   const replay: ReturnType<typeof applyChanges> = plan.legacy?.__structureReplayFrame ? { plan, results: changes.map(c => ({ id: c.id, ok: true, affected: [c.target ?? String(c.data?.id ?? '')], removed: [] })) } : applyChanges(plan, changes)
   const failed = replay.results.filter(r => !r.ok)
   if (failed.length) throw new Error(`改造重放失败：${failed.map(r => `${r.id}: ${r.error}`).join('; ')}`)
-  const errors = validateReplay(replay, changes, plan.legacy?.__structureReplayFrame ? undefined : plan).filter(i => i.level === 'error')
+  const errors = validateReplay(replay, changes, plan.legacy?.__structureReplayFrame ? undefined : plan).filter(blocksPersistence)
   if (errors.length) throw new Error(`改造最终校验失败：${errors.map(i => `${i.code}: ${i.message}`).join('; ')}`)
   return replay.plan
 }

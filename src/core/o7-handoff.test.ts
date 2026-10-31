@@ -18,7 +18,7 @@ it('handoff distinguishes all modes, teaches the manual first, and requests an u
       expect(text).not.toContain('追加 changes')
     } else expect(text).toContain('含待确认')
     if (mode === 'compare' || mode === '对比') expect(text).toContain('对比视图只读')
-    if (mode === 'decor' || mode === '装修') expect(text).toContain('不写入 changes。见装修篇')
+    if (mode === 'decor' || mode === '装修') expect(text).toContain('不写 changes')
   }
   expect(agentHandoff(p, [], '', { mode: 'original', planFile: 'plan.json' })).toContain('不是完整路径')
   expect(agentHandoff(p, [], '', { mode: 'original', planFile: '/old/plan.json' })).toContain('非服务模式请先向用户确认文件位置')

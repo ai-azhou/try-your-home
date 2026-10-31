@@ -1,6 +1,6 @@
 import { applyChanges } from '../changes.ts'
 import type { Plan, Vec2 } from '../types.ts'
-import type { Cabinet, Decor, DecorIssue, FaceRef, FaceSpan, Furniture, Panel, Recess, Surface } from './types.ts'
+import type { Cabinet, Decor, DecorIssue, FaceRef, FaceSpan, Furniture, Panel, Recess, Surface, DoorFinish } from './types.ts'
 import { add, dot, mul, sub, wallDir, wallLength, pointInPolygon, roomsBesideWall } from '../geometry.ts'
 import { levelOf } from '../levels.ts'
 import { cabinetFootprint, cabinetTransform } from './cabinets.ts'
@@ -9,8 +9,8 @@ import { furnitureFootprint, furniturePose } from './furniture.ts'
 import { panelSpan, panelTransform } from './panels.ts'
 import { validateDecorRaw } from './validate.ts'
 import { bounds, ordered } from './math.ts'
-export type DecorItem = Furniture | Cabinet | Panel | Recess | Surface
-export const decorItems = (d: Decor): DecorItem[] => [...d.surfaces, ...d.furniture, ...d.cabinets, ...d.panels, ...d.recesses]
+export type DecorItem = Furniture | Cabinet | Panel | Recess | Surface | DoorFinish
+export const decorItems = (d: Decor): DecorItem[] => [...d.surfaces, ...d.furniture, ...d.cabinets, ...d.panels, ...d.recesses, ...(d.doors ?? [])]
 export function itemSpan(plan: Plan, item: DecorItem): FaceSpan | undefined {
   if ('span' in item || 'thickness' in item) return panelSpan(plan, item as Panel)
   if ('place' in item) return 'face' in item.place ? { face: item.place.face, s: [item.place.s, item.place.s + item.width], z: item.z } : undefined
@@ -81,7 +81,7 @@ export function resolveDecor(plan: Plan, afterOrDecor?: Plan | Decor): DecorReso
     let sp: FaceSpan | undefined
     try { sp = itemSpan(plan, item) } catch { try { sp = itemSpan(after, item) } catch { problem(item.id, 'host-missing', '装修宿主不存在'); continue } }
     if (!sp) continue
-    const next = remap(item.id, sp); if (!next) { if ('against' in item) { delete item.against; missing.delete(item.id); const warning = issues.find(i => i.id === item.id && i.code === 'host-missing'); if (warning) warning.level = 'info' }; continue }
+    const next = remap(item.id, sp); if (!next) { if ('against' in item) { delete item.against; missing.delete(item.id); const warning = issues.find(i => i.id === item.id && i.code === 'host-missing'); if (warning && plan.walls.some(w => w.id === sp!.face.wall)) warning.level = 'info' }; continue }
     if ('thickness' in item) { if (item.type !== 'arch') item.span = next; else if (item.span) item.span.face = next.face }
     else if ('place' in item && 'face' in item.place) { item.place.face = next.face; item.place.s = next.s[0] }
     else if ('host' in item && 'face' in item.host) { item.host.face = next.face; item.rect.s = next.s }
@@ -108,7 +108,7 @@ export function resolveDecor(plan: Plan, afterOrDecor?: Plan | Decor): DecorReso
     try { const sp = item && itemSpan(plan, item), before = plan.walls.find(w => w.id === sp?.face.wall), current = after.walls.find(w => w.id === sp?.face.wall); if (sp && before && current && faceRun(plan, sp.face).length === 1 && wallLength(current) < wallLength(before) && !after.changes.some(c => c.type === 'wall' && c.op === 'remove' && c.target === before.id && c.range)) { i.code = 'out-of-face'; i.text = '墙变短了，构件保持原 s 后超出墙面' } } catch { /* retain host-cut */ }
   }
   for (const i of [...issues]) {
-    if (['host-missing', 'host-cut', 'out-of-face', 'arc-unsupported', 'room-missing'].includes(i.code) && (i.level === 'error' || i.code === 'room-missing')) missing.add(i.id)
+    if (['host-missing', 'host-cut', 'out-of-face', 'arc-unsupported', 'room-missing'].includes(i.code) && (i.level === 'error' || i.code === 'room-missing' || decor.doors?.some(d => d.id === i.id))) missing.add(i.id)
     if (i.code === 'through-wall' && after !== plan) { const sp = (() => { try { return itemSpan(after, items.find(x => x.id === i.id)!) } catch { return undefined } })(), oldWall = plan.walls.find(w => w.id === sp?.face.wall), newWall = after.walls.find(w => w.id === sp?.face.wall); if (oldWall && newWall && newWall.thickness < oldWall.thickness) issues.push({ ...i, code: 'too-deep', text: `墙变薄了。${i.text}` }) }
   }
   // Validation may discover a parent's lost face after the initial remapping pass.
@@ -131,7 +131,7 @@ export function resolveDecor(plan: Plan, afterOrDecor?: Plan | Decor): DecorReso
   const byId = new Map(placed.map(p => [p.id, p]))
   for (const p of placed) if ('host' in p.item && !('face' in p.item.host)) { const parent = byId.get('panel' in p.item.host ? p.item.host.panel : p.item.host.cabinet); if (parent) p.level = parent.level }
   for (const p of placed) if ('in' in p.item && p.item.in) { const parent = byId.get(p.item.in.split(':cell:')[0]); if (parent) p.level = parent.level }
-  return { decor, placed, items: placed, issues: issues.filter((i, n) => issues.findIndex(j => j.id === i.id && j.code === i.code) === n) }
+  return { decor, placed, items: placed, issues: issues.filter((i, n) => issues.findIndex(j => j.id === i.id && j.code === i.code && (i.code !== 'component-invalid' || j.text === i.text)) === n) }
 }
 /** Resolve by the actual span/footprint, then host; never select an unrelated floor. */
 export function decorRoom(plan: Plan, item: DecorItem, visited = new Set<string>()): string | undefined {
@@ -189,4 +189,90 @@ export function rehostDecor(before: Plan, after: Plan, decor: Decor): Decor {
 export function decorStatus(plan: Plan): DecorResolution {
   const after = plan.legacy?.__structureReplayFrame ? plan : applyChanges(plan, plan.changes.filter(c => c.status === 'confirmed')).plan
   return resolveDecor(plan, after)
+}
+
+export const pendingCount = (decor: Decor | undefined): number => decor ? decorItems(decor).filter(i => i.status === 'pending').length : 0
+/** Reject one pending edit. Undefined means a newly proposed item should be deleted. No mutation. */
+export function restoreDecorItem<T extends DecorItem>(item: T): T | undefined {
+  if (item.status !== 'pending') return structuredClone(item)
+  return item.prev ? structuredClone(item.prev) as unknown as T : undefined
+}
+/** 挂在谁上面（in / 挖洞的宿主）；没有宿主返回 undefined */
+export function decorHostOf(item: DecorItem): string | undefined {
+  if ('in' in item && item.in) return item.in.replace(/:cell:\d+:\d+$/, '')
+  if ('host' in item) return 'panel' in item.host ? item.host.panel : 'cabinet' in item.host ? item.host.cabinet : undefined
+  return undefined
+}
+const groupOf = (decor: Decor, id: string) => (['furniture', 'cabinets', 'panels', 'recesses', 'surfaces', 'doors'] as const).map(key => (decor[key] ?? []) as DecorItem[]).find(list => list.some(i => i.id === id))
+/**
+ * 用户确认：status 改 confirmed、删 prev。直接改传进来的 decor（界面在 commitDecor 的拷贝上调）。
+ * 宿主还在待确认时一起确认：否则这一条确认了也进不了 render（confirmedDecor 会把挂在被去掉宿主上的项一起去掉）。
+ * 返回实际确认的 id（含被带上的宿主）。
+ */
+export function confirmDecorItems(decor: Decor, ids: readonly string[]): string[] {
+  const done: string[] = [], items = decorItems(decor)
+  const go = (id: string | undefined, seen = new Set<string>()) => {
+    if (!id || seen.has(id)) return
+    seen.add(id)
+    const item = items.find(i => i.id === id)
+    if (!item) return
+    if (item.status === 'pending') { item.status = 'confirmed'; delete item.prev; done.push(id) }
+    go(decorHostOf(item), seen)
+  }
+  for (const id of ids) go(id)
+  return done
+}
+/**
+ * 用户否掉：有 prev 的恢复，没有的删除。和 decor-edit 的 reject 同一个顺序：先恢复，再处理要删的项的子项。
+ * 子项：同样没 prev 的提议一起删；有 prev 的恢复；已确认的挖洞没宿主就存不下，跟着删；已确认的家电不丢，用 release 变成自由摆放
+ * （release 要在宿主还在时算世界位置，这里在删之前调）。直接改传进来的 decor，返回删掉和恢复的 id。
+ */
+export function rejectDecorItems(decor: Decor, ids: readonly string[], release: (f: Furniture) => Furniture): { removed: string[]; restored: string[] } {
+  const removed = new Set<string>(), restored: string[] = []
+  const restore = (id: string) => {
+    const list = groupOf(decor, id), index = list?.findIndex(i => i.id === id) ?? -1
+    if (!list || index < 0 || list[index].status !== 'pending') return
+    const next = restoreDecorItem(list[index])
+    if (next) { list[index] = next; restored.push(id) } else removed.add(id)
+  }
+  for (const id of ids) restore(id)
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const item of decorItems(decor)) {
+      if (removed.has(item.id)) continue
+      const host = decorHostOf(item)
+      if (!host || !removed.has(host)) continue
+      if (item.status === 'pending') { restore(item.id); changed = true; continue }
+      if ('size' in item) { const list = decor.furniture, index = list.findIndex(f => f.id === item.id); list[index] = release(list[index]); changed = true; continue }
+      removed.add(item.id); changed = true
+    }
+  }
+  const drop = <T extends DecorItem>(list: T[]) => list.filter(i => !removed.has(i.id))
+  decor.furniture = drop(decor.furniture); decor.cabinets = drop(decor.cabinets); decor.panels = drop(decor.panels); decor.recesses = drop(decor.recesses); decor.surfaces = drop(decor.surfaces)
+  if (decor.doors) decor.doors = drop(decor.doors)
+  for (const id of removed) if (decor.cache) delete decor.cache[id]
+  return { removed: [...removed], restored }
+}
+/** Confirmed rendering/takeoff view. Restore previous versions, then drop dependent children transitively. */
+export function confirmedDecor(decor: Decor | undefined): Decor | undefined {
+  if (!decor) return undefined
+  const result = structuredClone(decor), removed = new Set<string>()
+  const groups = ['furniture', 'cabinets', 'panels', 'recesses', 'surfaces', 'doors'] as const
+  for (const key of groups) if (decor[key]) (result[key] as DecorItem[]) = (decor[key] ?? []).flatMap(item => {
+    const next = restoreDecorItem(item)
+    if (!next) { removed.add(item.id); return [] }
+    return [next]
+  })
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const key of groups) if (decor[key]) (result[key] as DecorItem[]) = (result[key] ?? []).filter(item => {
+      const host = decorHostOf(item)
+      if (host && removed.has(host)) { removed.add(item.id); changed = true; return false }
+      return true
+    })
+  }
+  for (const id of removed) if (result.cache) delete result.cache[id]
+  return result
 }

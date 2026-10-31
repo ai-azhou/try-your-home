@@ -9,7 +9,7 @@ import { isSimplePlan, simpleToPlan } from './simple.ts'
 export { emptyPlan } from './legacy.ts'
 export function newId(plan: Plan, prefix: string): string {
   const ids = new Set([...plan.walls, ...plan.openings, ...plan.beams, ...plan.rooms, ...plan.questions, ...plan.changes, ...(plan.levels ?? []), ...(plan.columns ?? []), ...(plan.shafts ?? []), ...(plan.stairs ?? []), ...(plan.voids ?? [])].flatMap(x => [x.id, ...('data' in x && x.data && typeof x.data.id === 'string' ? [x.data.id] : []), ...('group' in x && x.group ? [x.group] : [])]))
-  if (plan.decor) for (const item of [...decorItems(plan.decor), ...plan.decor.materials, ...(plan.decor.presets ?? [])]) ids.add(item.id)
+  if (plan.decor) for (const item of [...decorItems(plan.decor), ...plan.decor.materials, ...(plan.decor.presets ?? []), ...(plan.decor.components ?? [])]) ids.add(item.id)
   let i = 1; while (ids.has(`${prefix}${i}`)) i++; return `${prefix}${i}`
 }
 function stable(value: any): any {
@@ -27,7 +27,7 @@ export function agentUnits(text: string): string {
   return text.replace(/([+−-]?\d+(?:\.\d+)?(?:\s*[–—~～至到-]\s*[+−-]?\d+(?:\.\d+)?)*)\s*(?:m(?![a-zA-Z²³^\d])|米(?![²³]|平方|立方))/g, (_, values: string) => values.replace(/[+−-]?\d+(?:\.\d+)?/g, n => String(lengthUnit(Number(n.replace('−', '-'))))) + ' mm')
 }
 /** Persisted length paths whose in-memory representation is metres. Never recurse by bare key names. */
-export const METRE_PATHS = [
+const CURRENT_METRE_PATHS = [
   'ceiling', 'walls.*.height', 'walls.*.lowHeight', 'openings.*.sill', 'openings.*.head',
   'beams.*.bottom', 'rooms.*.ceiling', 'rooms.*.floorOffset', 'levels.*.elevation', 'levels.*.ceiling',
   'decor.furniture.*.height', 'decor.furniture.*.z', 'decor.cabinets.*.z.*', 'decor.cabinets.*.plinth',
@@ -36,6 +36,8 @@ export const METRE_PATHS = [
   'decor.panels.*.span.z.*', 'decor.recesses.*.rect.z.*', 'decor.recesses.*.shelves.*',
   'decor.surfaces.*.target.z.*', 'decor.presets.*.trims.skirting.height', 'decor.cache.*.pose.z',
 ] as const
+// A prev snapshot uses the same unit paths as its item, including nested cabinet cells.
+export const METRE_PATHS: readonly string[] = [...CURRENT_METRE_PATHS, ...CURRENT_METRE_PATHS.filter(p => /^decor\.(furniture|cabinets|panels|recesses|surfaces)\.\*\./.test(p)).map(p => p.replace(/^(decor\.[^.]+\.\*\.)/, '$1prev.'))]
 const ELEMENT_METRES: Record<string, string[]> = { wall: ['height', 'lowHeight'], opening: ['sill', 'head'], beam: ['bottom'], room: ['ceiling', 'floorOffset'] }
 function shiftPath(value: any, path: string[], exponent: number) {
   if (!value || typeof value !== 'object') return
@@ -81,7 +83,7 @@ function shapeOf(value: Record<string, unknown>): string[] {
   if (problems.length) throw new Error(`方案格式不完整：${problems.join('；')}`)
   return filled
 }
-export function parsePlanText(text: string) {
+export function parsePlanText(text: string, options: { allowUnknownOutsideDecor?: boolean } = {}) {
   try {
     const value = JSON.parse(text.replace(/^\uFEFF/, ''))
     if (isSimplePlan(value)) {
@@ -102,7 +104,7 @@ export function parsePlanText(text: string) {
         }
       }
       if (value.legacy) delete value.legacy.__structureReplayFrame
-      const schemaIssues = validatePlanFile(planFileValue(value as Plan))
+      const schemaIssues = validatePlanFile(planFileValue(value as Plan)).filter(i => !(options.allowUnknownOutsideDecor && /additional properties/.test(i.message) && !/^格式错误 \/decor(?:\/|：)/.test(i.message)))
       const unknown = schemaIssues.find(i => /不允许的字段|additional propert/i.test(i.message))
       if (unknown) {
         const path = (/^格式错误 (.*?)：/.exec(unknown.message)?.[1] ?? '/').replace(/^\/\//, '/')

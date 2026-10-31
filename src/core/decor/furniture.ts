@@ -1,12 +1,13 @@
+import { componentOf } from './components.ts'
 import { hostTransform } from './resolve.ts'
 import { faceAxis } from './faces.ts'
 import { panelSpan } from './panels.ts'
 import { layoutCabinet, cabinetTransform } from './cabinets.ts'
 import type { Plan, Vec2 } from '../types.ts'
-import type { Furniture } from './types.ts'
-import { add, clamp, distance, dot, mul, polygonArea, sub, wallLength } from '../geometry.ts'
+import type { Decor, Furniture } from './types.ts'
+import { add, clamp, distance, dot, mul, polygonArea, sub, wallLength, pointInPolygon, roomCeiling, effectiveWallHeight } from '../geometry.ts'
 import { joinedWallFootprint } from '../walls.ts'
-import { levelOf } from '../levels.ts'
+import { levelOf, levelCeiling } from '../levels.ts'
 import { bounds, intersection, overlap } from './math.ts'
 
 export interface FurnitureEntry { type: string; name: string; category: string; size: [number, number]; height: number; symbol: string }
@@ -15,6 +16,7 @@ export const FURNITURE_LIBRARY: FurnitureEntry[] = [
   ['bed-1800', '双人床', '卧室', 1800, 2000, .5], ['bed-1500', '双人床', '卧室', 1500, 2000, .5], ['bed-1200', '单人床', '卧室', 1200, 2000, .5], ['nightstand', '床头柜', '卧室', 500, 400, .5],
   ['dining-table', '餐桌', '餐厨', 1600, 800, .75], ['chair', '餐椅', '餐厨', 450, 500, .85], ['desk', '书桌', '书房', 1200, 600, .75], ['bookshelf', '书架', '书房', 800, 300, 2],
   ['fridge', '冰箱', '家电', 900, 700, 1.9], ['washer', '洗衣机', '家电', 600, 650, .85], ['dryer', '烘干机', '家电', 600, 650, .85], ['oven', '烤箱', '家电', 600, 550, .6], ['steamer', '蒸箱', '家电', 600, 550, .45], ['dishwasher', '洗碗机', '家电', 600, 600, .8], ['microwave', '微波炉', '家电', 500, 400, .3], ['tv', '电视', '家电', 1450, 80, .83],
+  ['tv-stand', '电视柜', '客厅', 1800, 400, .45], ['desk-chair', '书桌椅', '书房', 520, 520, .9], ['shower', '淋浴区', '卫浴', 900, 900, 2], ['cushion', '飘窗垫', '软装', 2000, 520, .12],
   ['rug', '地毯', '软装', 2400, 1600, .01], ['toilet', '坐便器', '卫浴', 400, 700, .75], ['basin', '洗手台', '卫浴', 800, 500, .85], ['bathtub', '浴缸', '卫浴', 1700, 750, .6], ['wardrobe', '衣柜', '收纳', 1800, 600, 2.4],
 ].map(([type, name, category, w, d, height]) => ({ type: String(type), name: String(name), category: String(category), size: [Number(w), Number(d)], height: Number(height), symbol: String(type) }))
 export function furnitureFootprint(f: Furniture, plan?: Plan): Vec2[] {
@@ -27,7 +29,24 @@ function footprint(at: Vec2, rot: number, size: [number, number]): Vec2[] {
   return ([[-w / 2, -d / 2], [w / 2, -d / 2], [w / 2, d / 2], [-w / 2, d / 2]] as Vec2[]).map(([x, y]) => add(at, [x * co - y * si, x * si + y * co]))
 }
 export function furnitureLevel(plan: Plan, f: Furniture) { return levelOf(plan, { level: f.in ? furniturePose(plan, f).level : plan.walls.find(w => w.id === f.against?.face.wall)?.level ?? f.level }) }
+/** 贴地的扁平件（地毯、高不过 30 mm 的构件）：不算碰撞，平面上垫在别的家具下面 */
+export const isFlatFurniture = (decor: Decor | undefined, f: Furniture) => f.type === 'rug' || (componentOf(decor, f.type)?.height ?? Infinity) <= 30
+/** Ceiling category is always overhead; lights must meet the room top within 50 mm. Heights are floor-relative metres. */
+export function isOverhead(plan: Plan, f: Furniture): boolean {
+  const category = componentOf(plan.decor, f.type)?.category
+  if (category === 'ceiling') return true
+  if (category !== 'lighting') return false
+  const pose = furniturePose(plan, f)
+  if (pose.missing) return false
+  const room = plan.rooms.find(r => levelOf(plan, r).id === pose.level && pointInPolygon(pose.at, r.poly))
+  const walls = plan.walls.filter(w => levelOf(plan, w).id === pose.level)
+  const against = walls.find(w => w.id === f.against?.face.wall)
+  const top = room ? roomCeiling(plan, room) : against ? effectiveWallHeight(plan, against) : walls.length ? Math.max(...walls.map(w => effectiveWallHeight(plan, w))) : levelCeiling(plan, pose.level)
+  return Math.abs(top - (pose.z + f.height)) <= .05 + 1e-7
+}
+const flat = (plan: Plan, f: Furniture) => isFlatFurniture(plan.decor, f)
 function obstacles(plan: Plan, f: Furniture) {
+  if (flat(plan, f) || isOverhead(plan, f)) return []
   const level = furnitureLevel(plan, f).id
   return [
     ...plan.walls.filter(w => levelOf(plan, w).id === level).map(w => {
@@ -37,7 +56,7 @@ function obstacles(plan: Plan, f: Furniture) {
       if (start < end) spans.push([start, end])
       return { id: w.id, type: 'wall' as const, polygons: holes.length ? spans.flatMap(([a, b]) => joinedWallFootprint(plan, w, a, b)) : joinedWallFootprint(plan, w) }
     }).filter(o => o.polygons.length),
-    ...(plan.decor?.furniture ?? []).filter(v => v.id !== f.id && furnitureLevel(plan, v).id === level && overlap([furniturePose(plan, v).z, (furniturePose(plan, v).z) + v.height], [furniturePose(plan, f).z, furniturePose(plan, f).z + f.height])).map(v => ({ id: v.id, type: 'furniture' as const, polygons: [[furnitureFootprint(v, plan)]] })),
+    ...(plan.decor?.furniture ?? []).filter(v => !flat(plan, v) && !isOverhead(plan, v) && v.id !== f.id && furnitureLevel(plan, v).id === level && overlap([furniturePose(plan, v).z, (furniturePose(plan, v).z) + v.height], [furniturePose(plan, f).z, furniturePose(plan, f).z + f.height])).map(v => ({ id: v.id, type: 'furniture' as const, polygons: [[furnitureFootprint(v, plan)]] })),
   ]
 }
 export function furnitureCollisions(plan: Plan, f: Furniture) {

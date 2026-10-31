@@ -13,7 +13,8 @@ import { QuestionCardBody, QuestionList } from './Questions'
 import { describeChange } from '@/core/changes'
 import { questionStatus } from '@/core/questions'
 import { unseenReplies, useReplies } from '../replies'
-import { applyCalibration, pickFile } from '../actions'
+import { commitUnderlayView, setUnderlayView, applyCalibration, pickFile } from '../actions'
+import { underlayOf } from '../levels-ui'
 import { relinkUnderlay } from '../underlay-check'
 import { fmt } from '../i18n'
 import { bottomSlot, useIsMobile, useIsNarrow } from '../layout'
@@ -153,7 +154,7 @@ function ChangesBody() {
               <div role="button" tabIndex={0} onClick={() => ref && select(ref)} onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && ref) { e.preventDefault(); select(ref) } }} className="min-w-0 flex-1 cursor-pointer pt-0.5 text-left outline-none">
                 <div className="text-[13px] font-semibold leading-snug text-ink-900">{c.note ?? describeChange(base, c)}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[11.5px] font-medium text-ink-400">{c.by === 'agent' ? t.changes.byAgent : t.changes.byUser}</span>
+                  <span className="text-[11.5px] font-medium text-ink-400">{c.by !== 'agent' ? t.changes.byUser : c.status === 'pending' ? t.changes.byAgent : t.changes.byAgentDone}</span>
                   {r?.needsConfirm && <Tag tone="ink" icon={<Lock size={10} strokeWidth={3} />}>{t.changes.needsConfirm}</Tag>}
                   {c.status === 'pending' && !r?.needsConfirm && <Tag tone="lav">{t.changes.pending}</Tag>}
                   {r && !r.ok && !r.needsConfirm && <Tag tone="coral">{r.error}</Tag>}
@@ -326,9 +327,9 @@ export function FloatingConfirm() {
 /* ───────── 底图卡（底图工具）：导入、显隐、透明度、镜像、两点定比例、拖动对齐 ───────── */
 function UnderlayBody() {
   const t = useT()
-  const base = useStore(s => s.base), calib = useStore(s => s.calib), missing = useStore(s => s.underlayMissing)
+  const calib = useStore(s => s.calib), missing = useStore(s => s.underlayMissing)
   const { setUnderlay, setCalib, setTool } = useStore.getState()
-  const u = base?.underlay
+  const u = useStore(s => underlayOf(s.base, s.level))
   const L = t.underlayCard
   return (
     <>
@@ -350,8 +351,8 @@ function UnderlayBody() {
       {u && (
         <>
           <div className="tile flex flex-col gap-1 rounded-[18px] p-2">
-            <label className="flex h-10 items-center justify-between px-2 text-[13px] font-medium text-ink-800">{t.underlay.visible}<Switch on={u.visible} onChange={v => setUnderlay({ visible: v })} /></label>
-            <div className="px-1 pb-1"><Slider value={u.opacity} onChange={v => setUnderlay({ opacity: v })} icon={<ImageUp size={15} />} /></div>
+            <label className="flex h-10 items-center justify-between px-2 text-[13px] font-medium text-ink-800">{t.underlay.visible}<Switch on={u.visible} onChange={v => { setUnderlayView({ visible: v }); commitUnderlayView() }} /></label>
+            <div className="px-1 pb-1"><Slider value={u.opacity} onChange={v => setUnderlayView({ opacity: v })} onCommit={commitUnderlayView} icon={<ImageUp size={15} />} /></div>
           </div>
           <div className="grid grid-cols-2 gap-2">
             <Pill tone="tile" size="md" onClick={() => setUnderlay({ flipX: !u.flipX }, { history: true })} className={cn(u.flipX && 'ring-2 ring-mint-400')}><FlipHorizontal2 size={15} />{t.underlay.flipX}</Pill>

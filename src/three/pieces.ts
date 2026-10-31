@@ -17,7 +17,7 @@ import { openingStrip, openingSymbol } from '@/core/opening-symbol'
 export const DOOR_ANGLE = 68
 
 export type PieceKind = SolidKind | 'leaf' | 'pane' | 'rail' | 'plinth'
-export interface Piece { key: string; kind: PieceKind; wallKind?: WallKind; group: string; ids: string[]; geo: THREE.BufferGeometry }
+export interface Piece { key: string; kind: PieceKind; wallKind?: WallKind; group: string; ids: string[]; geo: THREE.BufferGeometry; solids?: Solid[] }
 
 const M = (v: number) => v / 1000
 
@@ -74,7 +74,7 @@ export function mergedPieces(solids: Solid[], group: string): Piece[] {
     const merged = mergeByKind(list)
     for (const [kind, geo] of Object.entries(merged) as [SolidKind, THREE.BufferGeometry][]) {
       const g = TOPPED.includes(kind) ? groupTopFaces(geo) : geo
-      out.push({ key: `${group}:${kind}:${wk}`, kind, wallKind: (wk || undefined) as WallKind | undefined, group, ids: [...new Set(list.filter(s => s.kind === kind).flatMap(s => s.ids))], geo: g })
+      out.push({ key: `${group}:${kind}:${wk}`, kind, wallKind: (wk || undefined) as WallKind | undefined, group, ids: [...new Set(list.filter(s => s.kind === kind).flatMap(s => s.ids))], geo: g, solids: list.filter(s => s.kind === kind) })
     }
   }
   // 地面、台面一间一张（地面要贴各自的 AO 图）

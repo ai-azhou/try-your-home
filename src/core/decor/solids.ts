@@ -1,3 +1,4 @@
+import { componentOf, componentPrisms, isCustomType } from './components.ts'
 import type { Plan, Vec2 } from '../types.ts'
 import type { Decor } from './types.ts'
 import type { Solid } from '../solids.ts'
@@ -11,7 +12,7 @@ import { difference, overlap, rectPoly } from './math.ts'
 import type { ElevationRect, Interval } from './math.ts'
 import { faceRun, faceWall } from './faces.ts'
 import { decorItems, hostTransform, resolveDecor } from './resolve.ts'
-export interface DecorSolid extends Omit<Solid, 'kind'> { kind: `decor-${string}`; material?: string; replaces?: Solid['kind']; missing?: boolean }
+export interface DecorSolid extends Omit<Solid, 'kind'> { kind: `decor-${string}`; material?: string; color?: string; replaces?: Solid['kind']; missing?: boolean }
 /** A complete structural scene, with real recesses subtracted; buildSolids stays untouched. */
 export function decorWallSolids(plan: Plan, decor: Decor | undefined = plan.decor): Solid[] {
   const base = buildSolids(plan)
@@ -77,7 +78,18 @@ export function buildDecorSolids(plan: Plan): DecorSolids {
     drawPolys(g.polygons, [0, g.thickness], 'decor-panel')
     if (panel.frame?.style === 'raised') drawPolys(g.frames, [g.thickness, g.thickness + 8], 'decor-panel-frame')
   } catch { /* See validateDecor for explicit host/arc issues. */ }
-  for (const f of d.furniture.filter(f => !missing.has(f.id) || d.cache?.[f.id])) { const level = furnitureLevel(plan, f); result.push({ kind: 'decor-furniture', ...(missing.has(f.id) ? { missing: true } : {}), ids: [f.id], polygons: [[furniturePose(plan, f).footprint]], z0: furniturePose(plan, f).z + level.elevation, z1: furniturePose(plan, f).z + f.height + level.elevation, level: level.id, ...(f.materials?.body ? { material: f.materials.body } : {}) }) }
+  for (const f of d.furniture.filter(f => !missing.has(f.id) || d.cache?.[f.id])) {
+    const level = furnitureLevel(plan, f), pose = furniturePose(plan, f), def = componentOf(d, f.type)
+    const base = { kind: 'decor-furniture' as const, ...(missing.has(f.id) ? { missing: true } : {}), ids: [f.id], level: level.id }
+    if (isCustomType(f.type)) {
+      if (!def) continue
+      const a = pose.rot * Math.PI / 180, co = Math.cos(a), si = Math.sin(a)
+      for (const prism of componentPrisms(def)) result.push({ ...base,
+        polygons: prism.polygons.map(rings => rings.map(r => r.map(([u, v]): Vec2 => { const x = (u - def.size[0] / 2) * (f.flip ? -1 : 1), y = v - def.size[1] / 2; return [pose.at[0] + x * co - y * si, pose.at[1] + x * si + y * co] }))),
+        z0: pose.z + level.elevation + prism.z0 / 1000, z1: pose.z + level.elevation + prism.z1 / 1000,
+        ...(prism.color ? { color: prism.color } : {}), ...(prism.material ?? f.materials?.body ? { material: prism.material ?? f.materials?.body } : {}) })
+    } else result.push({ ...base, polygons: [[pose.footprint]], z0: pose.z + level.elevation, z1: pose.z + f.height + level.elevation, ...(f.materials?.body ? { material: f.materials.body } : {}) })
+  }
   for (const r of d.recesses) if (r.shelves?.length && !checkEmbed(plan, d, r).some(i => i.level === 'error')) try {
     const at = hostTransform(plan, d, r.id), width = r.rect.u ? r.rect.u[1] - r.rect.u[0] : r.rect.s![1] - r.rect.s![0]
     const host = 'panel' in r.host ? d.panels.find(p => p.id === (r.host as { panel: string }).panel) : 'cabinet' in r.host ? d.cabinets.find(c => c.id === (r.host as { cabinet: string }).cabinet) : undefined

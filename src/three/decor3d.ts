@@ -13,6 +13,7 @@ import type { Decor, FaceRef, Material } from '@/core/decor/types'
 import { faceAxis, faceExtent } from '@/core/decor/faces'
 import { resolveFinish, resolveSurfaces } from '@/core/decor/surfaces'
 import type { SectionPolygon } from '@/core/decor/solids'
+import { unionPolygons, type Solid } from '@/core/solids'
 import { beamFootprint, pointInPolygon, wallDir, wallLength, wallNormal, effectiveWallHeight } from '@/core/geometry'
 import { joinedWallFootprint } from '@/core/walls'
 import { levelOf } from '@/core/levels'
@@ -95,7 +96,7 @@ export function floorMat(m: Material) {
 }
 
 /* ───────── 墙面：每个三角形落在哪面墙面上，就上那一面的材料色 ───────── */
-interface FaceHit { face: FaceRef; a: Vec2; dir: Vec2; n: Vec2; L: number; t: number; color: THREE.Color; elev: number }
+interface FaceHit { face: FaceRef; a: Vec2; dir: Vec2; n: Vec2; L: number; t: number; color: THREE.Color; elev: number; painted: boolean; top: number }
 export function wallFaceTable(plan: Plan, decor: Decor, styleId: string, keep: boolean): FaceHit[] {
   const p = { ...plan, decor }
   const out: FaceHit[] = []
@@ -104,19 +105,160 @@ export function wallFaceTable(plan: Plan, decor: Decor, styleId: string, keep: b
     const L = wallLength(w), d = wallDir(w), n = wallNormal(w), elev = levelOf(plan, w).elevation
     for (const side of [1, -1] as const) {
       const face = { wall: w.id, side }
-      let col = WHITE
+      let col = WHITE, painted = false
       try {
         const f = resolveFinish(p, { face }, { styleId, keep })
         // 墙外（不朝任何房间）的一面：留白模白
         const into: Vec2 = [n[0] * side, n[1] * side], mid: Vec2 = [w.a[0] + d[0] * L / 2 + into[0] * (w.thickness / 2 + 200), w.a[1] + d[1] * L / 2 + into[1] * (w.thickness / 2 + 200)]
-        if (plan.rooms.some(r => pointInPolygon(mid, r.poly))) col = tone3d(f.material.color)
+        if (plan.rooms.some(r => pointInPolygon(mid, r.poly))) { col = tone3d(f.material.color); painted = true }
       } catch { /* 弧墙等 */ }
-      out.push({ face, a: w.a, dir: d, n: [n[0] * side, n[1] * side], L, t: w.thickness, color: new THREE.Color(col), elev })
+      out.push({ face, a: w.a, dir: d, n: [n[0] * side, n[1] * side], L, t: w.thickness, color: new THREE.Color(col), elev, painted, top: elev + effectiveWallHeight(plan, w) })
     }
   }
   return out
 }
+/* ───────── 墙体：去掉墙段之间的内部面 ───────── */
+const inSolid = (s: Solid, p: Vec2) => s.polygons.some(rings => pointInPolygon(p, rings[0]) && !rings.slice(1).some(r => pointInPolygon(p, r)))
+/** 实心墙段按平面包围盒预筛：一张几何要查上万个点，绝大多数点离大多数墙段很远，不用走点在多边形内 */
+function massIndex(mass: Solid[]) {
+  const boxes = mass.map(s => {
+    const pts = s.polygons.flatMap(rs => rs[0])
+    return { s, x0: Math.min(...pts.map(p => p[0])), x1: Math.max(...pts.map(p => p[0])), y0: Math.min(...pts.map(p => p[1])), y1: Math.max(...pts.map(p => p[1])) }
+  })
+  /** 平面上 lo..hi 这个范围（mm）碰得到的墙段 */
+  return (x0: number, y0: number, x1: number, y1: number) => boxes.filter(b => b.x0 <= x1 && b.x1 >= x0 && b.y0 <= y1 && b.y1 >= y0).map(b => b.s)
+}
+/** 三角形（y 朝上）夹到 lo..hi 这段高度：Sutherland–Hodgman，结果是凸多边形 */
+function clipY(tri: THREE.Vector3[], lo: number, hi: number): THREE.Vector3[] {
+  const cut = (poly: THREE.Vector3[], inside: (y: number) => boolean, y0: number) => poly.flatMap((p, i) => {
+    const q = poly[(i + 1) % poly.length], out = inside(p.y) ? [p] : []
+    if (inside(p.y) !== inside(q.y)) out.push(p.clone().lerp(q, (y0 - p.y) / (q.y - p.y)))
+    return out
+  })
+  return cut(cut(tri, y => y >= lo, lo), y => y <= hi, hi)
+}
+/**
+ * 墙体几何去掉埋在别的墙段里的面。core 在洞口边界把墙切成一段段（wall / sill / lintel），每段都是封闭的盒子，相邻两段之间各留一个端面。
+ * 端面的边顶在墙面上，又几乎侧对相机：屏幕上深度变化极陡，深度插值的误差超过皮的 1.5 mm，个别 MSAA 采样点赢过皮，
+ * 端面的颜色和光照混进来，就是门洞、窗户两侧、洞口延长线上那道断断续续的接缝。这些面本来就不该有，加大偏移只是遮，这里直接不生成。
+ * 真正露出来的部分（门窗侧壁）留着：一个端面可能下半截贴窗台、中间露在窗洞里、上半截贴过梁，所以按高度裁，不是整片删。
+ * mass：当前画出来的实心墙段（玻璃不算，透过玻璃看得见端面；平视剖掉的墙不算，它不在了端面就露出来了）。
+ */
+export function wallBodyGeometry(src: THREE.BufferGeometry, mass: Solid[]): THREE.BufferGeometry {
+  const g = src.index ? src.toNonIndexed() : src
+  const pos = g.getAttribute('position') as THREE.BufferAttribute
+  const positions: number[] = [], normals: number[] = []
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3(), e = new THREE.Vector3()
+  const near = massIndex(mass)
+  const emit = (poly: THREE.Vector3[]) => { for (let i = 1; i + 1 < poly.length; i++) for (const v of [poly[0], poly[i], poly[i + 1]]) { positions.push(v.x, v.y, v.z); normals.push(n.x, n.y, n.z) } }
+  for (let i = 0; i < pos.count; i += 3) {
+    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2)
+    n.subVectors(c, b).cross(e.subVectors(a, b)).normalize()
+    const tri = [a.clone(), b.clone(), c.clone()]
+    if (Math.abs(n.y) > 0.9) {
+      // 顶面、底面：往外 1 mm 还在别的墙段里 = 被压住了（上下叠的两段之间）
+      const y = (a.y + b.y + c.y) / 3 + n.y * 0.001, p: Vec2 = [(a.x + b.x + c.x) / 3 * 1000, (a.z + b.z + c.z) / 3 * 1000]
+      if (!near(p[0], p[1], p[0], p[1]).some(s => y > s.z0 && y < s.z1 && inSolid(s, p))) emit(tri)
+      continue
+    }
+    if (Math.abs(n.y) > 0.3) { emit(tri); continue }
+    // 竖直面：取水平方向上最远的两个顶点当这条边，沿边取三点往外推 1 mm，三点都落在别的墙段里的那段高度才算埋住
+    const [p, q] = [[a, b], [b, c], [c, a]].map(([u, v]) => [u, v, u.distanceToSquared(v) - (u.y - v.y) ** 2] as const).sort((x, y) => y[2] - x[2])[0]
+    const samples = [0.1, 0.5, 0.9].map((t): Vec2 => [(p.x + (q.x - p.x) * t + n.x * 0.001) * 1000, (p.z + (q.z - p.z) * t + n.z * 0.001) * 1000])
+    const y0 = Math.min(a.y, b.y, c.y), y1 = Math.max(a.y, b.y, c.y)
+    const xs = samples.map(pt => pt[0]), zs = samples.map(pt => pt[1]), around = near(Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs))
+    if (!around.length) { emit(tri); continue }
+    const ys = [...new Set([y0, y1, ...around.flatMap(s => [s.z0, s.z1]).filter(y => y > y0 + 1e-6 && y < y1 - 1e-6)])].sort((u, v) => u - v)
+    let lo: number | null = null
+    for (let k = 1; k <= ys.length; k++) {
+      const mid = k < ys.length ? (ys[k - 1] + ys[k]) / 2 : 0
+      const open = k < ys.length && !samples.every(pt => around.some(s => mid > s.z0 && mid < s.z1 && inSolid(s, pt)))
+      if (open && lo === null) lo = ys[k - 1]
+      if (!open && lo !== null) { const poly = clipY(tri, lo, ys[k - 1]); if (poly.length >= 3) emit(poly); lo = null }
+    }
+  }
+  const out = new THREE.BufferGeometry()
+  out.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  out.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
+  const { triangleRanges: _dropped, ...userData } = src.userData as Record<string, unknown>
+  out.userData = userData
+  if (g !== src) g.dispose()
+  return out
+}
+
+/**
+ * 平涂下墙体的棱线：只留真正凸出来的棱（墙顶外沿、门窗洞的边）。
+ * 每段墙各有一圈棱线，段与段的交界在连续的墙面、墙顶上就是一道多余的线；墙面上那部分还在皮后面 1.5 mm，线的取样和皮的取样差半个像素，
+ * 离得一远深度差就超过 1.5 mm，线断断续续透出来。分段是实体的切法，不是墙上真有的线。
+ * 判断不看线属于哪段，看线周围实际有什么：绕线一圈取点，落在实体里的不到一半才是凸棱。约一半 = 平面上的交界；超过一半 = 阴角，线全埋在皮后面，也不画。
+ */
+export function wallCreases(geos: THREE.BufferGeometry[], mass: Solid[]): THREE.BufferGeometry {
+  const segs = geos.flatMap(geo => {
+    const e = new THREE.EdgesGeometry(geo, 28), p = e.getAttribute('position') as THREE.BufferAttribute, out: [THREE.Vector3, THREE.Vector3][] = []
+    for (let i = 0; i < p.count; i += 2) out.push([new THREE.Vector3().fromBufferAttribute(p, i), new THREE.Vector3().fromBufferAttribute(p, i + 1)])
+    e.dispose()
+    return out
+  })
+  // 长线可能只有一部分贴着别的墙段（比如外墙顶上丁字接进来的隔墙）：先在所有端点处打断，再逐小段判断
+  const ends = segs.flat()
+  const positions: number[] = [], seen = new Set<string>(), N = 24, near = massIndex(mass)
+  const q = new THREE.Vector3()
+  const keyOf = (v: THREE.Vector3) => [v.x, v.y, v.z].map(c => Math.round(c * 1e4)).join(',')
+  for (const [a, b] of segs) {
+    const d = b.clone().sub(a), L = d.length()
+    if (L < 1e-6) continue
+    d.divideScalar(L)
+    const ts = [0, L]
+    for (const e of ends) {
+      const dx = e.x - a.x, dy = e.y - a.y, dz = e.z - a.z, t = dx * d.x + dy * d.y + dz * d.z
+      if (t <= 1e-5 || t >= L - 1e-5) continue
+      const ox = dx - d.x * t, oy = dy - d.y * t, oz = dz - d.z * t
+      if (ox * ox + oy * oy + oz * oz < 1e-10) ts.push(t)
+    }
+    ts.sort((x, y) => x - y)
+    const u = new THREE.Vector3(d.y, d.z, d.x).cross(d).normalize(), v = d.clone().cross(u)
+    for (let i = 1; i < ts.length; i++) {
+      if (ts[i] - ts[i - 1] < 1e-5) continue
+      const p0 = a.clone().addScaledVector(d, ts[i - 1]), p1 = a.clone().addScaledVector(d, ts[i]), k = [keyOf(p0), keyOf(p1)].sort().join('|')
+      if (seen.has(k)) continue
+      seen.add(k)
+      const m = p0.clone().add(p1).multiplyScalar(0.5)
+      let filled = 0
+      const around = near(m.x * 1000 - 3, m.z * 1000 - 3, m.x * 1000 + 3, m.z * 1000 + 3)
+      // 半径 2 mm 一圈，起始角避开轴向（取样点不要正好落在相邻的面上）
+      for (let j = 0; j < N; j++) {
+        const t = 0.37 + j / N * Math.PI * 2
+        q.copy(m).addScaledVector(u, Math.cos(t) * 0.002).addScaledVector(v, Math.sin(t) * 0.002)
+        if (around.some(s => q.y > s.z0 && q.y < s.z1 && inSolid(s, [q.x * 1000, q.z * 1000]))) filled++
+      }
+      if (filled > 0 && filled < N / 2 - 1) positions.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z)
+    }
+  }
+  const out = new THREE.BufferGeometry()
+  out.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  return out
+}
+
 /** 给墙体几何加顶点色（非索引；顶面用墙类型浅灰，竖直面查墙面表，查不到 = 白模白） */
+/** 洞口这一圈属于哪面墙：返回这面墙的两侧。墙真正的顶不算（高度到墙顶），底贴地也不算 */
+function revealFaces(faces: FaceHit[], cx: number, cz: number, cy: number, nn: THREE.Vector3): FaceHit[] {
+  const flat = Math.abs(nn.y) > 0.9
+  for (const f of faces) {
+    if (!flat && Math.abs(nn.x * f.dir[0] + nn.z * f.dir[1]) < 0.9) continue
+    const qx = cx - f.a[0], qz = cz - f.a[1], off = qx * f.n[0] + qz * f.n[1], s = qx * f.dir[0] + qz * f.dir[1]
+    if (Math.abs(off) > f.t / 2 + 1 || s < -1 || s > f.L + 1) continue
+    if (flat && (cy >= f.top - 0.02 || cy <= f.elev + 0.001)) continue
+    return faces.filter(o => o.face.wall === f.face.wall)
+  }
+  return []
+}
+/** 只有一侧朝房间：整圈跟那一侧（窗外那面不刷）。两侧都刷：顶点归自己那一侧，颜色不同时中间过渡 */
+function revealColor(pair: FaceHit[], x: number, z: number): THREE.Color | undefined {
+  const painted = pair.filter(f => f.painted)
+  if (painted.length < 2) return painted[0]?.color
+  const own = painted.find(f => (x - f.a[0]) * f.n[0] + (z - f.a[1]) * f.n[1] > 0)
+  return (own ?? painted[0]).color
+}
 export function paintWalls(src: THREE.BufferGeometry, faces: FaceHit[], top: string): THREE.BufferGeometry {
   const g = src.index ? src.toNonIndexed() : src.clone()
   const pos = g.getAttribute('position') as THREE.BufferAttribute
@@ -127,9 +269,9 @@ export function paintWalls(src: THREE.BufferGeometry, faces: FaceHit[], top: str
     a.fromBufferAttribute(pos, i * 3); b.fromBufferAttribute(pos, i * 3 + 1); c.fromBufferAttribute(pos, i * 3 + 2)
     nn.subVectors(c, b).cross(e.subVectors(a, b)).normalize()
     let color = cWhite
+    const cx = (a.x + b.x + c.x) / 3 * 1000, cz = (a.z + b.z + c.z) / 3 * 1000, cy = (a.y + b.y + c.y) / 3
     if (nn.y > 0.9) color = cTop
-    else if (Math.abs(nn.y) < 0.3) {
-      const cx = (a.x + b.x + c.x) / 3 * 1000, cz = (a.z + b.z + c.z) / 3 * 1000, cy = (a.y + b.y + c.y) / 3
+    if (Math.abs(nn.y) < 0.3) {
       for (const f of faces) {
         if (nn.x * f.n[0] + nn.z * f.n[1] < 0.9) continue
         const qx = cx - f.a[0], qz = cz - f.a[1]
@@ -138,7 +280,13 @@ export function paintWalls(src: THREE.BufferGeometry, faces: FaceHit[], top: str
         color = f.color; break
       }
     }
-    for (let v = 0; v < 3; v++) { col[(i * 3 + v) * 3] = color.r; col[(i * 3 + v) * 3 + 1] = color.g; col[(i * 3 + v) * 3 + 2] = color.b }
+    // 墙的大面和墙顶之外，还剩门窗洞口的一圈：侧壁、窗台上沿、过梁底
+    const reveal = color === cWhite || nn.y > 0.9 ? revealFaces(faces, cx, cz, cy, nn) : []
+    for (let v = 0; v < 3; v++) {
+      const p = [a, b, c][v]
+      const vc = reveal.length ? revealColor(reveal, p.x * 1000, p.z * 1000) ?? color : color
+      col[(i * 3 + v) * 3] = vc.r; col[(i * 3 + v) * 3 + 1] = vc.g; col[(i * 3 + v) * 3 + 2] = vc.b
+    }
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3))
   g.userData = { ...src.userData }
@@ -152,12 +300,13 @@ export function paintWalls(src: THREE.BufferGeometry, faces: FaceHit[], top: str
 /**
  * 墙面皮（D6，接 core C6 wallSkins）：每面墙的每一侧一整张连续的面，门洞扣轮廓、窗洞留孔、按材料分片、片与片零缝，
  * 跨共线墙段合并——平涂下门洞上方、门洞两侧不再有一段一段的接缝。core 已给 Y 朝上、单位米的非索引三角形，直接画；
- * 贴在墙面外 1.5 mm（offset），盖住下面按墙分段的墙体。不贴房间的那一侧（外墙外侧）不铺，留白模白（和 D5 一样）。
+ * 贴在墙面外 1.5 mm（offset），盖住下面按墙分段的墙体（内部端面见 wallBodyGeometry）。不贴房间的那一侧（外墙外侧）不铺，留白模白（和 D5 一样）；
+ * 夹在房间之间的那一小段（enclosed：拆了隔墙留下的缝）是室内，要铺，不然连续的墙面上露一条没刷的竖条。
  */
 export function wallSkinMeshes(plan: Plan, decor: Decor, styleId: string, keep: boolean): { key: string; geo: THREE.BufferGeometry; color: string; room?: string; wall: string; side: number; wallIds: string[] }[] {
   let skins: WallSkin[]
   try { skins = wallSkins({ ...plan, decor }, { styleId, keep, offset: 1.5 }) } catch (e) { console.warn('wallSkins', e); return [] }
-  return skins.filter(k => k.room && k.positions.length >= 9).map((k, i) => {
+  return skins.filter(k => (k.room || k.enclosed) && k.positions.length >= 9).map((k, i) => {
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(k.positions, 3))
     g.setAttribute('normal', new THREE.Float32BufferAttribute(k.normals, 3))
@@ -202,18 +351,22 @@ export function surfaceSkins(plan: Plan, decor: Decor, styleId: string, keep: bo
 export const SECTION_Z = 1.1
 export const CAP = { wall: '#7d838c', glass: '#bcd9ec', decor: '#d9c6a6', furniture: '#ffffff', edge: '#2a2f37' }
 export function capGeometry(sec: SectionPolygon[], z: number): { kind: 'wall' | 'glass' | 'decor' | 'furniture'; geo: THREE.BufferGeometry }[] {
-  const groups = new Map<string, THREE.Shape[]>()
+  const groups = new Map<string, Vec2[][][]>()
   for (const s of sec) {
     const k = s.kind === 'glass' ? 'glass' : s.kind === 'decor-furniture' ? 'furniture' : s.kind.startsWith('decor-') && !s.kind.startsWith('decor-wall') && !s.kind.startsWith('decor-sill') && !s.kind.startsWith('decor-lintel') ? (s.kind === 'decor-glass' ? 'glass' : 'decor') : (s.kind === 'wall' || s.kind === 'sill' || s.kind === 'lintel' || s.kind === 'column' || s.kind === 'shaft' || s.kind.startsWith('decor-')) ? 'wall' : null
     if (!k) continue
-    for (const rings of s.polygons) {
-      const shape = new THREE.Shape(rings[0].map(p => new THREE.Vector2(p[0] / 1000, -p[1] / 1000)))
-      shape.holes = rings.slice(1).map(r => new THREE.Path(r.map(p => new THREE.Vector2(p[0] / 1000, -p[1] / 1000))))
-      groups.set(k, [...(groups.get(k) ?? []), shape])
-    }
+    groups.set(k, [...(groups.get(k) ?? []), ...s.polygons])
   }
   const out: { kind: 'wall' | 'glass' | 'decor' | 'furniture'; geo: THREE.BufferGeometry }[] = []
-  for (const [kind, shapes] of groups) {
+  for (const [kind, polygons] of groups) {
+    // 墙的切面并成一整块：不然段与段的交界在盖子上是一道道线（窗台高过切面的窗户两侧、墙和墙的接头）。柜子、家具各是各的，不并
+    let merged = polygons
+    if (kind === 'wall') try { merged = unionPolygons(polygons) } catch { /* 并不了就按原样画 */ }
+    const shapes = merged.map(rings => {
+      const shape = new THREE.Shape(rings[0].map(p => new THREE.Vector2(p[0] / 1000, -p[1] / 1000)))
+      shape.holes = rings.slice(1).map(r => new THREE.Path(r.map(p => new THREE.Vector2(p[0] / 1000, -p[1] / 1000))))
+      return shape
+    })
     const g = new THREE.ExtrudeGeometry(shapes, { depth: 0.006, bevelEnabled: false, curveSegments: 1 })
     g.rotateX(-Math.PI / 2); g.translate(0, z - 0.0065, 0)
     out.push({ kind: kind as 'wall', geo: g })

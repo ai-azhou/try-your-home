@@ -9,9 +9,12 @@ export interface DecorLayer {
   materials: Material[]
   /** 自定义风格：用户另存的、Agent 配的 */
   presets?: StylePreset[]
+  components?: CustomComponent[]
   /** 面的覆盖（地面、墙面、顶面）。没写的面 = 跟风格 */
   surfaces: Surface[]
   furniture: Furniture[]
+  /** 门扇和门框的外观；位置及开法仍由结构 Opening 决定 */
+  doors?: DoorFinish[]
   cabinets: Cabinet[]
   /** 造型：背景墙板、护墙板、格栅、踢脚线、拱形门套 */
   panels: Panel[]
@@ -26,6 +29,8 @@ export interface DecorLayer {
 
 /** 所有装修构件共有 */
 export interface DecorBase {
+  /** 修改前的 confirmed 项；否掉恢复，确认清除。单位同所在项。 */
+  prev?: Record<string, unknown>
   id: string
   name?: string
   /** 楼层：挂在墙上的跟墙走，自由摆放的（家具、岛台）写自己的；缺省第一层 */
@@ -34,6 +39,8 @@ export interface DecorBase {
   status: 'pending' | 'confirmed'
   /** 一句白话：想做什么 */
   note?: string
+  /** 外观描述，最多 300 字；不影响几何 */
+  look?: string
   /**
    * 受保护墙（承重 / 外墙 / 承重柱）上的嵌入：用户看过事实说明，点了「知道了」。
    * 这不是「允许」，只是「看过了」；改造清单照样列进「需要专业确认」。
@@ -139,7 +146,8 @@ export interface Panel extends DecorBase {
 export type Furniture = FurnitureBase & ({ at: Vec2; rot: number; in?: never } | { in: string; at?: never; rot?: number })
 
 export interface FurnitureBase extends DecorBase {
-  /** 家具库 id：'sofa-3'、'bed-1800'、'fridge' …；不认识的 id 画成通用盒子，不报错 */
+  flip?: boolean
+  /** 家具库 id：'sofa-3'、'bed-1800'、'fridge' …；custom:<id> 引用构件定义；未知 id 警告并画通用盒子 */
   type: string
   /** 宽 × 深 mm；高 m（立面淡显轮廓用，以后 3D 用） */
   size: [number, number]
@@ -181,7 +189,7 @@ export interface StylePreset {
   name: string
   blurb?: string
   roles: Partial<Record<MaterialRole, string>>
-  /** 房间规则：名称或用途里含这些字的房间用哪个地面 / 墙面角色。缺省：卫、厨、阳台 → 湿区 */
+  /** 房间规则：名称或用途里含这些字的房间用哪个地面 / 墙面角色。缺省：卫、厨、淋浴、浴室、马桶、盥洗、洗手、洗衣、阳台 → 湿区；景观、休闲、观景阳台不算 */
   rooms?: { match: string[]; floor?: MaterialRole; wall?: MaterialRole }[]
   trims?: { skirting?: { height: number; role: MaterialRole }; threshold?: boolean }
   /** 风格卡上材料板用哪几块（4–6 块） */
@@ -196,6 +204,7 @@ export type SurfaceTarget =
   | { face: FaceRef; s?: [number, number]; z?: [number, number] }
 
 export interface Surface {
+  prev?: Record<string, unknown>
   id: string
   target: SurfaceTarget
   material: string
@@ -209,8 +218,45 @@ export type Decor = DecorLayer
 
 export interface DecorIssue {
   id: string
-  code: "host-missing" | "host-cut" | "out-of-face" | "too-deep" | "wall-kind" | "over-opening" | "through-wall" | "meet-other-side" | "into-shaft" | "host-depth" | "protected" | "room-missing" | "arc-unsupported" | "invalid" | "duplicate-id" | "material-missing"
+  code: "unknown-type" | "unit-suspect" | "component-invalid" | "component-missing" | "column-width" | "host-missing" | "host-cut" | "out-of-face" | "too-deep" | "wall-kind" | "over-opening" | "through-wall" | "meet-other-side" | "into-shaft" | "host-depth" | "protected" | "room-missing" | "arc-unsupported" | "invalid" | "duplicate-id" | "material-missing"
   level: "error" | "warn" | "info"
   text: string
   fix?: ("move" | "clip" | "keep" | "delete")[]
+}
+
+/** 分类决定界面分组和分割，不限制几何。 */
+export type ComponentCategory = 'furniture' | 'appliance' | 'sanitary' | 'lighting' | 'ceiling' | 'plant' | 'soft' | 'storage' | 'other'
+export interface ComponentPath { d: string; style?: 'outline' | 'detail' | 'dashed'; fill?: string; stroke?: string }
+interface ComponentPartBase { name?: string; color?: string; material?: string }
+export type ComponentPart = ComponentPartBase & (
+  | { kind?: 'extrude'; outline: string; z: [number, number] }
+  | { kind: 'side'; along: 'width' | 'depth'; profile: string; span: [number, number] }
+  | { kind: 'revolve'; profile: string; center?: Vec2 })
+/** 每张图均为 SVG 画布：左上角 (0,0)，x 向右，y 向下。所有长度在文件和内存中均为 mm。 */
+export interface CustomComponent {
+  id: string
+  name: string
+  category: ComponentCategory
+  label?: string
+  basis?: string
+  look?: string
+  size: [number, number]
+  height: number
+  plan?: ComponentPath[]
+  front?: ComponentPath[]
+  parts: ComponentPart[]
+  seg?: string
+}
+
+/** 门的外观。门的位置、宽高、开法还是结构 Opening。 */
+export interface DoorFinish extends DecorBase {
+  opening: string
+  /** #RRGGBB 或材料 id */
+  color?: string
+  material?: string
+  frame?: { color?: string; material?: string }
+  /** 洞口宽 × 洞口高 mm，y=0 是顶；不改变白模几何 */
+  front?: ComponentPath[]
+  /** 正面图 x 翻转：x → 洞口宽 − x */
+  flip?: boolean
 }

@@ -1,3 +1,4 @@
+import { confirmedDecor } from './resolve.ts'
 import { decorItems, decorRoom, itemSpan } from './resolve.ts'
 import { panelSpan } from './panels.ts'
 import type { Plan, Room, Vec2 } from '../types.ts'
@@ -14,7 +15,8 @@ export function materialOf(plan: Plan, id?: string): Material { return plan.deco
 function roomRole(plan: Plan, room: Room | undefined, kind: 'floor' | 'wall'): MaterialRole {
   const text = room ? `${room.name} ${room.use ?? ''}` : '', rule = styleOf(plan)?.rooms?.find(r => r.match.some(m => text.includes(m)) && r[kind])
   if (rule?.[kind]) return rule[kind]!
-  return /卫|厨|阳台/.test(text) ? `${kind}.wet` : `${kind}.main`
+  // 景观、休闲阳台一般当起居用，不算湿区；要改就在风格的 rooms 里写明
+  return /卫|厨|淋浴|浴室|马桶|盥洗|洗手|洗衣/.test(text) || (text.includes('阳台') && !/景观|休闲|观景/.test(text)) ? `${kind}.wet` : `${kind}.main`
 }
 function sameTarget(a: SurfaceTarget, b: SurfaceTarget) {
   return 'floor' in a && 'floor' in b ? a.floor === b.floor : 'ceiling' in a && 'ceiling' in b ? a.ceiling === b.ceiling : 'face' in a && 'face' in b ? a.face.wall === b.face.wall && a.face.side === b.face.side : false
@@ -83,7 +85,7 @@ export function resolveSurfaces(plan: Plan, opts: FinishPreview = {}) {
 export interface MaterialQuantity { material: Material; materialId: string; area: number; floor: number; wall: number; ceiling: number; panel: number; cabinet: number; countertop: number; approximate: true; where: string[]; overridden: boolean; count: number }
 /** m²; disjoint overlays and opening unions are counted once. No purchasing/waste allowance. */
 export function materialTakeoff(plan: Plan, opts: FinishPreview = {}): MaterialQuantity[] {
-  plan = previewPlan(plan, opts)
+  plan = previewPlan({ ...plan, decor: confirmedDecor(plan.decor) }, opts)
   const quantities = new Map<string, MaterialQuantity>(), add = (material: Material, kind: 'floor' | 'wall' | 'ceiling' | 'panel' | 'cabinet' | 'countertop', area: number) => {
     const q = quantities.get(material.id) ?? { material, materialId: material.id, area: 0, floor: 0, wall: 0, ceiling: 0, panel: 0, cabinet: 0, countertop: 0, approximate: true, where: [], overridden: false, count: 0 }
     q[kind] += Math.max(0, area); q.area += Math.max(0, area); quantities.set(material.id, q)
@@ -169,12 +171,16 @@ export function faceRoom(plan: Plan, face: FaceRef): Room | undefined {
   return [...rooms].sort((a, b) => length(b) - length(a) || polygonArea(b.poly) - polygonArea(a.poly))[0]
 }
 
+/** Direction from the room toward the wall, shared by CLI and material locations. */
+export function wallDirection(plan: Plan, face: FaceRef, s?: number): string {
+  const axis = faceAxis(plan, face), n = axis.normalAt(s ?? axis.length / 2)
+  const angle = ((Math.atan2(-n[0], n[1]) * 180 / Math.PI - (plan.north ?? 0)) % 360 + 360) % 360
+  return (plan.north === undefined ? ['上', '右', '下', '左'] : ['北', '东', '南', '西'])[Math.round(angle / 90) % 4]
+}
 /** Direction is from the room toward the wall, rotated by plan.north when present. */
 export function wallLocation(plan: Plan, face: FaceRef, room?: string, s?: number): string {
   if (!plan.walls.some(w => w.id === face.wall)) return `${face.wall}（宿主缺失）`
-  const axis = faceAxis(plan, face), n = axis.normalAt(s ?? axis.length / 2)
-  const angle = ((Math.atan2(-n[0], n[1]) * 180 / Math.PI - (plan.north ?? 0)) % 360 + 360) % 360
-  const direction = (plan.north === undefined ? ['上', '右', '下', '左'] : ['北', '东', '南', '西'])[Math.round(angle / 90) % 4]
+  const axis = faceAxis(plan, face), direction = wallDirection(plan, face, s)
   const name = room ? plan.rooms.find(r => r.id === room)?.name ?? room : undefined
   return name ? `${name}${direction}墙` : `${axis.wall.name ?? axis.wall.id}（${face.side === 1 ? '正侧' : '反侧'}·${direction}）`
 }

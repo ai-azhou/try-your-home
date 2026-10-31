@@ -8,7 +8,7 @@ import type { FaceRef } from '@/core/decor/types'
 export type DSel =
   | { k: 'floor'; id: string }
   | { k: 'face'; face: FaceRef; s?: number }
-  | { k: 'furniture' | 'cabinet' | 'panel' | 'recess'; id: string }
+  | { k: 'furniture' | 'cabinet' | 'panel' | 'recess' | 'door'; id: string }
   | { k: 'cell'; id: string; col: number; row: number }
 
 /**
@@ -42,6 +42,8 @@ interface DState {
   furnCat: string
   /** 拖家具时的净距（屏幕上画洋红胶囊） */
   dragging: string | null
+  /** 方向键刚挪过的那一件：净距显示一小会儿（和拖动同一套） */
+  nudging: string | null
   /** 墙面检查器「刷到哪」 */
   paintScope: 'whole' | 'span' | 'height'
   /** 进过立面（下一步条规则 5） */
@@ -52,8 +54,17 @@ interface DState {
   look3d: 'flat' | 'clay'
   /** 装修态 3D 的 1.1 m 水平剖切（看嵌墙的缺口、柜子挖洞），白模和平涂下都能开 */
   section3d: boolean
+  /**
+   * 装修态的「3D 顶面和梁」：斜视、俯视也画吊顶和顶灯。默认关（开着吊顶会把房间挡住）。
+   * 结构态的同名图层默认开、管的是顶面轮廓，所以分开记；这份只影响界面，导出 PNG 不带（和 render 一致）。
+   */
+  overhead3d: boolean
   /** 透明背景导出时窗户：实心浅灰（默认，生图输入轮廓更干净）/ 半透明 */
   exportGlass: 'solid' | 'clear'
+  /** 导出 PNG 时要不要把待确认的也画进去（默认不画，和 render 一致） */
+  exportPending: boolean
+  /** 正在导出 PNG：confirmed = 只画已确认的（有改动的画改之前），all = 待确认的也按正常颜色画；null = 平时，待确认的画淡紫 */
+  exportView: 'confirmed' | 'all' | null
   /** 交给 Agent 时带上的装修构件 id（AgentSheet 用 core decorHandoff 展开） */
   agentRefs: string[]
   /** 3D「对准」：相机框住这一件（平面 mm 外接框）。id = 构件 id，或网址 ?probe=p1|p2|p3 的探针名；null = 整个方案 */
@@ -82,6 +93,7 @@ export const useDecor = create<DState & DActions>()(set => ({
   placing: null,
   furnCat: '客厅',
   dragging: null,
+  nudging: null,
   paintScope: 'whole',
   elevVisited: false,
   throughHint: null,
@@ -89,13 +101,16 @@ export const useDecor = create<DState & DActions>()(set => ({
   agentRefs: [],
   look3d: 'flat',
   section3d: false,
+  overhead3d: false,
   exportGlass: 'solid',
+  exportPending: false,
+  exportView: null,
   set: p => set(p),
   select: sel => set({ sel, styleCard: false, throughHint: null }),
   setTool: tool => set({ tool, placing: null, hover: null, throughHint: null }),
   openElevation: (face, room) => set({ canvas: { k: 'elev', face, ...(room ? { room } : {}) }, elevVisited: true, tool: 'select', sel: { k: 'face', face }, styleCard: false, placing: null }),
   openCabinet: (id, face, room) => set({ canvas: { k: 'cabinet', id, face, ...(room ? { room } : {}) }, elevVisited: true, tool: 'select', sel: { k: 'cabinet', id }, styleCard: false }),
-  backToPlan: () => set({ canvas: { k: 'plan' }, tool: 'select', sel: null, throughHint: null }),
+  backToPlan: () => set({ canvas: { k: 'plan' }, tool: 'select', sel: null, hover: null, throughHint: null }),
 }))
 
 export const sameFace = (a?: FaceRef | null, b?: FaceRef | null) => !!a && !!b && a.wall === b.wall && a.side === b.side

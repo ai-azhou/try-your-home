@@ -3,9 +3,11 @@ import { DropdownMenu, Popover } from 'radix-ui'
 import { motion } from 'motion/react'
 import { ArrowLeftRight, ArrowUpDown, Box, ChevronDown, CircleQuestionMark, ClipboardPaste, Download, FileBraces, FileJson2, FilePlus2, ImageUp, Languages, Layers, ListChecks, MessageSquareText, Save, Sofa, Sparkles, Upload } from 'lucide-react'
 import { useStore, useT, useView, type Layers as L } from '../store'
+import { useDecor } from '../decor/dstore'
 import { Glass, Pill, RoundButton, Segmented, Switch, Slider, Tip } from '../kit'
 import { fmt } from '../i18n'
-import { exportPlan, isConnected, mirror, newPlan, openDemo, pickFile, pickPlanFile, saveToFile } from '../actions'
+import { commitUnderlayView, exportPlan, isConnected, mirror, newPlan, openDemo, pickFile, pickPlanFile, saveToFile, setUnderlayView, toggleUnderlayView } from '../actions'
+import { underlayOf } from '../levels-ui'
 import { copyPlan, openChatIssues, openPaste } from '../chat'
 import { LevelSwitch } from './Levels'
 import { useIsMobile } from '../layout'
@@ -74,14 +76,16 @@ function FileMenu({ compact }: { compact?: boolean }) {
 
 export function LayersPopover({ children }: { children: React.ReactNode }) {
   const t = useT()
-  const layers = useStore(s => s.layers), base = useStore(s => s.base), panel = useStore(s => s.panel)
-  const { toggleLayer, setUnderlay, setPanel } = useStore.getState()
-  const setUnderlayOpacity = (v: number) => setUnderlay({ opacity: v }, { history: false })
+  const layers = useStore(s => s.layers), panel = useStore(s => s.panel)
+  const underlay = useStore(s => underlayOf(s.base, s.level))
+  const { toggleLayer, setPanel } = useStore.getState()
+  // 装修态的「3D 顶面和梁」管的是吊顶和顶灯：单独记、默认关（见 dstore overhead3d）
+  const decorMode = useStore(s => s.mode === 'decor'), overhead3d = useDecor(s => s.overhead3d)
   const row = (k: keyof L, label: string, swatch: React.ReactNode) => (
     <div className="flex h-11 items-center gap-3 rounded-[14px] px-2.5">
       <span className="grid size-7 place-items-center rounded-full bg-ink-100 text-ink-600">{swatch}</span>
       <span className="flex-1 text-[13.5px] font-medium text-ink-800">{label}</span>
-      <Switch on={k === 'underlay' ? !!base?.underlay?.visible : layers[k]} onChange={() => toggleLayer(k)} label={label} />
+      <Switch on={k === 'underlay' ? !!underlay?.visible : k === 'ceilings' && decorMode ? overhead3d : layers[k]} onChange={() => { if (k === 'underlay') toggleUnderlayView(); else if (k === 'ceilings' && decorMode) useDecor.getState().set({ overhead3d: !overhead3d }); else toggleLayer(k) }} label={label} />
     </div>
   )
   return (
@@ -91,8 +95,8 @@ export function LayersPopover({ children }: { children: React.ReactNode }) {
         <Popover.Content align="end" sideOffset={10} className="glass-strong z-[70] w-72 rounded-[22px] p-2 data-[state=open]:animate-[shimmer-in_180ms_var(--ease-out)]">
           <div className="px-2.5 pb-1 pt-1.5 text-[12px] font-semibold text-ink-500">{t.layers.title}</div>
           {row('underlay', t.layers.underlay, <ImageUp size={14} />)}
-          {base?.underlay?.visible && (
-            <div className="px-2.5 pb-2"><Slider value={base.underlay.opacity} onChange={setUnderlayOpacity} icon={<ImageUp size={15} />} /></div>
+          {underlay?.visible && (
+            <div className="px-2.5 pb-2" data-testid="underlay-opacity"><Slider value={underlay.opacity} onChange={v => setUnderlayView({ opacity: v })} onCommit={commitUnderlayView} icon={<ImageUp size={15} />} /></div>
           )}
           {row('dims', t.layers.dims, <span className="num text-[10px] font-bold">1.2</span>)}
           {row('certainty', t.layers.certainty, <span className="size-2.5 rounded-full border-[1.5px] border-dashed border-lemon-600" />)}

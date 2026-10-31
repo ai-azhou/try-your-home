@@ -7,15 +7,16 @@ import type { Cabinet, CabinetColumn, Decor, FaceRef, Furniture, Panel, Recess, 
 import { checkEmbed } from '@/core/decor/embed'
 import { faceAxis, faceExtent } from '@/core/decor/faces'
 import { fromLegacyFurniture } from '@/core/decor/legacy'
-import { effectiveWallHeight } from '@/core/geometry'
+import { effectiveWallHeight, pointInPolygon, roomCeiling } from '@/core/geometry'
 import { useStore } from '../store'
 import { styleOf } from './model'
 import { faceOfItem, footprintOf } from './model'
 import { faceCamera } from '@/three/decor3d'
 import { itemSpan } from '@/core/decor/resolve'
 import { furniturePose } from '@/core/decor/furniture'
-import { commitDecor, decorPlanOf, faceSurfaces, getDecorPlan, newDecor, newDecorId, findItem, isWholeFace, matOf, unhostFurniture } from './model'
+import { commitDecor, decorPlanOf, faceSurfaces, getDecorPlan, newDecor, newDecorId, findItem, isWholeFace, matOf, overheadOf, unhostFurniture } from './model'
 import { furnEntry } from './furniture'
+import { componentOf } from '@/core/decor/components'
 import { useDecor, type CabFamily, type PanelKind } from './dstore'
 
 const U = { by: 'user' as const, status: 'confirmed' as const }
@@ -84,12 +85,18 @@ export function resetFloor(roomId: string) {
 export function addFurniture(type: string, at: Vec2, rot = 0) {
   const dp = getDecorPlan()
   if (!dp?.decor) return null
-  const e = furnEntry(type)
+  // 方案里的构件再摆一个：尺寸照定义（定义里是 mm，内存里的高度是 m），形状跟着定义走
+  const def = componentOf(dp.decor, type)
+  const e = def ? { name: def.name, size: def.size, height: def.height / 1000 } : furnEntry(type)
   if (!e) return null
+  // 顶上的东西再摆一个不能落到地上：吊顶贴到所在房间顶面（和 decor-edit 的 ceiling 写法一样）；顶灯照已有那件的离地高度
+  const room = dp.plan.rooms.find(r => pointInPolygon(at, r.poly))
+  const sibling = dp.decor.furniture.find(f => f.type === type && overheadOf(dp.plan, f))
+  const z = def?.category === 'ceiling' ? +((room ? roomCeiling(dp.plan, room) : dp.plan.ceiling) - e.height).toFixed(3) : sibling?.z
   let id = ''
   commitDecor(d => {
     id = newDecorId(d, dp.plan, 'f-')
-    d.furniture.push({ id, type, name: e.name, at: [Math.round(at[0]), Math.round(at[1])], rot, size: [...e.size], height: e.height, ...U })
+    d.furniture.push({ id, type, name: e.name, at: [Math.round(at[0]), Math.round(at[1])], rot, size: [e.size[0], e.size[1]], height: e.height, ...(z !== undefined ? { z } : {}), ...U })
   })
   useDecor.getState().select({ k: 'furniture', id })
   return id

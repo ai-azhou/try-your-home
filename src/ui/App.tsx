@@ -26,7 +26,8 @@ import { cn } from '@/lib/utils'
 import { useUnderlayCheck } from './underlay-check'
 import { useDecor } from './decor/dstore'
 import { applyStyle, enterDecor, rotateFurniture, showProbe } from './decor/actions'
-import { removeItem, getDecorPlan, openElevAt, refreshCache, rehostAfterStructure } from './decor/model'
+import { nudgeSelected } from './decor/nudge'
+import { removeItem, getDecorPlan, openElevAt, pruneDecorUI, refreshCache, rehostAfterStructure } from './decor/model'
 import { stepFace } from './decor/Chrome'
 
 /**
@@ -107,7 +108,7 @@ function applyViewParams(p: URLSearchParams) {
   applyLook(p)
 }
 
-/** 装修态的快捷键：工具（平面 V M F C E；立面 V P N C M）、R 转家具、⌫ 删、[ ] 换墙、Esc 逐级退出 */
+/** 装修态的快捷键：工具（平面 V M F C E；立面 V P N C M）、R 转家具、方向键挪（⇧ 大步）、⌫ 删、[ ] 换墙、Esc 逐级退出 */
 function decorKey(e: KeyboardEvent, k: string): boolean {
   const s = useStore.getState(), D = useDecor.getState()
   if (s.agentOpen || s.confirm) return false
@@ -116,6 +117,7 @@ function decorKey(e: KeyboardEvent, k: string): boolean {
   if (s.main === '2d' && tools[k]) { D.setTool(tools[k]); return true }
   if (k === 'e' && plan && s.main === '2d') { if (D.sel?.k === 'face') openElevAt(D.sel.face, { s: D.sel.s }); else D.setTool('elevpick'); return true }
   if (k === 'r' && D.sel?.k === 'furniture') { rotateFurniture(D.sel.id); return true }
+  if (k.startsWith('arrow') && s.main === '2d' && nudgeSelected(k, e.shiftKey)) { e.preventDefault(); return true }
   // A：交给 Agent，选中的装修构件带 core decorHandoff 的 ref
   if (k === 'a') { e.preventDefault(); D.set({ agentRefs: D.sel && 'id' in D.sel ? [D.sel.id] : [] }); s.openAgent(true); return true }
   if ((k === 'backspace' || k === 'delete') && D.sel && 'id' in D.sel && D.sel.k !== 'cell') { e.preventDefault(); removeItem(D.sel.id); return true }
@@ -162,6 +164,11 @@ if (typeof window !== 'undefined') useStore.subscribe((s, prev) => {
   if (next) useStore.setState(st => st.base ? { base: { ...st.base, decor: next } } : {})
 })
 
+/** 方案变了（Agent 改了文件、撤销、结构改动）：选中和取景指向的东西不在了就清掉，不留着报错 */
+if (typeof window !== 'undefined') useStore.subscribe((s, prev) => {
+  if (s.base?.decor !== prev.base?.decor || s.base?.changes !== prev.base?.changes) pruneDecorUI()
+})
+
 /** 对准期间点任一视角 / 复位（camNonce 变了）= 退出对准、切到那个视角（D6） */
 if (typeof window !== 'undefined') useStore.subscribe((s, prev) => {
   if (s.camNonce !== prev.camNonce && useDecor.getState().probe) useDecor.getState().set({ probe: null })
@@ -187,7 +194,10 @@ function useShortcuts() {
       }
       if (e.altKey) return
       const k = e.key.toLowerCase()
-      if (e.repeat && k !== '=' && k !== '-') return
+      const arrow = k.startsWith('arrow')
+      // 菜单、滑块这类控件自己用方向键：焦点在它们上面就不抢
+      if (arrow && el instanceof Element && el.closest('[role=menu], [role=listbox], [role=slider], [role=radiogroup], [role=tablist]')) return
+      if (e.repeat && k !== '=' && k !== '-' && !arrow) return
       if (s.mode === 'decor' && decorKey(e, k)) return
       const tools: Record<string, Tool> = { v: 'select', w: 'wall', d: 'opening', b: 'beam', r: 'room', u: 'underlay' }
       if (tools[k] && s.main === '2d') { s.setTool(tools[k]); return }

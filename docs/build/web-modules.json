@@ -1211,7 +1211,7 @@
     },
     {
       "id": "node_modules/motion-dom/dist/es/animation/generators/keyframes.mjs",
-      "renderedLength": 1470
+      "renderedLength": 1472
     },
     {
       "id": "node_modules/motion-dom/dist/es/animation/generators/spring.mjs",
@@ -1251,7 +1251,7 @@
     },
     {
       "id": "node_modules/motion-dom/dist/es/animation/JSAnimation.mjs",
-      "renderedLength": 8100
+      "renderedLength": 8102
     },
     {
       "id": "node_modules/motion-dom/dist/es/animation/keyframes/DOMKeyframesResolver.mjs",
@@ -1779,7 +1779,7 @@
     },
     {
       "id": "node_modules/motion-dom/dist/es/utils/interpolate.mjs",
-      "renderedLength": 1389
+      "renderedLength": 1391
     },
     {
       "id": "node_modules/motion-dom/dist/es/utils/is-html-element.mjs",
@@ -1807,7 +1807,7 @@
     },
     {
       "id": "node_modules/motion-dom/dist/es/utils/mix/index.mjs",
-      "renderedLength": 716
+      "renderedLength": 718
     },
     {
       "id": "node_modules/motion-dom/dist/es/utils/mix/number.mjs",
@@ -2287,7 +2287,7 @@
     },
     {
       "id": "schema/plan.schema.json",
-      "renderedLength": 39956
+      "renderedLength": 44687
     },
     {
       "id": "src/assets/try-mark.svg?raw",
@@ -2299,7 +2299,11 @@
     },
     {
       "id": "src/core/decor/cabinets.ts",
-      "renderedLength": 5824
+      "renderedLength": 6504
+    },
+    {
+      "id": "src/core/decor/components.ts",
+      "renderedLength": 7702
     },
     {
       "id": "src/core/decor/elevation-context.ts",
@@ -2315,15 +2319,19 @@
     },
     {
       "id": "src/core/decor/faces.ts",
-      "renderedLength": 4761
+      "renderedLength": 4879
+    },
+    {
+      "id": "src/core/decor/floor-fill.ts",
+      "renderedLength": 10124
     },
     {
       "id": "src/core/decor/furniture.ts",
-      "renderedLength": 7248
+      "renderedLength": 8575
     },
     {
       "id": "src/core/decor/integration.ts",
-      "renderedLength": 2955
+      "renderedLength": 3282
     },
     {
       "id": "src/core/decor/legacy.ts",
@@ -2335,35 +2343,39 @@
     },
     {
       "id": "src/core/decor/mirror.ts",
-      "renderedLength": 3166
+      "renderedLength": 3946
     },
     {
       "id": "src/core/decor/panels.ts",
-      "renderedLength": 4047
+      "renderedLength": 4127
     },
     {
       "id": "src/core/decor/presets.ts",
-      "renderedLength": 7604
+      "renderedLength": 7813
     },
     {
       "id": "src/core/decor/resolve.ts",
-      "renderedLength": 15877
+      "renderedLength": 19509
     },
     {
       "id": "src/core/decor/solids.ts",
-      "renderedLength": 7598
+      "renderedLength": 8371
     },
     {
       "id": "src/core/decor/surfaces.ts",
-      "renderedLength": 14148
+      "renderedLength": 14368
+    },
+    {
+      "id": "src/core/decor/svg-path.ts",
+      "renderedLength": 6361
     },
     {
       "id": "src/core/decor/validate.ts",
-      "renderedLength": 14024
+      "renderedLength": 20392
     },
     {
       "id": "src/core/decor/wall-skins.ts",
-      "renderedLength": 4949
+      "renderedLength": 5858
     },
     {
       "id": "src/core/edit.ts",
@@ -2375,7 +2387,7 @@
     },
     {
       "id": "src/core/handoff.ts",
-      "renderedLength": 6909
+      "renderedLength": 6957
     },
     {
       "id": "src/core/history.ts",
@@ -2383,7 +2395,7 @@
     },
     {
       "id": "src/core/io.ts",
-      "renderedLength": 7948
+      "renderedLength": 8371
     },
     {
       "id": "src/core/legacy.ts",
@@ -2395,7 +2407,7 @@
     },
     {
       "id": "src/core/measure.ts",
-      "renderedLength": 4195
+      "renderedLength": 6453
     },
     {
       "id": "src/core/merge-rooms.ts",
@@ -2415,7 +2427,7 @@
     },
     {
       "id": "src/core/persistence.ts",
-      "renderedLength": 1803
+      "renderedLength": 1946
     },
     {
       "id": "src/core/protection.ts",
@@ -2479,11 +2491,11 @@
     },
     {
       "id": "src/three/decor3d.ts",
-      "renderedLength": 9452
+      "renderedLength": 16187
     },
     {
       "id": "src/three/DecorOverlay3D.tsx",
-      "renderedLength": 7196
+      "renderedLength": 8805
     },
     {
       "id": "src/three/geometry.ts",
@@ -2499,11 +2511,11 @@
     },
     {
       "id": "src/three/pieces.ts",
-      "renderedLength": 8276
+      "renderedLength": 8325
     },
     {
       "id": "src/three/Scene3D.tsx",
-      "renderedLength": 46020
+      "renderedLength": 54446
     },
     {
       "id": "src/three/snapshot.ts",
@@ -2511,11 +2523,11 @@
     },
     {
       "id": "src/ui/actions.ts",
-      "renderedLength": 30045
+      "renderedLength": 32402
     },
     {
       "id": "src/ui/App.tsx",
-      "renderedLength": 13455
+      "renderedLength": 13942
     },
     {
       "id": "src/ui/canvas2d/labels.ts",
@@ -2523,15 +2535,15 @@
     },
     {
       "id": "src/ui/canvas2d/PlanCanvas.tsx",
-      "renderedLength": 57958
+      "renderedLength": 61127
     },
     {
       "id": "src/ui/canvas2d/PlanLayers.tsx",
-      "renderedLength": 43869
+      "renderedLength": 43958
     },
     {
       "id": "src/ui/canvas2d/style.ts",
-      "renderedLength": 3148
+      "renderedLength": 3394
     },
     {
       "id": "src/ui/chat-text.ts",
@@ -2547,19 +2559,19 @@
     },
     {
       "id": "src/ui/decor/actions.ts",
-      "renderedLength": 14306
+      "renderedLength": 14800
     },
     {
       "id": "src/ui/decor/Cards.tsx",
-      "renderedLength": 87781
+      "renderedLength": 107389
     },
     {
       "id": "src/ui/decor/Chrome.tsx",
-      "renderedLength": 18158
+      "renderedLength": 19784
     },
     {
       "id": "src/ui/decor/dstore.ts",
-      "renderedLength": 1317
+      "renderedLength": 1415
     },
     {
       "id": "src/ui/decor/elev-model.ts",
@@ -2567,27 +2579,31 @@
     },
     {
       "id": "src/ui/decor/ElevationCanvas.tsx",
-      "renderedLength": 20974
+      "renderedLength": 19893
     },
     {
       "id": "src/ui/decor/ElevDrawing.tsx",
-      "renderedLength": 37063
+      "renderedLength": 44927
     },
     {
       "id": "src/ui/decor/furniture.tsx",
-      "renderedLength": 11527
+      "renderedLength": 16082
     },
     {
       "id": "src/ui/decor/model.ts",
-      "renderedLength": 13558
+      "renderedLength": 19614
+    },
+    {
+      "id": "src/ui/decor/nudge.ts",
+      "renderedLength": 5089
     },
     {
       "id": "src/ui/decor/plan-ctl.ts",
-      "renderedLength": 5679
+      "renderedLength": 9378
     },
     {
       "id": "src/ui/decor/PlanDecor.tsx",
-      "renderedLength": 20550
+      "renderedLength": 25340
     },
     {
       "id": "src/ui/decor/PlanOverlays.tsx",
@@ -2603,7 +2619,7 @@
     },
     {
       "id": "src/ui/export/decor.ts",
-      "renderedLength": 35725
+      "renderedLength": 38083
     },
     {
       "id": "src/ui/export/elev-draw.ts",
@@ -2615,11 +2631,11 @@
     },
     {
       "id": "src/ui/export/ExportPanel.tsx",
-      "renderedLength": 16470
+      "renderedLength": 16492
     },
     {
       "id": "src/ui/export/GlobalExport.tsx",
-      "renderedLength": 11570
+      "renderedLength": 12755
     },
     {
       "id": "src/ui/export/model.ts",
@@ -2651,7 +2667,7 @@
     },
     {
       "id": "src/ui/i18n.ts",
-      "renderedLength": 35804
+      "renderedLength": 40103
     },
     {
       "id": "src/ui/kit/extra-icons.tsx",
@@ -2659,7 +2675,7 @@
     },
     {
       "id": "src/ui/kit/index.tsx",
-      "renderedLength": 19306
+      "renderedLength": 19386
     },
     {
       "id": "src/ui/layout.ts",
@@ -2667,7 +2683,7 @@
     },
     {
       "id": "src/ui/levels-ui.ts",
-      "renderedLength": 1293
+      "renderedLength": 1501
     },
     {
       "id": "src/ui/mock.ts",
@@ -2679,7 +2695,7 @@
     },
     {
       "id": "src/ui/panels/AgentSheet.tsx",
-      "renderedLength": 16343
+      "renderedLength": 16481
     },
     {
       "id": "src/ui/panels/ChatSheet.tsx",
@@ -2691,7 +2707,7 @@
     },
     {
       "id": "src/ui/panels/Context.tsx",
-      "renderedLength": 35655
+      "renderedLength": 35811
     },
     {
       "id": "src/ui/panels/Diagrams.tsx",
@@ -2707,7 +2723,7 @@
     },
     {
       "id": "src/ui/panels/Levels.tsx",
-      "renderedLength": 6023
+      "renderedLength": 6041
     },
     {
       "id": "src/ui/panels/Questions.tsx",
@@ -2727,11 +2743,11 @@
     },
     {
       "id": "src/ui/panels/TopBar.tsx",
-      "renderedLength": 25039
+      "renderedLength": 25400
     },
     {
       "id": "src/ui/render-plan.ts",
-      "renderedLength": 1374
+      "renderedLength": 1278
     },
     {
       "id": "src/ui/replies.ts",
@@ -2739,7 +2755,7 @@
     },
     {
       "id": "src/ui/store.ts",
-      "renderedLength": 16936
+      "renderedLength": 17391
     },
     {
       "id": "src/ui/underlay-art.ts",
@@ -2747,7 +2763,7 @@
     },
     {
       "id": "src/ui/underlay-check.ts",
-      "renderedLength": 2440
+      "renderedLength": 2463
     },
     {
       "id": "\u0000vite/modulepreload-polyfill.js",

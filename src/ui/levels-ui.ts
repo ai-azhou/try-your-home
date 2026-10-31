@@ -15,6 +15,12 @@ export function curLevelId(plan: Plan, level: string | null): string {
   return levels.find(l => l.id === level)?.id ?? levels[0].id
 }
 
+/** 当前层实际显示的底图：这一层有自己的就用自己的（core onLevel 同一条规则），编辑也落在它上面 */
+export function underlayOf(plan: Plan | null | undefined, level: string | null) {
+  if (!plan) return undefined
+  return plan.levelUnderlays?.[curLevelId(plan, level)] ?? plan.underlay
+}
+
 let cache: { plan: Plan | null; id: string; view: Plan | null } = { plan: null, id: '', view: null }
 /** 当前层的只读视图（单层方案直接返回原方案，引用不变，下游 useMemo 不会白算） */
 export function levelView(plan: Plan, levelId: string): Plan {

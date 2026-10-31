@@ -33,7 +33,7 @@ it('draws furniture into clay and seg, and lists what is visible in the camera r
   expect(has(k.files['seg-ade20k.png'], SEG_CLASSES.sofa)).toBe(true)
   expect(k.camera.segDecorClasses).toContain('sofa')
   const bare = renderKit(furnished(), { ...size, camera: cam, passes: ['clay', 'seg'], decor: false })
-  expect(bare.camera.decor).toEqual({ drawn: false, skipped: 'disabled', visible: [] })
+  expect(bare.camera.decor).toEqual({ drawn: false, skipped: 'disabled', visible: [], pendingHidden: 0, overheadHidden: 0, includePending: false })
   expect(has(bare.files['seg-ade20k.png'], SEG_CLASSES.sofa)).toBe(false)
   expect(Buffer.from(bare.files['clay.png']).equals(Buffer.from(k.files['clay.png']))).toBe(false)
 })

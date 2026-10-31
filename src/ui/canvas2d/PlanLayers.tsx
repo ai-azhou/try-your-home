@@ -37,6 +37,8 @@ export interface LayerProps {
   /** 装修态（decor/PlanDecor）：地面材料、柜子、造型画在墙下；家具、嵌入缺口、色带、选中画在门窗上 */
   decorUnder?: ReactNode
   decorOver?: ReactNode
+  /** 装修态：门洞里的地面（盖在墙上、门扇下）；ids 里的洞口不再画纸白底 */
+  decorThresholds?: { node: ReactNode; ids: Set<string> }
 }
 
 const has = (list: Ref[], id: string) => list.some(r => r.id === id)
@@ -107,7 +109,7 @@ function along(w: Wall, s0: number, s1: number, d: number): string {
   return out
 }
 
-function OpeningSymbol({ plan, o, k, tone = 'ink', label, hideTag, pins }: { plan: Plan; o: Opening; k: number; tone?: 'ink' | 'muted' | 'cobalt' | 'coral' | 'lav'; label?: string; hideTag?: boolean; pins?: Vec2[] }) {
+function OpeningSymbol({ plan, o, k, tone = 'ink', label, hideTag, pins, noGap }: { plan: Plan; o: Opening; k: number; tone?: 'ink' | 'muted' | 'cobalt' | 'coral' | 'lav'; label?: string; hideTag?: boolean; noGap?: boolean; pins?: Vec2[] }) {
   const s = spanOf(plan, o)
   if (!s) return null
   const w = s.wall, t = w.thickness, n = s.normal
@@ -117,7 +119,7 @@ function OpeningSymbol({ plan, o, k, tone = 'ink', label, hideTag, pins }: { pla
   const px = (v: number) => v / k
   const gap = segmentRect(w, o.offset, o.offset + o.width)
   const parts: ReactNode[] = []
-  const threshold = tone === 'coral' ? 'none' : C.paper
+  const threshold = tone === 'coral' || noGap ? 'none' : C.paper
   parts.push(<path key="gap" d={polyPath(gap)} fill={threshold} />)
 
   if (isArc(w) && o.kind !== 'doorway' && o.kind !== 'open-balcony') {
@@ -374,11 +376,12 @@ export const PlanLayers = memo(function PlanLayers(p: LayerProps) {
       ))}
 
       {/* 门窗 */}
+      {p.decorThresholds?.node}
       {plan.openings.map(o => {
         const m = muted(o.id), added = compare && diff!.added.has(o.id)
         return (
           <g key={o.id} data-type="opening" data-id={o.id}>
-            <OpeningSymbol plan={plan} o={o} k={k} tone={added ? 'cobalt' : m ? 'muted' : 'ink'} label={labels.entry} hideTag={isSel(o.id)} pins={p.pins} />
+            <OpeningSymbol plan={plan} o={o} k={k} tone={added ? 'cobalt' : m ? 'muted' : 'ink'} label={labels.entry} hideTag={isSel(o.id)} pins={p.pins} noGap={p.decorThresholds?.ids.has(o.id)} />
           </g>
         )
       })}

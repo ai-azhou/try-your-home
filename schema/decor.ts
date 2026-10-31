@@ -12,6 +12,7 @@ export function decorDefinitions(): Record<string, any> {
     return { type: 'object', properties, required, additionalProperties: false }
   }
   const convert = (node: ts.TypeNode): any => {
+    if (node.kind === ts.SyntaxKind.UnknownKeyword) return {}
     if (node.kind === ts.SyntaxKind.StringKeyword) return { type: 'string' }
     if (node.kind === ts.SyntaxKind.NumberKeyword) return { type: 'number' }
     if (node.kind === ts.SyntaxKind.NeverKeyword) return false
@@ -41,7 +42,7 @@ export function decorDefinitions(): Record<string, any> {
   }
   for (const name of declarations.keys()) define(name)
   const positive = { type: 'number', exclusiveMinimum: 0 }, nonnegative = { type: 'number', minimum: 0 }
-  for (const name of ['DecorBase', 'FurnitureBase', 'Cabinet', 'Panel', 'Recess', 'Surface', 'Material', 'StylePreset']) definitions[name].properties.id = { type: 'string', minLength: 1 }
+  for (const name of ['DecorBase', 'FurnitureBase', 'Cabinet', 'Panel', 'Recess', 'DoorFinish', 'Surface', 'Material', 'StylePreset']) definitions[name].properties.id = { type: 'string', minLength: 1 }
   for (const [name, keys] of Object.entries({ FurnitureBase: ['height'], Cabinet: ['width', 'depth'], Panel: ['thickness'], CabinetColumn: ['width'], CabinetCell: ['h'] })) for (const key of keys) definitions[name].properties[key] = positive
   for (const name of ['FurnitureBase', 'Cabinet']) definitions[name].properties.embed = nonnegative
   definitions.Cabinet.properties.plinth = nonnegative
@@ -55,6 +56,7 @@ export function decorDefinitions(): Record<string, any> {
     ...branch, properties: { ...definitions.FurnitureBase.properties, ...branch.properties },
     required: [...definitions.FurnitureBase.required, ...branch.required],
   })) }
+  definitions.ComponentPart = { oneOf: definitions.ComponentPart.allOf[1].anyOf.map((branch: any) => ({ ...branch, properties: { ...definitions.ComponentPartBase.properties, ...branch.properties }, required: [...definitions.ComponentPartBase.required, ...branch.required] })) }
   for (const name of ['DecorIssue']) delete definitions[name] // runtime diagnostics are not persisted
   for (const [name, keys] of Object.entries({ FurnitureBase: ['height', 'z'], Cabinet: ['z', 'plinth'], CabinetCell: ['h'], FaceSpan: ['z'] }))
     for (const key of keys) definitions[name].properties[key].description = '长度单位 mm（文件 v3）'

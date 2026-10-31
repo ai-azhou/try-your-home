@@ -1,8 +1,9 @@
-import { decorStatus, rehostDecor, decorItems } from '../src/core/decor/resolve.ts'
+import { editDecorFile, listDecor } from './decor-edit.ts'
+import { decorStatus, rehostDecor, decorItems, pendingCount } from '../src/core/decor/resolve.ts'
 import { materialTakeoff } from '../src/core/decor/surfaces.ts'
 import { readFileSync, writeFileSync, mkdirSync, existsSync, openSync, closeSync, fsyncSync, renameSync, rmSync, statSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { isEmptyPlan, loadError } from '../src/core/persistence.ts'
+import { blocksPersistence, isEmptyPlan, loadError } from '../src/core/persistence.ts'
 import { basename, dirname, join } from 'node:path'
 import { exportGlb } from '../src/core/glb.ts'
 import { createRenderSession, listCameras, type RenderPass, type CameraRecord, type CameraSpec, type RenderView } from '../src/core/raster.ts'
@@ -18,20 +19,28 @@ const [command, input, output, ...flags] = process.argv.slice(2)
 if (command === 'schema') {
   await import('../schema/generate.ts')
 } else try {
-  if (!['convert', 'validate', 'apply', 'stats', 'decor', 'export', 'render', 'cameras', 'questions', 'answer', 'resolve'].includes(command) || !input || ['convert', 'export', 'render', 'answer', 'resolve'].includes(command) && !output) throw new Error('用法：先设置 $SKILL 为 Skill 根目录的绝对路径，$WORK 为用户工作目录的绝对路径；在 $WORK 执行，输入输出用全路径。\nSKILL="/绝对路径/see-your-home"\nWORK="/用户的/工作目录"\ncd "$WORK"\n' + [
+  if (!['convert', 'validate', 'apply', 'stats', 'decor', 'decor-edit', 'decor-list', 'export', 'render', 'cameras', 'questions', 'answer', 'resolve'].includes(command) || !input || ['convert', 'export', 'render', 'answer', 'resolve', 'decor-edit'].includes(command) && !output) throw new Error('用法：先设置 $SKILL 为 Skill 根目录的绝对路径，$WORK 为用户工作目录的绝对路径；在 $WORK 执行，输入输出用全路径。\nSKILL="/绝对路径/see-your-home"\nWORK="/用户的/工作目录"\ncd "$WORK"\n' + [
     'schema', 'cameras "$WORK/方案.json" [--json] [--all] [--state original|renovated] [--level id]',
-    'convert "$WORK/旧.json" "$WORK/新.json"', 'validate "$WORK/方案.json"', 'apply "$WORK/方案.json"', 'stats "$WORK/方案.json"', 'decor "$WORK/方案.json"',
+    'convert "$WORK/旧.json" "$WORK/新.json"', 'validate "$WORK/方案.json"', 'apply "$WORK/方案.json"', 'stats "$WORK/方案.json"', 'decor "$WORK/方案.json" [--brief]（--brief 只看每项挂得上挂不上和问题）',
+    'decor-edit "$WORK/方案.json" <补丁.json|->（原地原子写入 v3，只改 decor；add kind 含 door；furniture 可用 ceiling:{room} 或 wall；item/定义可写 look）',
+    'decor-list "$WORK/方案.json"（只读查询家具、风格、材料、构件、门外观 doors、房间墙面及 openings[].door）',
     'questions "$WORK/方案.json" [--status open|answered|resolved]',
     'answer "$WORK/方案.json" <问题id> --text "答复" [--by 业主] [--at YYYY-MM-DD]（原地写入 v3）',
     'resolve "$WORK/方案.json" <问题id> --outcome changed|confirmed|inferred|noted|ask|withdrawn --reply "回复" [--changed id,id] [--by Agent] [--at YYYY-MM-DD]（原地写入 v3）',
     'export "$WORK/方案.json" "$WORK/输出.glb" [--state original|renovated] [--level id]',
-    'render "$WORK/方案.json" "$WORK/输出目录" [--camera 预设|room:id|"$WORK/相机.json"（可重复）] [--cameras "$WORK/列表.json"] [--state original|renovated] [--views iso-sw,iso-ne,iso-se,iso-nw,top] [--level id] [--section mm] [--passes clay,depth,lines,seg,openings] [--size 2400x1600] [--transparent] [--no-decor]',
+    'render "$WORK/方案.json" "$WORK/输出目录" [--camera 预设|room:id|"$WORK/相机.json"（可重复）] [--cameras "$WORK/列表.json"] [--state original|renovated] [--views iso-sw,iso-ne,iso-se,iso-nw,top] [--level id] [--section mm] [--passes clay,depth,lines,seg,openings] [--size 2400x1600] [--transparent] [--no-decor] [--include-pending]',
     'render "$WORK/方案.json" "$WORK/输出目录" --camera "pos=2000,1450,1000;target=2000,1450,4000;fov=75"',
   ].map(line => 'node "$SKILL/scripts/plan-cli.mjs" ' + line).join('\n'))
   const source = readFileSync(input === '-' ? 0 : input, 'utf8')
-  const { plan, report, issues } = parsePlanText(source)
+  const { plan, report, issues } = parsePlanText(source, { allowUnknownOutsideDecor: command === 'decor-edit' || command === 'decor-list' })
   if (issues.some(i => i.code === 'parse' || i.code === 'schema') && command !== 'validate') throw new Error(issues.map(i => i.message).join('\n'))
-  if (command === 'questions' || command === 'answer' || command === 'resolve') {
+  if (command === 'decor-edit') {
+    if (flags.length) throw new Error('decor-edit 不接受额外参数')
+    process.stdout.write(JSON.stringify(editDecorFile(input, source, JSON.parse(readFileSync(output === '-' ? 0 : output, 'utf8'))), null, 2) + '\n')
+  } else if (command === 'decor-list') {
+    if (output || flags.length) throw new Error('decor-list 只需要方案路径')
+    process.stdout.write(JSON.stringify(listDecor(plan), null, 2) + '\n')
+  } else if (command === 'questions' || command === 'answer' || command === 'resolve') {
     const args = command === 'questions' ? [output, ...flags].filter((v): v is string => v !== undefined) : flags
     const allowed = command === 'questions' ? ['--status'] : command === 'answer' ? ['--text', '--by', '--at'] : ['--outcome', '--reply', '--changed', '--by', '--at']
     const values: Record<string, string> = {}
@@ -72,7 +81,7 @@ if (command === 'schema') {
         next = resolveQuestion(raw.questions[index], { outcome, text: values['--reply'], changed, by: values['--by'], at })
       }
       raw.questions[index] = next
-      const text = JSON.stringify(raw, null, 2) + '\n', errors = parsePlanText(text).issues.filter(i => i.level === 'error')
+      const text = JSON.stringify(raw, null, 2) + '\n', errors = parsePlanText(text).issues.filter(blocksPersistence)
       if (errors.length) throw new Error(`修改后的方案校验未通过，文件未写入：\n${errors.map(i => i.message).join('\n')}`)
       const temp = join(dirname(input), `.${basename(input)}.${randomUUID()}.tmp`)
       let fd: number | undefined
@@ -88,7 +97,8 @@ if (command === 'schema') {
       process.stdout.write(JSON.stringify(card) + '\n')
     }
   } else if (command === 'export' || command === 'render' || command === 'cameras') {
-    if (issues.some(i => i.level === 'error')) throw new Error(issues.filter(i => i.level === 'error').map(i => i.message).join('\n'))
+    if (issues.some(blocksPersistence)) throw new Error(issues.filter(blocksPersistence).map(i => i.message).join('\n'))
+    for (const i of issues) if (i.level === 'error') process.stderr.write(`提示：${i.message}（数据还在，这一项图和模型里没有）\n`)
     let all = false, json = false
     const cameras: { camera: string | CameraSpec; record: Partial<CameraRecord> }[] = []
     const addCamera = (value: unknown) => {
@@ -96,7 +106,7 @@ if (command === 'schema') {
       if (typeof value === 'string' && (value.startsWith('room:') || value.startsWith('pos=') || ['iso-sw','iso-ne','iso-se','iso-nw','top'].includes(value))) cameras.push({ camera: value, record: {} })
       else { const data = typeof value === 'string' ? JSON.parse(readFileSync(value, 'utf8')) : value; const record = data.camera ? { ...data.camera, level: data.level ?? data.camera.level } : data; if (record.unit !== undefined && record.unit !== 'mm') throw new Error('相机文件单位必须为 mm'); cameras.push({ camera: record, record }) }
     }
-    let passes: RenderPass[] | undefined, state: ModelState = 'original', level: string | undefined, section: number | undefined, sizeSet = false, stateSet = false, transparentSet = false, views: RenderView[] = ['iso-sw', 'iso-ne', 'top'], width = 2400, height = 1600, transparent = false, noDecor = false
+    let passes: RenderPass[] | undefined, state: ModelState = 'original', level: string | undefined, section: number | undefined, sizeSet = false, stateSet = false, transparentSet = false, views: RenderView[] = ['iso-sw', 'iso-ne', 'top'], width = 2400, height = 1600, transparent = false, noDecor = false, includePending = false
     const args = command === 'cameras' ? [output, ...flags].filter((v): v is string => v !== undefined) : flags
     for (let i = 0; i < args.length; i++) {
       const flag = args[i]
@@ -104,6 +114,7 @@ if (command === 'schema') {
       else if (flag === '--json' && command === 'cameras') { json = true }
       else if (flag === '--all' && command === 'cameras') { all = true }
       else if (flag === '--transparent' && command === 'render') { transparent = true; transparentSet = true }
+      else if (flag === '--include-pending' && command === 'render') { includePending = true }
       else if (flag === '--no-decor' && command === 'render') { noDecor = true }
       else if (flag === '--level') { level = args[++i]; if (!level) throw new Error('--level 缺少楼层 id') }
       else if (flag === '--section' && command === 'render') { section = Number(args[++i]); if (!Number.isFinite(section) || section <= 0) throw new Error('--section 必须是正数 mm') }
@@ -136,8 +147,9 @@ if (command === 'schema') {
         process.stderr.write(`渲染 ${index + 1}/${selections.length}：${view}\n`)
         const { files, camera: savedCamera } = session.renderKit({ state: stateSet ? state : record.state ?? state, camera, level: level ?? record.level, section: section ?? record.section,
           width: sizeSet ? width : record.width ?? width, height: sizeSet ? height : record.height ?? height, transparent: bg, passes: passes ?? record.passes,
-          decor: !noDecor && record.decor?.skipped !== 'disabled' })
+          includePending, decor: !noDecor && record.decor?.skipped !== 'disabled' })
         const dv = savedCamera.decor
+        if (dv?.pendingHidden) process.stderr.write(`${dv.pendingHidden} 件待确认没画，加 --include-pending 可以画出来\n`)
         if (dv?.drawn) process.stderr.write(`装修层：画面里有 ${dv.visible.length} 件（${dv.visible.map(v => v.name).join('、') || '都在画外或被挡住'}）\n`)
         else if (dv?.skipped === 'original-state') process.stderr.write('装修层：没画。装修是按改造后的格局摆的，原始状态有已确认改造；要带家具出图加 --state renovated\n')
         else if (dv?.skipped === 'error') process.stderr.write(`装修层：没画，装修数据有问题：${dv.error}\n`)
@@ -153,7 +165,7 @@ if (command === 'schema') {
       }
     }
   } else if (command === 'convert') {
-    if (issues.some(i => i.level === 'error')) throw new Error(issues.map(i => i.message).join('\n'))
+    if (issues.some(blocksPersistence)) throw new Error(issues.map(i => i.message).join('\n'))
     if (output !== '-' && output !== '/dev/stdout' && existsSync(output) && isEmptyPlan(plan)) {
       const old = parsePlanText(readFileSync(output, 'utf8'))
       if (loadError(old.issues) || !isEmptyPlan(old.plan)) throw new Error('拒绝用空方案覆盖含有数据或无法读取的旧文件')
@@ -163,25 +175,27 @@ if (command === 'schema') {
     else { mkdirSync(dirname(output), { recursive: true }); writeFileSync(output, text) }
     // Report uses stderr so /dev/stdout is a valid JSON stream.
     process.stderr.write(JSON.stringify({ ...report, approximations: report.approximations.map(agentUnits), warnings: report.warnings.map(agentUnits) }, null, 2) + '\n')
-    if (issues.some(i => i.level === 'error')) process.exitCode = 1
+    if (issues.some(blocksPersistence)) process.exitCode = 1
   } else if (command === 'validate') {
-    process.stdout.write(JSON.stringify({ valid: !issues.some(i => i.level === 'error'), issues: issues.map(i => ({ ...i, message: agentUnits(i.message) })) }, null, 2) + '\n')
-    if (issues.some(i => i.level === 'error')) process.exitCode = 1
+    process.stdout.write(JSON.stringify({ valid: !issues.some(blocksPersistence), issues: issues.map(i => ({ ...i, level: i.level === 'error' && !blocksPersistence(i) ? 'warn' : i.level, message: agentUnits(i.message) })) }, null, 2) + '\n')
+    if (issues.some(blocksPersistence)) process.exitCode = 1
   } else if (command === 'apply') {
-    if (issues.some(i => i.level === 'error')) throw new Error(issues.map(i => i.message).join('\n'))
+    if (issues.some(blocksPersistence)) throw new Error(issues.map(i => i.message).join('\n'))
     const replay = applyChanges(plan, plan.changes), after = validateReplay(replay, plan.changes, plan)
-    process.stdout.write(JSON.stringify({ results: replay.results.map(r => ({ ...r, ...(r.error ? { error: agentUnits(r.error) } : {}), ...(r.warnings ? { warnings: r.warnings.map(agentUnits) } : {}) })), issues: after.map(i => ({ ...i, message: agentUnits(i.message) })) }, null, 2) + '\n')
-    if (replay.results.some(r => !r.ok) || after.some(i => i.level === 'error')) process.exitCode = 1
+    process.stdout.write(JSON.stringify({ results: replay.results.map(r => ({ ...r, ...(r.error ? { error: agentUnits(r.error) } : {}), ...(r.warnings ? { warnings: r.warnings.map(agentUnits) } : {}) })), issues: after.map(i => ({ ...i, level: i.level === 'error' && !blocksPersistence(i) ? 'warn' : i.level, message: agentUnits(i.message) })) }, null, 2) + '\n')
+    if (replay.results.some(r => !r.ok) || after.some(blocksPersistence)) process.exitCode = 1
   } else if (command === 'decor') {
     const after = plan.legacy?.__structureReplayFrame ? plan : applyChanges(plan, plan.changes.filter(c => c.status === 'confirmed')).plan, resolved = decorStatus(plan)
     const decor = planFileValue({ ...plan, decor: resolved.decor }).decor
     const items = new Map(decor ? decorItems(decor).map(i => [i.id, i]) : [])
     const storedItems = (list: typeof resolved.items) => list.map(i => ({ ...i, item: items.get(i.id), reasons: i.reasons.map(agentUnits) }))
-    process.stdout.write(JSON.stringify({ ...resolved, decor, items: storedItems(resolved.items), placed: storedItems(resolved.placed),
-      issues: resolved.issues.map(i => ({ ...i, text: agentUnits(i.text) })),
+    if (output !== undefined && output !== '--brief') throw new Error(`未知参数：${output}`)
+    if (output === '--brief') process.stdout.write(JSON.stringify({ pendingCount: pendingCount(plan.decor), items: resolved.items.map(i => ({ id: i.id, status: i.status, reasons: i.reasons.map(agentUnits) })), issues: resolved.issues.map(i => ({ ...i, level: i.level === 'error' && !blocksPersistence({ level: i.level, code: 'decor-' + i.code }) ? 'warn' : i.level, text: agentUnits(i.text) })) }, null, 2) + '\n')
+    else process.stdout.write(JSON.stringify({ ...resolved, decor, pendingCount: pendingCount(plan.decor), items: storedItems(resolved.items), placed: storedItems(resolved.placed),
+      issues: resolved.issues.map(i => ({ ...i, level: i.level === 'error' && !blocksPersistence({ level: i.level, code: 'decor-' + i.code }) ? 'warn' : i.level, text: agentUnits(i.text) })),
       rehosted: plan.decor ? planFileValue({ ...plan, decor: rehostDecor(plan, after, plan.decor) }).decor : undefined,
       materials: materialTakeoff({ ...after, decor: resolved.decor }) }, null, 2) + '\n')
-    if (resolved.issues.some(i => i.level === 'error')) process.exitCode = 1
+    if (resolved.issues.some(i => blocksPersistence({ level: i.level, code: 'decor-' + i.code }))) process.exitCode = 1
   } else { const stats = planStats(plan); stats.byLevel?.forEach(l => { l.elevation = lengthUnit(l.elevation) }); process.stdout.write(JSON.stringify(stats, null, 2) + '\n') }
 } catch (error) {
   process.stderr.write(`错误：${error instanceof Error ? error.message : String(error)}\n`)

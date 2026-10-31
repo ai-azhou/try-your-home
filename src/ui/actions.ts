@@ -2,7 +2,7 @@
  * 界面动作：把用户操作翻成 core 的 Change / 函数调用，再交给 store.edit。
  * 文件（打开 / 导出 / 底图）、本地自动保存、本地服务模式的轮询也在这里。
  */
-import type { Change, Level, Opening, Plan, Room, Wall } from '@/core/types'
+import type { Change, Level, Opening, Plan, Room, Underlay, Wall } from '@/core/types'
 import { DEFAULTS, PROTECTED_KINDS } from '@/core/types'
 import { projectToWall, planBounds, polygonArea } from '@/core/geometry'
 import { mirrorPlan, removeElement, splitWall, updateBeam, updateElement, updateOpening, updateRoom, updateWall } from '@/core/edit'
@@ -137,7 +137,8 @@ function installMirrorHistory() {
       // Clear the store's edit-coalescing key using its existing action, then restore the full snapshot.
       if (direction === 'undo') nativeUndo(); else nativeRedo()
       history = result.history
-      useStore.setState({ base: result.plan, hist: indicators(), dirty: true, sel: [] })
+      // 底图的不透明度、显隐不算编辑：撤销别的改动时留在现在的值
+      useStore.setState({ base: carryUnderlayView(result.plan, s.base), hist: indicators(), dirty: true, sel: [] })
     } finally { syncing = false }
   }
   useStore.setState({ undo: () => step('undo'), redo: () => step('redo') })
@@ -430,21 +431,29 @@ export function readAutosave(): Autosave | null {
 }
 export function startAutosave() {
   let timer: ReturnType<typeof setTimeout> | undefined
-  return useStore.subscribe((s, prev) => {
+  const write = () => {
+    timer = undefined
+    const cur = st()
+    try {
+      // A failed load or blank/invalid document must never replace the last recovery copy.
+      // 受保护改动还没答「我确认」：只是预览，刷新后不能算数
+      if (!cur.base || cur.loadFailure || cur.unconfirmed || planWriteError(cur.base)) return
+      localStorage.setItem(KEY, JSON.stringify({ plan: JSON.parse(serializePlan(cur.base)), source: { kind: cur.source.kind, file: cur.source.file, etag: cur.source.etag }, dirty: cur.dirty, underlayNames: cur.underlayNames, savedAt: new Date().toISOString() }))
+      cur.markSaved('saved')
+    } catch { cur.markSaved('failed') }
+  }
+  // 还没写下去就关页面或刷新：先写，不丢这几百毫秒里的改动
+  const flush = () => { if (timer !== undefined) { clearTimeout(timer); write() } }
+  globalThis.addEventListener?.('pagehide', flush)
+  const off = useStore.subscribe((s, prev) => {
     // dirty、source 也要跟上：连接文件时，刷新后靠它们判断本地有没有没写回的改动
     if (s.base === prev.base && s.dirty === prev.dirty && s.source === prev.source && s.unconfirmed === prev.unconfirmed) return
     clearTimeout(timer)
-    timer = setTimeout(() => {
-      const cur = st()
-      try {
-        // A failed load or blank/invalid document must never replace the last recovery copy.
-        // 受保护改动还没答「我确认」：只是预览，刷新后不能算数
-        if (!cur.base || cur.loadFailure || cur.unconfirmed || planWriteError(cur.base)) return
-        localStorage.setItem(KEY, JSON.stringify({ plan: JSON.parse(serializePlan(cur.base)), source: { kind: cur.source.kind, file: cur.source.file, etag: cur.source.etag }, dirty: cur.dirty, underlayNames: cur.underlayNames, savedAt: new Date().toISOString() }))
-        cur.markSaved('saved')
-      } catch { cur.markSaved('failed') }
-    }, 400)
+    // 刚写回文件：本地副本立刻跟上。不然这时刷新，会把写回之前的内容当成没保存的改动恢复出来
+    if (prev.dirty && !s.dirty) { write(); return }
+    timer = setTimeout(write, 400)
   })
+  return () => { off(); globalThis.removeEventListener?.('pagehide', flush); clearTimeout(timer) }
 }
 
 /* ───────── 外部版本（服务模式、连接文件共用）：坏的不载入；没有未保存改动直接载入，有就先问 ───────── */
@@ -457,7 +466,16 @@ function takeRevision(w: Watch, text: string, revision: string, file: string, s:
   if (error) { w.rejected = revision; rejectLoad(error, text); return }
   if (st().base !== s.base || st().source !== s.source) return
   if (!st().dirty) reload()
-  else if (revision !== w.offered && (!st().notice || st().loadFailure)) {
+  else if (st().base === viewOnlyBase) {
+    // 本地只改了底图显示（还没写回或者刚被冲突拦下）：载入新版本，把这个值带过去再写回，Agent 写的内容一点不丢
+    const keep = st().base!
+    reload()
+    const now = st().base
+    if (now && now !== keep) {
+      const merged = carryUnderlayView(now, keep)
+      if (merged !== now) { useStore.setState({ base: merged, dirty: true }); viewOnlyBase = merged; commitUnderlayView() }
+    }
+  } else if (revision !== w.offered && (!st().notice || st().loadFailure)) {
     w.offered = revision
     st().setNotice({ text: t().agentUpdated, actions: [{ label: t().act.load, primary: true, run: reload }, { label: t().act.later, run: () => { w.skipped = revision; st().setNotice(null) } }] })
   }
@@ -492,7 +510,7 @@ export async function loadServed(file: string): Promise<boolean> {
  */
 const ownEtags = new Set<string>()
 let saveInFlight = false
-export async function saveServed(): Promise<boolean> {
+export async function saveServed(opts: { quiet?: boolean } = {}): Promise<boolean> {
   const s = st()
   if (s.source.kind !== 'served' || saveInFlight || writeBlocked() || !s.base) return false
   const file = new URLSearchParams(location.search).get('plan')
@@ -511,12 +529,14 @@ export async function saveServed(): Promise<boolean> {
     // 保存期间用户又改了：仍算有未保存改动
     const changedSince = st().base !== base
     useStore.setState(x => ({ source: { ...x.source, etag: etag ?? x.source.etag }, dirty: changedSince ? x.dirty : false, cleanBase: base }))
-    st().showToast(fmt(t().s2a.save.saved, { file }))
+    if (!opts.quiet) st().showToast(fmt(t().s2a.save.saved, { file }))
     return true
   } catch (e) {
-    st().showToast(fmt(t().s2a.save.failed, { e: e instanceof Error ? e.message : String(e) }))
+    const message = e instanceof Error ? e.message : String(e)
+    // 底图显示的静默写回撞上别人刚写的（409）：不吓人，轮询会载入新版本再带上这个值
+    if (!opts.quiet || !message.startsWith('409')) st().showToast(fmt(t().s2a.save.failed, { e: message }))
     return false
-  } finally { saveInFlight = false; useStore.setState({ saving: false }) }
+  } finally { saveInFlight = false; useStore.setState({ saving: false }); afterSave() }
 }
 /** ⌘S：服务模式写回方案文件，否则导出 JSON */
 export function saveOrExport() {
@@ -525,7 +545,39 @@ export function saveOrExport() {
 }
 /** 服务模式、连接文件：改动能直接写回方案文件 */
 export const isConnected = (source: Source) => source.kind === 'served' || source.kind === 'linked'
-export const saveToFile = () => st().source.kind === 'linked' ? saveLinked() : saveServed()
+export const saveToFile = (opts?: { quiet?: boolean }) => st().source.kind === 'linked' ? saveLinked(opts) : saveServed(opts)
+
+/* ───────── 底图的不透明度、显隐：不进撤销历史；连着文件时松手就写回，下次打开还是这个值 ───────── */
+/** 上一次「只改了底图显示」之后的方案：base 还是它，就说明除了底图显示没有别的未保存改动 */
+let viewOnlyBase: Plan | null = null
+let flushAfterSave = false
+export function setUnderlayView(patch: { opacity?: number; visible?: boolean }) {
+  const s = st(), clean = !s.dirty || s.base === viewOnlyBase
+  s.setUnderlay(patch, { history: false })
+  viewOnlyBase = clean ? st().base : null
+}
+export function toggleUnderlayView() {
+  const s = st(), clean = !s.dirty || s.base === viewOnlyBase
+  s.toggleLayer('underlay')
+  viewOnlyBase = clean ? st().base : null
+  commitUnderlayView()
+}
+/** 松手：没有别的未保存改动就写回（走保存本来的冲突检测）；有的话留给下一次保存，这个值跟着一起写 */
+export function commitUnderlayView() {
+  const s = st()
+  if (!isConnected(s.source) || !s.dirty || s.base !== viewOnlyBase) return
+  if (saveInFlight) { flushAfterSave = true; return }
+  void saveToFile({ quiet: true })
+}
+function afterSave() { if (flushAfterSave) { flushAfterSave = false; commitUnderlayView() } }
+const sameView = (a: Underlay | undefined, b: Underlay | undefined) => !a || !b || a.opacity === b.opacity && a.visible === b.visible
+/** 把 from 的底图显示设置抄到 to 上（同一张底图、同一层），没差别就返回 to 本身 */
+function carryUnderlayView(to: Plan, from: Plan): Plan {
+  const pick = (a: Underlay | undefined, b: Underlay | undefined) => a && b ? { ...a, opacity: b.opacity, visible: b.visible } : a
+  const keys = Object.keys(to.levelUnderlays ?? {})
+  if (sameView(to.underlay, from.underlay) && keys.every(k => sameView(to.levelUnderlays![k], from.levelUnderlays?.[k]))) return to
+  return { ...to, ...(to.underlay ? { underlay: pick(to.underlay, from.underlay) } : {}), ...(to.levelUnderlays ? { levelUnderlays: Object.fromEntries(keys.map(k => [k, pick(to.levelUnderlays![k], from.levelUnderlays?.[k])!])) } : {}) }
+}
 
 export function startPolling(file: string) {
   const w = newWatch()
@@ -591,7 +643,7 @@ export async function handleDrop(data: DataTransfer | null | undefined) {
   else await handleFiles(files)
 }
 /** 写回连接的文件。Agent 刚改过就不写，免得盖掉；写回要的权限比读高，第一次会问 */
-export async function saveLinked(): Promise<boolean> {
+export async function saveLinked(opts: { quiet?: boolean } = {}): Promise<boolean> {
   const s = st(), h = linkedHandle
   if (s.source.kind !== 'linked' || !h || saveInFlight || writeBlocked() || !s.base) return false
   saveInFlight = true
@@ -600,6 +652,8 @@ export async function saveLinked(): Promise<boolean> {
   try {
     if (await h.queryPermission({ mode: 'readwrite' }) !== 'granted' && await h.requestPermission({ mode: 'readwrite' }) !== 'granted') { s.showToast(t().linkNoWrite); return false }
     if (stampOf(await h.getFile()) !== s.source.etag) {
+      // 底图显示的静默写回：不弹冲突条，下一次比对会载入新版本再带上这个值
+      if (opts.quiet) return false
       s.setNotice({ text: t().linkConflict, actions: [{ label: t().act.load, primary: true, run: () => { st().setNotice(null); void openHandle(h) } }, { label: t().act.dismiss, run: () => st().setNotice(null) }] })
       return false
     }
@@ -608,12 +662,13 @@ export async function saveLinked(): Promise<boolean> {
     await w.close()
     const etag = stampOf(await h.getFile()), changedSince = st().base !== base
     useStore.setState(x => ({ source: { ...x.source, etag }, dirty: changedSince ? x.dirty : false, cleanBase: base }))
-    st().showToast(fmt(t().s2a.save.saved, { file: h.name }))
+    if (!opts.quiet) st().showToast(fmt(t().s2a.save.saved, { file: h.name }))
     return true
   } catch (e) {
-    st().showToast(fmt(t().s2a.save.failed, { e: e instanceof Error ? e.message : String(e) }))
+    // 静默写回且不是用户手势里（要不到写权限）：不打扰，等下一次保存
+    if (!opts.quiet || (e as Error).name !== 'SecurityError') st().showToast(fmt(t().s2a.save.failed, { e: e instanceof Error ? e.message : String(e) }))
     return false
-  } finally { saveInFlight = false; useStore.setState({ saving: false }) }
+  } finally { saveInFlight = false; useStore.setState({ saving: false }); afterSave() }
 }
 /** 本地有没写回的改动：恢复它们，文件的新版本交给轮询来问，不直接盖掉 */
 function restoreUnsaved(h: PlanFileHandle, saved: Autosave) {

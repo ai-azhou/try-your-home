@@ -4,13 +4,16 @@
  * 凹凸用同一束左上来的光解释，不靠图例。剖到的两端墙用平面里学会的墙色。
  */
 import type { ReactNode } from 'react'
-import type { Cabinet, Decor } from '@/core/decor/types'
+import type { Cabinet, ComponentPath, CustomComponent, Decor, DoorFinish, FaceRef, Furniture, Surface } from '@/core/decor/types'
 import type { CabinetLayout } from '@/core/decor/cabinets'
+import { componentFrontPaths, componentOf, componentPrisms } from '@/core/decor/components'
+import { furniturePose, isFlatFurniture } from '@/core/decor/furniture'
 import { C, elevTone, shade } from '../canvas2d/style'
-import { faceFinish, matOf, roleMat, styleOf, type DecorIssues } from './model'
+import { doorOfOpening, faceFinish, finishColor, matOf, overheadIds, roleMat, styleOf, type DecorIssues } from './model'
 import type { ElevModel } from './elev-model'
 import type { DSel } from './dstore'
-import type { Plan } from '@/core/types'
+import type { Opening, Plan } from '@/core/types'
+import { wallDir } from '@/core/geometry'
 
 export interface Frame { k: number; tx: number; ty: number }
 export const X = (F: Frame, u: number) => F.tx + u * F.k
@@ -26,6 +29,7 @@ export function ElevDefs({ id }: { id: string }) {
       <pattern id={`${id}-beam`} width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#cfd3d9" /><rect width="1.4" height="6" fill="#aeb3bb" /></pattern>
       <pattern id={`${id}-bearing`} width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="#1f232a" /><rect width="1.2" height="5" fill="#4a515c" /></pattern>
       <pattern id={`${id}-lemon`} width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="9" height="9" fill="rgb(226 238 110 / 0.16)" /><rect width="2.6" height="9" fill="rgb(212 227 72 / 0.5)" /></pattern>
+      <pattern id={`${id}-lav`} width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><rect width="9" height="9" fill="rgb(235 231 254 / 0.55)" /><rect width="2.6" height="9" fill="rgb(195 182 251 / 0.8)" /></pattern>
       <linearGradient id={`${id}-shR`} x1="0" x2="1"><stop offset="0" stopColor="#1c2434" stopOpacity=".20" /><stop offset="1" stopColor="#1c2434" stopOpacity="0" /></linearGradient>
       <linearGradient id={`${id}-shB`} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#1c2434" stopOpacity=".22" /><stop offset="1" stopColor="#1c2434" stopOpacity="0" /></linearGradient>
       <linearGradient id={`${id}-inT`} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#1c2434" stopOpacity=".30" /><stop offset="1" stopColor="#1c2434" stopOpacity="0" /></linearGradient>
@@ -153,6 +157,60 @@ function CabinetElev({ id, F, c, L, u0, decor, styleId, faceColor, cellSel }: { 
 }
 const rectProps = (r: ReturnType<typeof R>) => ({ x: r.x, y: r.y, width: Math.max(0, r.w), height: Math.max(0, r.h) })
 
+/* ───────── Agent 画的构件的立面 ───────── */
+/** 正对着看：构件的正面朝着站在房间里看这面墙的人（靠的就是这面墙，或朝向一致） */
+export function facesViewer(plan: Plan, f: Furniture, face: FaceRef, n: [number, number]) {
+  if (f.against && f.against.face.wall === face.wall && f.against.face.side === face.side) return true
+  try { const a = furniturePose(plan, f).rot * Math.PI / 180; return -Math.sin(a) * n[0] + Math.cos(a) * n[1] > 0.7 } catch { return false }
+}
+/** 路径坐标是「构件正面」画布（宽 × 高，(0,0) 在左上，y 向下），缩放进立面上这一块；线宽不跟着缩放 */
+function frontAttrs(p: ComponentPath) {
+  const style = p.style ?? 'outline'
+  return { fill: p.fill && p.fill !== 'none' ? elevTone(p.fill) : 'none', stroke: p.stroke === 'none' ? 'none' : p.stroke ? elevTone(p.stroke) : style === 'outline' ? '#545a63' : style === 'detail' ? '#8e949d' : '#8e949d', strokeWidth: style === 'outline' ? 1 : 0.8, vectorEffect: 'non-scaling-stroke' as const, fillRule: 'evenodd' as const, ...(style === 'dashed' ? { strokeDasharray: '4 3' } : {}) }
+}
+function CustomFront({ def, r, mirror, faceColor }: { def: CustomComponent; r: ReturnType<typeof R>; mirror: boolean; faceColor: string }) {
+  const sx = r.w / def.size[0], sy = r.h / def.height
+  const T = `translate(${r.x + (mirror ? r.w : 0)} ${r.y}) scale(${mirror ? -sx : sx} ${sy})`
+  let prisms: ReturnType<typeof componentPrisms> = [], paths: ComponentPath[] = []
+  try { prisms = componentPrisms(def); paths = componentFrontPaths(def) } catch { /* 校验会报 */ }
+  // 先按部件铺外形和颜色（靠后的先画），再叠定义里的正面线（屏幕、门缝这些）
+  const blocks = prisms.map(pr => {
+    const pts = pr.polygons.flatMap(rings => rings[0]), xs = pts.map(q => q[0]), ys = pts.map(q => q[1])
+    return { x0: Math.min(...xs), x1: Math.max(...xs), y1: Math.max(...ys), top: def.height - pr.z1, h: pr.z1 - pr.z0, color: pr.color }
+  }).sort((a, b) => a.y1 - b.y1)
+  return (
+    <g transform={T}>
+      {blocks.map((b, i) => <rect key={i} x={b.x0} y={b.top} width={b.x1 - b.x0} height={b.h} fill={b.color ? elevTone(b.color) : shade(faceColor, 0.015)} />)}
+      {paths.map((p, i) => <path key={`p${i}`} d={p.d} {...frontAttrs(p)} />)}
+    </g>
+  )
+}
+/**
+ * 门的外观：门洞里画门板（外观颜色 + 门框 + 正面图路径）。路径来自方案文件，只当 <path d> 属性用；
+ * 正面图的 x 沿墙 a → b 量，从另一侧看（或写了 flip）左右翻过来；线宽不跟着缩放。
+ */
+function DoorPanel({ r, o, d, decor, mirror }: { r: ReturnType<typeof R>; o: Opening; d: DoorFinish; decor: Decor | undefined; mirror: boolean }) {
+  const leaf = finishColor(decor, d), frame = finishColor(decor, d.frame)
+  const col = leaf ? elevTone(leaf) : null
+  const sx = r.w / o.width, sy = r.h / ((o.head - o.sill) * 1000)
+  const T = `translate(${r.x + (mirror ? r.w : 0)} ${r.y}) scale(${mirror ? -sx : sx} ${sy})`
+  const fw = Math.max(2, 45 * sx)
+  return (
+    <g data-elev="door" data-id={d.id} data-opening={o.id} data-mirror={mirror ? '1' : undefined}>
+      {col && <rect {...rectProps(r)} fill={col} data-door-fill="1" />}
+      {(d.front ?? []).length > 0 && <g transform={T}>{d.front!.map((p, i) => <path key={i} d={p.d} {...frontAttrs(p)} />)}</g>}
+      {frame && <path d={`M${r.x + fw / 2} ${r.y + r.h}V${r.y + fw / 2}H${r.x + r.w - fw / 2}V${r.y + r.h}`} fill="none" stroke={elevTone(frame)} strokeWidth={fw} data-door-frame="1" />}
+      <rect {...rectProps(r)} fill="none" stroke={col ? shade(col, -0.16) : '#8e949d'} strokeWidth={0.9} />
+    </g>
+  )
+}
+/** 待确认的墙面覆盖在立面上的范围（一段 / 到某个高度；整面就是整面） */
+function pendingSurfaceRect(m: ElevModel, s: Surface): { u: [number, number]; z: [number, number] } | null {
+  if (!('face' in s.target) || s.target.face.wall !== m.face.wall || s.target.face.side !== m.face.side) return null
+  const a = s.target.s ? m.ax.toU(s.target.s[0]) : m.u[0], b = s.target.s ? m.ax.toU(s.target.s[1]) : m.u[1]
+  return { u: [Math.min(a, b), Math.max(a, b)], z: s.target.z ?? [0, m.H] }
+}
+
 export interface ElevDrawProps {
   id: string
   F: Frame
@@ -185,6 +243,8 @@ export function ElevDrawing(P: ElevDrawProps) {
   const isSel = (k: string, idd: string) => !!sel && 'id' in sel && sel.k === k && sel.id === idd
   const endFill = (k: string) => k === 'bearing' ? `url(#${id}-bearing)` : k === 'exterior' ? '#3c424b' : k === 'glass' ? '#c7e6f8' : '#adb3bc'
   const skirt = decor ? elevTone(roleMat(st, 'skirting', decor).color) : null
+  // 顶上的东西（比如只有 30 mm 厚的吸顶灯）不是贴地的扁平件，立面上照常画
+  const overhead = overheadIds(P.plan, decor), flat = (f: Furniture) => isFlatFurniture(decor, f) && !overhead.has(f.id)
   const out: ReactNode[] = []
   // 墙面：整面材料 + 一段 / 到某个高度的覆盖
   out.push(<rect key="face" {...rectProps(R(F, m.u[0], 0, m.u[1], H))} fill={faceColor} data-elev="face" />)
@@ -207,9 +267,12 @@ export function ElevDrawing(P: ElevDrawProps) {
   for (const { o, u } of m.openings) {
     const r = R(F, u[0], o.sill, u[1], Math.min(o.head, H))
     const win = o.kind.includes('window') || o.kind === 'open-balcony'
+    const door = doorOfOpening(decor, o.id), host = door && P.plan.walls.find(w => w.id === o.wall)
+    const mirror = !!door && (!!host && wallDir(host)[0] * m.ax.dir[0] + wallDir(host)[1] * m.ax.dir[1] < 0) !== !!door.flip
     out.push(<g key={o.id} pointerEvents="none">
       <rect {...rectProps(r)} fill={win ? '#eaf4fb' : '#ffffff'} stroke="#8e949d" strokeWidth={0.9} />
-      {o.kind === 'door' && <path d={`M${r.x} ${r.y + r.h}L${r.x + r.w} ${r.y + r.h / 2}L${r.x} ${r.y}`} stroke="#b3b8c0" strokeWidth={0.9} strokeDasharray="4 3" fill="none" />}
+      {door && <DoorPanel r={r} o={o} d={door} decor={decor} mirror={mirror} />}
+      {o.kind === 'door' && !door?.front?.length && <path d={`M${r.x} ${r.y + r.h}L${r.x + r.w} ${r.y + r.h / 2}L${r.x} ${r.y}`} stroke="#b3b8c0" strokeWidth={0.9} strokeDasharray="4 3" fill="none" />}
       {win && (o.panes?.length ? o.panes.slice(0, -1).reduce<number[]>((acc, p) => [...acc, (acc.at(-1) ?? 0) + p.width], []).map((t, i) => <path key={i} d={`M${r.x + r.w * t} ${r.y}V${r.y + r.h}`} stroke="#4fa3d8" strokeWidth={0.9} />) : <path d={`M${r.x + r.w / 2} ${r.y}V${r.y + r.h}`} stroke="#4fa3d8" strokeWidth={0.9} />)}
     </g>)
   }
@@ -248,9 +311,17 @@ export function ElevDrawing(P: ElevDrawProps) {
   }
   // 家电放进洞里 / 壁挂电视：深色圆角板 + 很淡的屏幕反光；靠墙的家具：淡墨虚线轮廓，不填色
   for (const { f, u, z, held } of m.furniture) {
+    if (flat(f)) continue // 贴地的构件（地毯）在立面上看不见
     const r = R(F, u[0], z[0], u[1], z[1])
-    if (f.type === 'tv' || held) out.push(<g key={f.id} data-elev="furniture" data-id={f.id}><rect {...rectProps(r)} rx={4} fill={`url(#${id}-tv)`} /><path d={`M${r.x + r.w * 0.08} ${r.y + r.h * 0.9}L${r.x + r.w * 0.42} ${r.y + r.h * 0.08}`} stroke="#fff" strokeOpacity={0.05} strokeWidth={r.w * 0.12} /></g>)
-    else out.push(<g key={f.id} pointerEvents="none"><rect {...rectProps(r)} rx={3} fill="none" stroke="#545a63" strokeOpacity={0.38} strokeWidth={1} strokeDasharray="4 3" />{r.w > (P.mini ? 24 : 40) && <text x={r.x + r.w / 2} y={r.y + r.h / 2 + (P.mini ? 3 : 4)} fontSize={P.mini ? 8.5 : 10.5} fontWeight={600} fill="#8e949d" textAnchor="middle">{P.mini ? (f.name ?? '').replace(/双人|三人|单人/, '').slice(0, 2) : f.name ?? ''}</text>}</g>)
+    const def = componentOf(decor, f.type)
+    if (def && facesViewer(P.plan, f, m.face, m.ax.normal as [number, number])) {
+      // 正对着看：画构件的正面图。局部 x 在屏幕上是不是从左到右看朝向，再加上 flip
+      let right: [number, number] = [1, 0]
+      try { const a = furniturePose(P.plan, f).rot * Math.PI / 180; right = [Math.cos(a), Math.sin(a)] } catch { /* */ }
+      const mirror = (right[0] * m.ax.dir[0] + right[1] * m.ax.dir[1] < 0) !== !!f.flip
+      out.push(<g key={f.id} data-elev="furniture" data-id={f.id} data-front="1"><CustomFront def={def} r={r} mirror={mirror} faceColor={faceColor} /></g>)
+    } else if (f.type === 'tv' || held) out.push(<g key={f.id} data-elev="furniture" data-id={f.id}><rect {...rectProps(r)} rx={4} fill={`url(#${id}-tv)`} /><path d={`M${r.x + r.w * 0.08} ${r.y + r.h * 0.9}L${r.x + r.w * 0.42} ${r.y + r.h * 0.08}`} stroke="#fff" strokeOpacity={0.05} strokeWidth={r.w * 0.12} /></g>)
+    else { const name = f.name ?? def?.name ?? ''; out.push(<g key={f.id} pointerEvents="none" data-elev-outline={f.id}><rect {...rectProps(r)} rx={3} fill="none" stroke="#545a63" strokeOpacity={0.38} strokeWidth={1} strokeDasharray="4 3" />{r.w > (P.mini ? 24 : 40) && <text x={r.x + r.w / 2} y={r.y + r.h / 2 + (P.mini ? 3 : 4)} fontSize={P.mini ? 8.5 : 10.5} fontWeight={600} fill="#8e949d" textAnchor="middle">{P.mini ? name.replace(/双人|三人|单人/, '').slice(0, 2) : name}</text>}</g>) }
   }
   // 梁：垂直的 = 剖到的一块；平行的 = 顶上一条虚线带
   for (const b of m.beams) {
@@ -260,6 +331,17 @@ export function ElevDrawing(P: ElevDrawProps) {
   // 没地方挂、超出墙面：柠檬虚线框 + 斜纹（立面里只有「超出墙面 / 压到洞口」会出现）
   const bad = new Set((P.issues?.all ?? []).filter(i => ['out-of-face', 'over-opening'].includes(i.code)).map(i => i.id))
   for (const { c, u0 } of m.cabinets) if (bad.has(c.id)) out.push(<rect key={`bad${c.id}`} {...rectProps(R(F, u0, c.z[0], u0 + c.width, c.z[1]))} fill={`url(#${id}-lemon)`} stroke={C.lemon600} strokeWidth={1.5} strokeDasharray="6 4" pointerEvents="none" />)
+  for (const { f, u, z } of m.furniture) if (bad.has(f.id)) out.push(<rect key={`bad${f.id}`} {...rectProps(R(F, u[0], z[0], u[1], z[1]))} fill="none" stroke={C.lemon600} strokeWidth={1.5} strokeDasharray="6 4" pointerEvents="none" />)
+  // Agent 提议还没确认的：淡紫斜纹 + 紫色虚线（和平面、结构提议同一套）
+  const pendingRects: { id: string; r: { u: [number, number]; z: [number, number] } }[] = []
+  for (const it of m.panels) if (it.p.status === 'pending' && it.p.type !== 'skirting') pendingRects.push({ id: it.p.id, r: { u: [it.u0 + it.geo.rect.u[0], it.u0 + it.geo.rect.u[1]], z: it.geo.rect.z } })
+  for (const it of m.cabinets) if (it.c.status === 'pending') pendingRects.push({ id: it.c.id, r: { u: [it.u0, it.u0 + it.c.width], z: it.c.z } })
+  for (const it of m.niches) if (it.r.status === 'pending') pendingRects.push({ id: it.r.id, r: { u: it.u, z: it.r.rect.z } })
+  for (const it of m.openings) { const dr = doorOfOpening(decor, it.o.id); if (dr?.status === 'pending') pendingRects.push({ id: dr.id, r: { u: it.u, z: [it.o.sill, Math.min(it.o.head, H)] } }) }
+  for (const it of m.furniture) if (it.f.status === 'pending' && !flat(it.f)) pendingRects.push({ id: it.f.id, r: { u: it.u, z: it.z } })
+  for (const h of decor?.recesses ?? []) if (h.status === 'pending' && !('face' in h.host)) { const r = rectOfSel(m, decor, 'recess', h.id); if (r) pendingRects.push({ id: h.id, r }) }
+  if (!P.cabEdit) for (const sf of decor?.surfaces ?? []) if (sf.status === 'pending') { const r = pendingSurfaceRect(m, sf); if (r) pendingRects.push({ id: sf.id, r }) }
+  for (const { id: pid, r } of pendingRects) out.push(<rect key={`pd${pid}`} data-pending={pid} {...rectProps(R(F, r.u[0], r.z[0], r.u[1], r.z[1]))} fill={`url(#${id}-lav)`} stroke={C.lav500} strokeWidth={1.5} strokeDasharray="6 4" pointerEvents="none" />)
 
   // 选中
   const selNodes: ReactNode[] = []
@@ -267,7 +349,10 @@ export function ElevDrawing(P: ElevDrawProps) {
     const r = rectOfSel(m, decor, sel.k, sel.id)
     if (r) {
       const rr = R(F, r.u[0], r.z[0], r.u[1], r.z[1])
-      selNodes.push(<SelBox key="sel" r={rr} bottom={r.z[0] > 0.01} />)
+      // 家具的形状不在立面上改（电视、构件只能挪），不出改尺寸的抓手
+      // 门的外观、拱形门套跟着门洞走，也不出
+      const fixed = sel.k === 'door' || (sel.k === 'panel' && decor?.panels.find(x => x.id === sel.id)?.type === 'arch')
+      selNodes.push(<SelBox key="sel" r={rr} bottom={r.z[0] > 0.01} handles={sel.k !== 'furniture' && !fixed} />)
       if (sel.k === 'cabinet') { const c = decor?.cabinets.find(x => x.id === sel.id); if (c?.embed) selNodes.push(<Pill key="emb" x={rr.x + rr.w / 2} y={rr.y + 34} text={`嵌进墙 ${c.embed}`} tone="ink" />) }
       if (sel.k === 'recess') { const rc = decor?.recesses.find(x => x.id === sel.id); if (rc && typeof rc.depth === 'number') selNodes.push(<Pill key="emb" x={rr.x + rr.w / 2} y={rr.y + 22} text={`${'face' in rc.host ? '挖进墙' : '挖进'} ${rc.depth}`} tone="ink" />) }
     }
@@ -297,6 +382,7 @@ export function ElevDrawing(P: ElevDrawProps) {
       if (r) {
         dimNodes.push(<HDim key="sw" x0={X(F, r.u[0])} x1={X(F, r.u[1])} y={yb} text={Math.round(r.u[1] - r.u[0]).toLocaleString('en-US')} tone="ink" />)
         dimNodes.push(<VDim key="sh" y0={Y(F, r.z[0])} y1={Y(F, r.z[1])} x={left + 38} text={(r.z[1] - r.z[0]).toFixed(2)} tone="ink" />)
+        if (sel.k === 'furniture' && r.z[0] > 0.01) dimNodes.push(<VDim key="sl" y0={Y(F, 0)} y1={Y(F, r.z[0])} x={left + 38} text={r.z[0].toFixed(2)} />)
       }
     }
     if (P.cabEdit) {
@@ -357,5 +443,6 @@ export function rectOfSel(m: ElevModel, decor: Decor | undefined, k: string, id:
     return null
   }
   if (k === 'furniture') { const f = m.furniture.find(x => x.f.id === id); return f ? { u: f.u, z: f.z } : null }
+  if (k === 'door') { const dr = decor?.doors?.find(x => x.id === id), o = dr && m.openings.find(x => x.o.id === dr.opening); return o ? { u: o.u, z: [o.o.sill, Math.min(o.o.head, m.H)] } : null }
   return null
 }

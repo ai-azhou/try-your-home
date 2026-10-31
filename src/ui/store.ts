@@ -8,6 +8,7 @@ import { bakeChange } from '@/core/edit'
 import type { ImportReport } from '@/core/legacy'
 import { dicts, type Lang } from './i18n'
 import { computeView, elementLabel, findAny, type Mode, type Ref, type View } from './model'
+import { curLevelId, underlayOf } from './levels-ui'
 
 export type { Mode, Ref, View }
 export type Tool = 'select' | 'wall' | 'opening' | 'beam' | 'room' | 'underlay' | 'column' | 'shaft' | 'stair' | 'void'
@@ -142,7 +143,7 @@ interface Actions {
   redo(): void
   /** 直接改整份方案（镜像、分段、底图等不走 Change 的操作），记进原始结构的历史 */
   replaceBase(next: Plan, opts?: { history?: boolean; key?: string }): void
-  setUnderlay(patch: Partial<Underlay> | null, opts?: { history?: boolean; key?: string }): void
+  setUnderlay(patch: Partial<Underlay> | null, opts?: { history?: boolean; key?: string; main?: boolean }): void
   markSaved(state: State['saveState']): void
   markExported(): void
   setSource(s: Partial<Source>): void
@@ -291,7 +292,7 @@ export const useStore = create<State & Actions>()((set, get) => ({
   setStyle3d: style3d => set({ style3d }),
   toggleLayer: k => {
     const s = get()
-    if (k === 'underlay' && s.base?.underlay) { s.setUnderlay({ visible: !s.base.underlay.visible }); set({ layers: { ...s.layers, underlay: !s.base.underlay.visible } }); return }
+    if (k === 'underlay') { const u = underlayOf(s.base, s.level); if (u) { s.setUnderlay({ visible: !u.visible }); set({ layers: { ...s.layers, underlay: !u.visible } }) } return }
     set({ layers: { ...s.layers, [k]: !s.layers[k] } })
   },
   setLang: lang => set({ lang }),
@@ -419,6 +420,13 @@ export const useStore = create<State & Actions>()((set, get) => ({
   setUnderlay: (patch, opts = { history: false }) => {
     const s = get()
     if (!s.base) return
+    // 这一层有自己的底图：改的是它（opts.main 明确要改全局那张时除外）
+    const lv = !opts.main && s.base.levelUnderlays ? curLevelId(s.base, s.level) : null, own = lv ? s.base.levelUnderlays?.[lv] : undefined
+    if (lv && own) {
+      const { [lv]: _old, ...others } = s.base.levelUnderlays!
+      s.replaceBase({ ...s.base, levelUnderlays: patch ? { ...s.base.levelUnderlays, [lv]: { ...own, ...patch } } : others }, opts)
+      return
+    }
     if (!patch) { const { underlay: _u, ...rest } = s.base; s.replaceBase(rest as Plan, opts); return }
     if (!s.base.underlay) return
     s.replaceBase({ ...s.base, underlay: { ...s.base.underlay, ...patch } }, opts)

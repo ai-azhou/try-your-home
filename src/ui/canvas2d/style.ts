@@ -88,6 +88,13 @@ export function planTone(hex: string, dL = 0) {
   if (!v) { const c = oklch(hex); v = fromOklch({ L: Math.min(0.975, Math.max(0.895, c.L + (1 - c.L) * 0.5)) + dL, C: Math.min(c.C * 0.6, PLAN_CHROMA_MAX), h: c.h }); toneCache.set(key, v) }
   return v
 }
+/** 平面线色（Agent 画的构件定义里的 stroke）：只压彩度，明度不拉——线要看得见 */
+export function planLine(hex: string) {
+  const key = `l${hex}`
+  let v = toneCache.get(key)
+  if (!v) { const c = oklch(hex); v = fromOklch({ L: c.L, C: Math.min(c.C * 0.6, PLAN_CHROMA_MAX), h: c.h }); toneCache.set(key, v) }
+  return v
+}
 /** 立面样色：只往纸白拉 8%，彩度上限 0.10——立面离「真实」近一档 */
 export function elevTone(hex: string, dL = 0) {
   const key = `e${hex}${dL}`

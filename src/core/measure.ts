@@ -1,5 +1,6 @@
 import type { Plan, Vec2, Wall } from './types.ts'
-import { add, clamp, distance, dot, mul, pointInPolygon, sub, wallDir, wallFootprint, wallPath } from './geometry.ts'
+import clipping from 'polygon-clipping'
+import { add, clamp, distance, dot, mul, pointInPolygon, polygonArea, sub, wallDir, wallFootprint, wallPath } from './geometry.ts'
 
 export interface MeasureSegment {
   kind: 'dx' | 'dy' | 'normal' | 'nearest'
@@ -41,6 +42,38 @@ function closestPaths(a: Vec2[], b: Vec2[], closed: boolean): [Vec2, Vec2] {
 }
 const bounds = (poly: Vec2[]) => [Math.min(...poly.map(p => p[0])), Math.min(...poly.map(p => p[1])), Math.max(...poly.map(p => p[0])), Math.max(...poly.map(p => p[1]))]
 const axisAligned = (w: Wall) => !w.bulge && (Math.abs(w.a[0] - w.b[0]) < 1e-7 || Math.abs(w.a[1] - w.b[1]) < 1e-7)
+/** Axis-separated dimension lines between two bounding boxes (same drawing as wall-to-wall). */
+function axisSegments(A: number[], B: number[], result: WallMeasurement) {
+  for (const axis of [0, 1] as const) {
+    const other = 1 - axis, kind = axis === 0 ? 'dx' : 'dy'
+    if (A[axis + 2] >= B[axis] && B[axis + 2] >= A[axis]) continue
+    const forward = A[axis + 2] < B[axis], x = forward ? A[axis + 2] : A[axis], y = forward ? B[axis] : B[axis + 2]
+    const low = Math.max(A[other], B[other]), high = Math.min(A[other + 2], B[other + 2]), line = (low + high) / 2
+    const start: Vec2 = [0, 0], end: Vec2 = [0, 0]
+    start[axis] = x; end[axis] = y; start[other] = end[other] = line
+    const faceA: Vec2 = [...start], faceB: Vec2 = [...end]
+    faceA[other] = clamp(line, A[other], A[other + 2]); faceB[other] = clamp(line, B[other], B[other + 2])
+    result[kind] = Math.abs(y - x)
+    result.segments.push({ kind, a: start, b: end, extensions: [{ a: faceA, b: start }, { a: faceB, b: end }].filter(e => distance(e.a, e.b) > 1e-7) })
+  }
+}
+const isAxisRect = (poly: Vec2[]) => poly.every((v, i) => { const n = poly[(i + 1) % poly.length]; return Math.abs(v[0] - n[0]) < 1e-7 || Math.abs(v[1] - n[1]) < 1e-7 })
+/**
+ * Clearance between two plan footprints (furniture, cabinets, wall outlines), for ⌥ hover measuring.
+ * Touching is a real 0, only overlapping counts as intersecting; heights are ignored because this is a plan-view distance.
+ */
+export function measureFootprints(a: Vec2[], others: Vec2[][]): WallMeasurement {
+  const ranked = others.filter(p => p.length >= 3).map(b => ({ b, pair: closestPaths(a, b, true) })).sort((x, y) => distance(...x.pair) - distance(...y.pair))
+  if (!ranked.length) return { intersect: false, segments: [] }
+  const { b, pair } = ranked[0], gap = distance(...pair)
+  if (others.some(q => q.length >= 3 && (clipping.intersection([[a]], [[q]]) as Vec2[][][]).some(r => polygonArea(r[0]) > 1))) return { intersect: true, segments: [] }
+  if (gap < 1e-6) return { intersect: false, nearest: 0, segments: [{ kind: 'nearest', a: pair[0], b: pair[1], extensions: [] }] }
+  const result: WallMeasurement = { intersect: false, segments: [] }
+  if (isAxisRect(a) && isAxisRect(b)) { axisSegments(bounds(a), bounds(b), result); if (result.segments.length) return result }
+  result.nearest = gap; result.dx = Math.abs(pair[1][0] - pair[0][0]); result.dy = Math.abs(pair[1][1] - pair[0][1])
+  result.segments.push({ kind: 'nearest', a: pair[0], b: pair[1], extensions: [] })
+  return result
+}
 /** Finite footprint clearances in mm. Throws for an unknown id; never invents a zero distance. */
 export function measureWalls(plan: Plan, idA: string, idB: string): WallMeasurement {
   const a = plan.walls.find(w => w.id === idA), b = plan.walls.find(w => w.id === idB)

@@ -1,10 +1,12 @@
+import { componentOf } from './decor/components.ts'
+import { confirmedDecor, pendingCount } from './decor/resolve.ts'
 import { assertLevel, levelOf, levelsOf, onLevel } from './levels.ts'
 import { roomSpanOnWall } from './merge-rooms.ts'
 import { labelPoint, pointAt, pointInPolygon, polygonArea, projectToWall, openingSpan, columnFootprint, roomsBesideWall, roomCeiling, openingFootprint } from './geometry.ts'
 import { deflateSync } from 'node:zlib'
 import { modelPlan, buildMesh, solidMesh, CLAY_COLORS, GLASS_KINDS, GLASS_OPACITY, type ModelState, type MeshOptions, type MeshPart, type V3 } from './mesh.ts'
 import { buildDecorSolids } from './decor/solids.ts'
-import { FURNITURE_LIBRARY } from './decor/furniture.ts'
+import { FURNITURE_LIBRARY, isOverhead, furnitureLevel } from './decor/furniture.ts'
 import type { Plan, Vec2 } from './types.ts'
 export type RenderView = 'iso-sw' | 'iso-ne' | 'iso-se' | 'iso-nw' | 'top'
 /**
@@ -55,19 +57,23 @@ export interface CameraRecord extends CameraSpec {
 }
 /** What the decor layer put into this picture; gen_prompt.py words the prompt from `visible`. */
 export interface DecorView {
+  overheadHidden: number
+  pendingHidden: number
+  includePending: boolean
   drawn: boolean
   /** Why nothing was drawn: nothing to draw, decor belongs to the renovated plan, --no-decor, or core could not build it. */
   skipped?: 'none' | 'original-state' | 'disabled' | 'error'
   error?: string
-  visible: { id: string; kind: 'furniture' | 'cabinet' | 'panel' | 'shelf'; type?: string; name: string; seg: SegClass; visible_px: number }[]
+  visible: { id: string; kind: 'furniture' | 'cabinet' | 'panel' | 'shelf'; type?: string; name: string; seg: SegClass; look?: string; visible_px: number }[]
 }
 export type RenderPass = 'clay' | 'depth' | 'lines' | 'seg' | 'openings'
-export interface VisibleOpening { idx: number; id: string; name: string; kind: string; cls: 'window' | 'door'; width_mm: number; sill_mm: number; head_mm: number; visible_px: number; bbox_xyxy: number[]; mask: string }
+export interface VisibleOpening { look?: string; color?: string; idx: number; id: string; name: string; kind: string; cls: 'window' | 'door'; width_mm: number; sill_mm: number; head_mm: number; visible_px: number; bbox_xyxy: number[]; mask: string }
 export interface RenderOptions extends MeshOptions {
   view?: RenderView; camera?: string | CameraSpec; width?: number; height?: number; transparent?: boolean
   section?: number; passes?: RenderPass[]
   /** Draw the decor layer (default true). Decor is laid out on the renovated plan, so an original-state render skips it once there are confirmed changes. */
   decor?: boolean
+  includePending?: boolean
 }
 export interface CameraChoice { id: string; description: string; level: string; camera: CameraSpec }
 const sub3 = (a: V3, b: V3): V3 => a.map((v,i)=>v-b[i]) as V3
@@ -325,29 +331,43 @@ const FURNITURE_SEG: Record<string, SegClass> = {
   washer: 'cabinet', dryer: 'cabinet', oven: 'cabinet', steamer: 'cabinet', dishwasher: 'cabinet', microwave: 'cabinet',
   rug: 'rug', toilet: 'toilet', basin: 'sink', bathtub: 'bathtub',
 }
-const furnitureSeg = (type: string): SegClass => FURNITURE_SEG[type] ?? FURNITURE_SEG[type.replace(/-\d+$/, '')] ?? 'box'
+const furnitureSeg = (type: string, decor?: Plan['decor']): SegClass => {
+  const def = componentOf(decor, type)
+  if (def) return def.seg && Object.hasOwn(SEG_CLASSES, def.seg) ? def.seg as SegClass : ({ furniture: 'table', appliance: 'box', sanitary: 'toilet', lighting: 'box', ceiling: 'ceiling', plant: 'box', soft: 'rug', storage: 'cabinet', other: 'box' } as const)[def.category]
+  return FURNITURE_SEG[type] ?? FURNITURE_SEG[type.replace(/-\d+$/, '')] ?? 'box'
+}
 /**
  * The decor layer as the tool's decor mode shows it in clay: furniture boxes, cabinet and panel solids, recess shelves,
  * and walls with niches swapped for their cut replacements (`replaced` keys the structural parts to drop).
  */
-function decorSkipped(source: Plan, full: Plan, options: Pick<RenderOptions, 'state' | 'decor'>): DecorView['skipped'] {
+function decorSkipped(source: Plan, full: Plan, options: Pick<RenderOptions, 'state' | 'decor' | 'includePending'>): DecorView['skipped'] {
   if (options.decor === false) return 'disabled'
   if (!full.decor) return 'none'
   if ((options.state ?? 'original') === 'original' && source.changes.some(c => c.status === 'confirmed')) return 'original-state'
 }
 interface DecorObstacle { level?: string; z0: number; z1: number; rings: Vec2[][] }
 /** Footprints of the furniture and cabinets a render will draw, so room cameras stand clear of them. */
-function decorObstacles(source: Plan, full: Plan, options: Pick<RenderOptions, 'state' | 'decor'>): DecorObstacle[] {
+function decorObstacles(source: Plan, full: Plan, options: Pick<RenderOptions, 'state' | 'decor' | 'includePending'>): DecorObstacle[] {
   if (decorSkipped(source, full, options)) return []
   try {
-    return buildDecorSolids(full).filter(s => !s.replaces && !s.missing && (s.kind === 'decor-furniture' || s.kind.startsWith('decor-cabinet')))
+    full = options.includePending ? full : { ...full, decor: confirmedDecor(full.decor) }
+    const overhead = new Set(full.decor?.furniture.filter(f => isOverhead(full, f)).map(f => f.id))
+    return buildDecorSolids(full).filter(s => !overhead.has(s.ids[0]) && !s.replaces && !s.missing && (s.kind === 'decor-furniture' || s.kind.startsWith('decor-cabinet')))
       .map(s => ({ level: s.level, z0: s.z0, z1: s.z1, rings: s.polygons.map(p => p[0]) }))
   } catch { return [] }
 }
-function decorScene(source: Plan, full: Plan, options: RenderOptions, level: string | undefined, cutHeight: number | undefined) {
-  const parts: MeshPart[] = [], replaced = new Set<string>(), skip = (skipped: DecorView['skipped'], error?: string) => ({ parts, replaced, view: { drawn: false, skipped, ...(error ? { error } : {}), visible: [] } as DecorView })
+function decorScene(source: Plan, full: Plan, options: RenderOptions, level: string | undefined, cutHeight: number | undefined, interior: boolean) {
+  const pending = { overheadHidden: 0, pendingHidden: options.includePending ? 0 : pendingCount(full.decor), includePending: !!options.includePending }
+  if (!options.includePending) full = { ...full, decor: confirmedDecor(full.decor) }
+  const parts: MeshPart[] = [], replaced = new Set<string>(), skip = (skipped: DecorView['skipped'], error?: string) => ({ parts, replaced, view: { ...pending, drawn: false, skipped, ...(error ? { error } : {}), visible: [] } as DecorView })
   const skipped = decorSkipped(source, full, options)
   if (skipped) return skip(skipped)
+  if (!interior || options.section !== undefined) {
+    const hidden = full.decor!.furniture.filter(f => (!level || furnitureLevel(full, f).id === level) && isOverhead(full, f))
+    pending.overheadHidden = hidden.length
+    const ids = new Set(hidden.map(f => f.id))
+    full = { ...full, decor: { ...full.decor!, furniture: full.decor!.furniture.filter(f => !ids.has(f.id)) } }
+  }
   let solids: ReturnType<typeof buildDecorSolids>
   try { solids = buildDecorSolids(full) } catch (e) { return skip('error', e instanceof Error ? e.message : String(e)) }
   const d = full.decor!, first = levelsOf(full)[0].id
@@ -360,13 +380,13 @@ function decorScene(source: Plan, full: Plan, options: RenderOptions, level: str
     if (!part.positions.length) continue
     const id = s.ids[0], f = d.furniture.find(x => x.id === id), c = d.cabinets.find(x => x.id === id), panel = d.panels.find(x => x.id === id)
     if (s.replaces) { /* structural surface: keeps its own class */ }
-    else if (f) decorInfo.set(part, { id, kind: 'furniture', type: f.type, name: f.name ?? FURNITURE_LIBRARY.find(e => e.type === f.type)?.name ?? f.type, seg: furnitureSeg(f.type) })
-    else if (c) decorInfo.set(part, { id, kind: 'cabinet', name: c.name ?? '柜体', seg: 'cabinet' })
-    else if (panel) decorInfo.set(part, { id, kind: 'panel', name: panel.name ?? '墙面造型', seg: 'wall' })
-    else decorInfo.set(part, { id, kind: 'shelf', name: '壁龛层板', seg: 'shelf' })
+    else if (f) decorInfo.set(part, { id, kind: 'furniture', type: f.type, name: f.name ?? componentOf(d, f.type)?.name ?? FURNITURE_LIBRARY.find(e => e.type === f.type)?.name ?? f.type, seg: furnitureSeg(f.type, d), ...((f.look ?? componentOf(d, f.type)?.look) !== undefined ? { look: f.look ?? componentOf(d, f.type)?.look } : {}) })
+    else if (c) decorInfo.set(part, { id, kind: 'cabinet', name: c.name ?? '柜体', seg: 'cabinet', ...(c.look !== undefined ? { look: c.look } : {}) })
+    else if (panel) decorInfo.set(part, { id, kind: 'panel', name: panel.name ?? '墙面造型', seg: 'wall', ...(panel.look !== undefined ? { look: panel.look } : {}) })
+    else { const look = d.recesses.find(r => r.id === id)?.look; decorInfo.set(part, { id, kind: 'shelf', name: '壁龛层板', seg: 'shelf', ...(look !== undefined ? { look } : {}) }) }
     parts.push(part)
   }
-  return { parts, replaced, view: { drawn: true, visible: [] } as DecorView }
+  return { parts, replaced, view: { ...pending, drawn: true, visible: [] } as DecorView }
 }
 /** Visible decor items in the final frame (supersampled hits folded back to output pixels), largest first. */
 function visibleDecor(frame: Pick<Frame, 'partAt' | 'parts' | 'ss'>): DecorView['visible'] {
@@ -495,7 +515,7 @@ function renderFrame(source: Plan, options: RenderOptions = {}): Frame {
   if(options.section!==undefined&&(!Number.isFinite(options.section)||options.section<=0))throw new Error('--section 必须是正数 mm')
   const c=resolveCamera(source,options),full=preparedPlan(source,options.state),level=options.level??c.level,plan=level?selectedLevel(full,level):full
   const cutHeight=options.section!==undefined?options.section/1000:c.id==='top'?S.cutHeight:options.cutHeight
-  const decor=decorScene(source,full,options,level,cutHeight)
+  const decor=decorScene(source,full,options,level,cutHeight,typeof options.camera === 'object' || typeof options.camera === 'string' && /^(room:|pos=)/.test(options.camera))
   const parts=[...sharedMesh(plan,{cutHeight}).flatMap(g=>g.parts).filter(p=>!decor.replaced.has(`${p.kind}|${p.ids.join(',')}`)),...decor.parts]
   if(!parts.length)throw new Error('方案没有可渲染的实体')
   const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity]
@@ -594,7 +614,7 @@ export const SEG_CLASSES = {wall:[120,120,120],floor:[80,50,50],ceiling:[120,120
   wardrobe:[7,255,255],bathtub:[102,8,255],box:[0,255,20],sink:[0,163,255],refrigerator:[20,255,0],toilet:[0,255,133],none:[0,0,0]} as const
 export type SegClass = keyof typeof SEG_CLASSES
 /** Furniture and cabinet classes: gen_score.py leaves their edges out of the structure score. */
-export const DECOR_SEG_CLASSES: SegClass[] = ['bed','cabinet','table','chair','sofa','shelf','rug','armchair','desk','wardrobe','bathtub','box','sink','refrigerator','toilet']
+export const DECOR_SEG_CLASSES: SegClass[] = ['ceiling','bed','cabinet','table','chair','sofa','shelf','rug','armchair','desk','wardrobe','bathtub','box','sink','refrigerator','toilet']
 function classOf(part:MeshPart):SegClass {
   const decor=decorInfo.get(part);if(decor)return decor.seg
   const kind=part.kind
@@ -648,7 +668,12 @@ export function renderKit(plan:Plan,options:RenderOptions={}) {
     for(let sy=0;sy<ss;sy++)for(let sx=0;sx<ss;sx++){const j=(y*ss+sy)*W+x*ss+sx;if(idAt[j]&&openingDepth[j]<closest){id=idAt[j];closest=openingDepth[j]}}
     if(id){instance[y*width+x]=id;counts[id-1]++;const b=boxes[id-1];b[0]=Math.min(b[0],x);b[1]=Math.min(b[1],y);b[2]=Math.max(b[2],x);b[3]=Math.max(b[3],y)}
   }
-  const instances=f.plan.openings.map((o,i)=>({idx:i+1,id:o.id,name:o.name??o.id,kind:o.kind,cls: o.kind.includes('window')||o.kind==='open-balcony'?'window' as const:'door' as const,width_mm:o.width,sill_mm:o.sill*1000,head_mm:o.head*1000,visible_px:counts[i],bbox_xyxy:boxes[i],mask:`opening-${String(i+1).padStart(3,'0')}.png`}))
+  const finishes = f.camera.decor?.drawn ? (options.includePending ? f.plan.decor : confirmedDecor(f.plan.decor))?.doors ?? [] : []
+  const appearance = (id: string) => {
+    const d = finishes.find(d => d.opening === id)
+    return { ...(d?.look !== undefined ? { look: d.look } : {}), ...(d?.color !== undefined ? { color: d.color } : {}) }
+  }
+  const instances=f.plan.openings.map((o,i)=>({idx:i+1,id:o.id,...appearance(o.id),name:o.name??o.id,kind:o.kind,cls: o.kind.includes('window')||o.kind==='open-balcony'?'window' as const:'door' as const,width_mm:o.width,sill_mm:o.sill*1000,head_mm:o.head*1000,visible_px:counts[i],bbox_xyxy:boxes[i],mask:`opening-${String(i+1).padStart(3,'0')}.png`}))
   f.camera.openings=instances.filter(o=>o.visible_px>0)
   if(passes.includes('openings')) {
     files['openings.png']=encodeGray16(width,height,instance)

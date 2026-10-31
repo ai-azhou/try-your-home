@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BUILTIN_MATERIALS, STYLE_PRESETS, createDecor } from './presets.ts'
-import { materialTakeoff, resolveFinish, resolveSurfaces } from './surfaces.ts'
+import { materialTakeoff, resolveFinish, resolveSurfaces, styleOf } from './surfaces.ts'
 import { fromLegacyFurniture } from './legacy.ts'
 import { furnitureFootprint, furnitureCollisions, furnitureClearances } from './furniture.ts'
 import { authored, decorPlan, panel } from './fixtures.ts'
@@ -22,4 +22,12 @@ describe('六套预设、覆盖与材料面积', () => {
   it('用户自定义风格优先，缺角色退回白模', () => { const p = decorPlan(); p.decor!.style = 'custom'; p.decor!.presets = [{ id: 'custom', name: '自定义', roles: { 'wall.main': 'forest' } }]; expect(resolveFinish(p, { face: { wall: 'w', side: 1 } }).materialId).toBe('forest'); p.decor!.presets[0].roles = {}; expect(resolveFinish(p, { face: { wall: 'w', side: 1 } }).materialId).toBe('__neutral__') })
   it('弧墙两面使用各自实际弧长，整面覆盖可解析', () => { const p = decorPlan(); p.walls[0].bulge = 500; p.decor!.surfaces = [{ id: 'arc', ...authored, target: { face: { wall: 'w', side: 1 } }, material: 'forest' }]; const s = resolveSurfaces(p); expect(s.walls.find(w => w.materialId === 'forest')?.area).toBeGreaterThan(6 * 2.8); expect(s.walls.find(w => w.materialId === 'forest')?.overridden).toBe(true) })
   it('造型面积从墙面材料扣除，单独统计面材', () => { const p = decorPlan(); p.decor!.panels = [panel()]; const q = materialTakeoff(p); expect(q.find(x => x.materialId === 'micro')?.panel).toBeCloseTo(7.5); expect(q.reduce((a, q) => a + q.wall, 0)).toBeCloseTo(33.6 - 7.5) })
+})
+
+describe('房间用不用湿区材料', () => {
+  const wet = (name: string, use?: string) => { const p = decorPlan(); p.rooms = [{ id: 'r', name, use, poly: [[0, 100], [6000, 100], [6000, 3000], [0, 3000]] }] as typeof p.rooms; return resolveFinish(p, { floor: 'r' }, {}).materialId === styleOf(p)!.roles['floor.wet'] }
+  it.each(['卫生间', '淋浴间', '马桶间', '厨房', '洗衣房', '生活阳台', '阳台'])('%s 算湿区', n => { expect(wet(n)).toBe(true) })
+  it.each(['景观阳台（主卧旁）', '休闲阳台', '客厅', '主卧'])('%s 不算', n => { expect(wet(n)).toBe(false) })
+  it('用途也算', () => { expect(wet('次卧', '改成淋浴间')).toBe(true) })
+  it('风格里写明的优先', () => { const p = decorPlan(); p.rooms = [{ id: 'r', name: '景观阳台', poly: [[0, 100], [6000, 100], [6000, 3000], [0, 3000]] }] as typeof p.rooms; p.decor!.presets = [{ id: 'x', name: 'x', roles: { 'floor.main': 'oak', 'floor.wet': 'tileGrey' }, rooms: [{ match: ['景观'], floor: 'floor.wet' }] }]; p.decor!.style = 'x'; expect(resolveFinish(p, { floor: 'r' }, {}).material.id).toBe('tileGrey') })
 })

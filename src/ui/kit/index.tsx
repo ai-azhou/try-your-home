@@ -278,7 +278,7 @@ export function Switch({ on, onChange, tone = 'mint', label }: { on: boolean; on
 }
 
 /* ───────── 滑块（参考图 3 的大胶囊滑块） ───────── */
-export function Slider({ value, min = 0, max = 100, onChange, icon, suffix = '%' }: { value: number; min?: number; max?: number; onChange?(v: number): void; icon?: ReactNode; suffix?: string }) {
+export function Slider({ value, min = 0, max = 100, onChange, onCommit, icon, suffix = '%' }: { value: number; min?: number; max?: number; onChange?(v: number): void; /** 松手、方向键松开 */ onCommit?(): void; icon?: ReactNode; suffix?: string }) {
   const pct = ((value - min) / (max - min)) * 100
   return (
     <div className="tile-sunken relative h-10 overflow-hidden rounded-full">
@@ -287,7 +287,7 @@ export function Slider({ value, min = 0, max = 100, onChange, icon, suffix = '%'
         <span className="text-mint-900">{icon}</span>
         <span className="num text-[13px] font-semibold text-ink-700">{Math.round(value)}{suffix}</span>
       </div>
-      <input type="range" min={min} max={max} value={value} onChange={e => onChange?.(+e.target.value)} className="absolute inset-0 cursor-pointer opacity-0" aria-label="slider" />
+      <input type="range" min={min} max={max} value={value} onChange={e => onChange?.(+e.target.value)} onPointerUp={() => onCommit?.()} onKeyUp={() => onCommit?.()} className="absolute inset-0 cursor-pointer opacity-0" aria-label="slider" />
     </div>
   )
 }

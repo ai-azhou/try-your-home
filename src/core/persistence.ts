@@ -11,10 +11,11 @@ const decorBlocksPersistence: Record<DecorIssue['code'], boolean> = {
   'through-wall': false, 'meet-other-side': false, 'into-shaft': false,
   'host-depth': false, protected: false, 'room-missing': false,
   'arc-unsupported': false,
+  'unknown-type': false, 'unit-suspect': true, 'component-invalid': true, 'component-missing': false, 'column-width': true,
   invalid: true, 'duplicate-id': true, 'material-missing': true,
 }
 
-function blocksPersistence(issue: Issue): boolean {
+export function blocksPersistence(issue: { level: string; code: string }): boolean {
   return issue.level === 'error' && !(issue.code.startsWith('decor-')
     && decorBlocksPersistence[issue.code.slice(6) as DecorIssue['code']] === false)
 }
@@ -23,7 +24,7 @@ function blocksPersistence(issue: Issue): boolean {
 export function isEmptyPlan(plan: Plan): boolean {
   return !['walls', 'openings', 'beams', 'rooms', 'columns', 'shafts', 'stairs', 'voids', 'questions', 'changes'].some(k => (plan[k as keyof Plan] as unknown[] | undefined)?.length)
     && !plan.underlay && !Object.keys(plan.levelUnderlays ?? {}).length
-    && !['furniture', 'cabinets', 'panels', 'recesses', 'surfaces'].some(k => (plan.decor?.[k as keyof NonNullable<Plan['decor']>] as unknown[] | undefined)?.length)
+    && !['furniture', 'cabinets', 'panels', 'recesses', 'surfaces', 'doors'].some(k => (plan.decor?.[k as keyof NonNullable<Plan['decor']>] as unknown[] | undefined)?.length)
 }
 
 export function loadError(issues: Issue[]): string | null {

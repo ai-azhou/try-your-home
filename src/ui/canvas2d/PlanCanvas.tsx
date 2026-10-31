@@ -12,8 +12,8 @@ import { distance, effectiveWallHeight, jointsAt, labelPoint, planBounds, pointA
 import { addBeam, addElement, addOpening, addRoom, addWall, detectRoom, moveJoint, moveOpening, updateWall } from '@/core/edit'
 import { applyChanges } from '@/core/changes'
 import { levelsOf } from '@/core/levels'
-import { measureWalls, type WallMeasurement } from '@/core/measure'
-import { wallOutlines } from '@/core/walls'
+import { measureFootprints, measureWalls, type WallMeasurement } from '@/core/measure'
+import { joinedWallFootprint, wallOutlines } from '@/core/walls'
 import { curLevelId, isMultiLevel, levelField, levelView, pickAll } from '../levels-ui'
 import { multiPolyPath } from '../render-plan'
 import { polygonArea } from '@/core/geometry'
@@ -31,10 +31,11 @@ import { findEl } from '../model'
 import { fmt } from '../i18n'
 import { layoutRoomLabels, pinPositions, type RoomLabelLayout } from './labels'
 import type { FaceRef } from '@/core/decor/types'
+import { panelSpan } from '@/core/decor/panels'
 import { useDecor } from '../decor/dstore'
-import { DecorOver, DecorUnder } from '../decor/PlanDecor'
-import { decorIssues, decorPlanOf, faceNear, getDecorPlan, openCabinetAt, openElevAt, shownDecor, tempDecor } from '../decor/model'
-import { clearances, decorHit, fitCheck, snapFurniture } from '../decor/plan-ctl'
+import { DecorOver, DecorThresholds, DecorUnder, thresholdIds } from '../decor/PlanDecor'
+import { decorIssues, decorPlanOf, faceNear, findItem, footprintOf, getDecorPlan, openCabinetAt, openElevAt, shownDecor, tempDecor } from '../decor/model'
+import { clearances, clearancesOf, decorHit, fitCheck, snapFurniture } from '../decor/plan-ctl'
 import { addCabinet, addFurniture, paintFace, paintFloor, patchFurniture } from '../decor/actions'
 import { DecorPins, DragClearance, CabinetDraft } from '../decor/PlanOverlays'
 
@@ -137,11 +138,13 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
   const multi = isMultiLevel(fullPlan)
   const baseDecor = useStore(s => s.base?.decor)
   const dSel = useDecor(s => s.sel), dHover = useDecor(s => s.hover), dPreview = useDecor(s => s.preview), dKeep = useDecor(s => s.keepOverrides)
-  const dCanvas = useDecor(s => s.canvas), dDragging = useDecor(s => s.dragging), dFamily = useDecor(s => s.cabFamily), dTool = useDecor(s => s.tool)
+  const dCanvas = useDecor(s => s.canvas), dDragging = useDecor(s => s.dragging), dNudging = useDecor(s => s.nudging), dFamily = useDecor(s => s.cabFamily), dTool = useDecor(s => s.tool)
   const editable = !mini && mode !== 'compare'
   // ⌥ / Alt 悬停测距（Figma 式）：按住时记下悬停到的另一面墙；松开就消失
   const [alt, setAlt] = useState(false)
   const [altTarget, setAltTarget] = useState<string | null>(null)
+  /** 装修态：选中家具 / 柜子时 ⌥ 悬停到的另一件（或墙） */
+  const [altDecor, setAltDecor] = useState<{ k: 'wall' | 'furniture' | 'cabinet' | 'panel'; id: string } | null>(null)
   useEffect(() => {
     if (mini) return
     const down = (e: KeyboardEvent) => {
@@ -150,8 +153,8 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
       e.preventDefault()
       setAlt(true)
     }
-    const up = (e: KeyboardEvent) => { if (e.key === 'Alt') { e.preventDefault(); setAlt(false); setAltTarget(null) } }
-    const blur = () => { setAlt(false); setAltTarget(null) }
+    const up = (e: KeyboardEvent) => { if (e.key === 'Alt') { e.preventDefault(); setAlt(false); setAltTarget(null); setAltDecor(null) } }
+    const blur = () => { setAlt(false); setAltTarget(null); setAltDecor(null) }
     window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', blur)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', blur) }
   }, [mini])
@@ -275,7 +278,7 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
     if (!dp?.decor) return false
     const p = toPlan(s)
     if (ds.tool === 'select') {
-      const hit = decorHit(dp.plan, dp.decor, p, decorIssues(dp.plan, dp.base))
+      const hit = decorHit(dp.plan, dp.decor, p, decorIssues(dp.plan, dp.base), { k: xf.k })
       if (hit?.k === 'furniture') {
         const f = dp.decor.furniture.find(x => x.id === hit.id)!
         ds.select(hit)
@@ -317,7 +320,7 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
     const ds = useDecor.getState(), dp = getDecorPlan()
     if (!dp) return
     const decor = dp.decor ?? tempDecor()
-    const hit = decorHit(dp.plan, decor, p, decorIssues(dp.plan, dp.base))
+    const hit = decorHit(dp.plan, decor, p, decorIssues(dp.plan, dp.base), { k: xf.k, structure: ds.tool !== 'select' })
     if (ds.tool === 'material') {
       if (hit?.k === 'floor') { paintFloor(hit.id, ds.brush); ds.select(hit) }
       else if (hit?.k === 'face') { paintFace(hit.face, ds.brush); ds.select(hit) }
@@ -341,7 +344,7 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
     const ds = useDecor.getState(), dp = getDecorPlan()
     if (!dp) return
     const decor = dp.decor ?? tempDecor()
-    const hit = decorHit(dp.plan, decor, p, decorIssues(dp.plan, dp.base))
+    const hit = decorHit(dp.plan, decor, p, decorIssues(dp.plan, dp.base), { k: xf.k, structure: true })
     // 双击在哪间房里，就进这间房的那一段立面（D6 A3）
     if (hit?.k === 'face') openElevAt(hit.face, { p, s: hit.s })
     else if (hit?.k === 'cabinet') {
@@ -349,7 +352,9 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
       if (c && 'face' in c.place) openCabinetAt(c.id, c.place.face)
     } else if (hit?.k === 'panel') {
       const pn = decor.panels.find(x => x.id === hit.id)
-      if (pn?.span) { openElevAt(pn.span.face, { item: pn.id }); ds.select(hit) }
+      let face: FaceRef | undefined
+      try { face = pn && panelSpan(dp.plan, pn).face } catch { /* 门洞不在了 */ }
+      if (face) { openElevAt(face, { item: hit.id }); ds.select(hit) }
     }
   }
 
@@ -455,10 +460,19 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
     if (dmode) {
       const dp = getDecorPlan(), ds = useDecor.getState()
       if (dp?.decor && e.pointerType === 'mouse') {
-        const h = ds.tool === 'cabinet' ? (() => { const fn = faceNear(dp.plan, p, 400); return fn ? { k: 'face' as const, face: fn.face } : null })() : decorHit(dp.plan, dp.decor, p, decorIssues(dp.plan, dp.base))
+        const h = ds.tool === 'cabinet' ? (() => { const fn = faceNear(dp.plan, p, 400); return fn ? { k: 'face' as const, face: fn.face } : null })() : decorHit(dp.plan, dp.decor, p, decorIssues(dp.plan, dp.base), { k: xf.k, structure: ds.tool !== 'select' })
         const key = (x: typeof h) => !x ? '' : x.k === 'face' ? `f${x.face.wall}${x.face.side}` : 'id' in x ? x.k + x.id : ''
         if (key(h) !== key(ds.hover)) ds.set({ hover: h })
         box.current!.style.cursor = ds.tool === 'select' && h?.k === 'furniture' ? 'grab' : ''
+        // ⌥ 悬停测距（和结构态一样）：起点是选中的那件，松开 ⌥ 就消失
+        if (alt && ds.tool === 'select' && ds.sel && 'id' in ds.sel && (ds.sel.k === 'furniture' || ds.sel.k === 'cabinet')) {
+          const selId = ds.sel.id
+          if (h && 'id' in h && (h.k === 'furniture' || h.k === 'cabinet' || h.k === 'panel')) { if (h.id !== selId) setAltDecor({ k: h.k, id: h.id }) }
+          else {
+            const ht = pick(p, px(6)), wid = ht?.type === 'wall' ? ht.id : ht?.type === 'opening' ? plan.openings.find(o => o.id === ht.id)?.wall : undefined
+            if (wid) setAltDecor({ k: 'wall', id: wid })
+          }
+        }
       }
       return
     }
@@ -653,6 +667,21 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
     try { return { m: measureWalls(plan, mPair[0], mPair[1]), a: plan.walls.find(w => w.id === mPair[0])!, b: plan.walls.find(w => w.id === mPair[1])! } } catch { return null }
   }, [plan, mPair?.[0], mPair?.[1], mini])
 
+  // 装修态 ⌥ 测距：选中的这件 ↔ 悬停到的那件或那面墙。按平面量，不管高度
+  const decorSelId = dSel && 'id' in dSel && (dSel.k === 'furniture' || dSel.k === 'cabinet') ? dSel.id : null
+  const decorMeasured = useMemo(() => {
+    if (!dmode || mini || !plan || !alt || !altDecor || !decorSelId || !baseDecor || altDecor.id === decorSelId) return null
+    try {
+      const dplan = decorPlanOf(plan, baseDecor), one = findItem(baseDecor, decorSelId)
+      const from = one && footprintOf(dplan, one.k, one.it)
+      if (!from) return null
+      const w = altDecor.k === 'wall' ? plan.walls.find(x => x.id === altDecor.id) : undefined
+      const it = altDecor.k === 'wall' ? null : findItem(baseDecor, altDecor.id), fp = it && footprintOf(dplan, it.k, it.it)
+      const to = w ? joinedWallFootprint(plan, w).map(rings => rings[0]) : fp ? [fp] : null
+      return to ? { m: measureFootprints(from, to), faces: [from, ...to] } : null
+    } catch { return null }
+  }, [dmode, mini, plan, alt, altDecor, decorSelId, baseDecor])
+
   // 装修层（装修态才画）：地面材料、柜子、造型在墙下；家具、嵌入、色带、选中在门窗上
   const decorLayers = (() => {
     if (!dmode || !plan || !view) return null
@@ -664,8 +693,12 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
     const styleId = dPreview ?? decor.style
     const props = { plan: dplan, base: basePlan!, decor, k: xf.k, pid, styleId, keep: dPreview ? dKeep : true, sel: dSel, hover: dHover, issues, mini, focusFace: mini && dCanvas.k !== 'plan' ? dCanvas.face : null }
     const dragF = dDragging && !dDragging.startsWith('cab:') ? decor.furniture.find(f => f.id === dDragging) : null
-    const drag = dragF ? <DragClearance cl={clearances(dplan, decor, dragF)} fit={fitCheck(dplan, decor, dragF)} k={xf.k} /> : dDragging?.startsWith('cab:') ? <CabinetDraft plan={dplan} spec={dDragging} k={xf.k} family={dFamily} /> : undefined
-    return { under: <DecorUnder {...props} />, over: <DecorOver {...props} drag={drag} />, issues, dplan }
+    const nudged = !dDragging && dNudging ? findItem(decor, dNudging) : null, nudgedFp = nudged && footprintOf(dplan, nudged.k, nudged.it)
+    const drag = dragF ? <DragClearance cl={clearances(dplan, decor, dragF)} fit={fitCheck(dplan, decor, dragF)} k={xf.k} />
+      : nudged?.k === 'furniture' ? <DragClearance cl={clearances(dplan, decor, nudged.it as typeof decor.furniture[number])} fit={fitCheck(dplan, decor, nudged.it as typeof decor.furniture[number])} k={xf.k} />
+      : nudgedFp ? <DragClearance cl={clearancesOf(dplan, decor, nudgedFp, nudged!.it.id)} k={xf.k} />
+      : dDragging?.startsWith('cab:') ? <CabinetDraft plan={dplan} spec={dDragging} k={xf.k} family={dFamily} /> : undefined
+    return { under: <DecorUnder {...props} />, over: <DecorOver {...props} drag={drag} />, thresholds: { node: <DecorThresholds {...props} />, ids: thresholdIds(dplan, basePlan!) }, issues, dplan }
   })()
 
   if (!view || !plan) return <div ref={box} className="absolute inset-0" />
@@ -698,7 +731,7 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
           )}
           <g opacity={showUnderlay ? 0.82 : 1}>
             <PlanLayers plan={plan} base={basePlan!} diff={view.diff} hideSelDims={!!measured} mode={mode} k={xf.k} pid={pid} sel={dmode ? NO_SEL : sel} hover={dmode ? null : hover}
-              decorUnder={decorLayers?.under} decorOver={decorLayers?.over}
+              decorUnder={decorLayers?.under} decorOver={decorLayers?.over} decorThresholds={decorLayers?.thresholds}
               layers={layers} mini={mini} certainty={certainty} lang={lang}
               labels={{ sqm: t.sqm, ceiling: lang === 'zh' ? '层高' : 'H', entry: lang === 'zh' ? '入户' : 'IN', platform: t.prop.floorOffset }} roomLabels={roomLabels} pins={pinList} />
           </g>
@@ -709,7 +742,8 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
           {!mini && editable && (tool === 'shaft' || tool === 'stair' || tool === 'void' || tool === 'column') && <RectOverlay k={xf.k} tool={tool} anchor={draw.anchor} cursor={draw.cursor} />}
           {!mini && dragged.length > 0 && <g pointerEvents="none" data-testid="joint-dragged">{plan.walls.filter(w => dragged.includes(w.id)).map(w => <path key={w.id} d={polyPath(wallFootprint(w))} fill="rgb(255 122 89 / 0.28)" stroke="#d9543a" strokeWidth={px(1.6)} />)}</g>}
           {!mini && removeRange && (() => { const w = plan.walls.find(x => x.id === removeRange.wall); return w && removeRange.to <= wallLength(w) + 1 ? <path d={polyPath(wallFootprint(sliceWall({ ...w, thickness: w.thickness + 40 }, removeRange.from, Math.min(removeRange.to, wallLength(w)))))} fill="rgb(255 122 89 / 0.55)" stroke="#d9543a" strokeWidth={px(1.4)} pointerEvents="none" data-testid="range-preview" /> : null })()}
-          {measured && <MeasureOverlay k={xf.k} m={measured.m} a={measured.a} b={measured.b} t={t} onCopy={v => { void navigator.clipboard?.writeText(String(v)).catch(() => {}); S().showToast(fmt(t.s2a.measure.copied, { v: fmtMm(v) })) }} />}
+          {decorMeasured && <MeasureOverlay k={xf.k} m={decorMeasured.m} faces={decorMeasured.faces} t={t} onCopy={v => { void navigator.clipboard?.writeText(String(v)).catch(() => {}); S().showToast(fmt(t.s2a.measure.copied, { v: fmtMm(v) })) }} />}
+          {measured && <MeasureOverlay k={xf.k} m={measured.m} faces={[wallFootprint(measured.a), wallFootprint(measured.b)]} t={t} onCopy={v => { void navigator.clipboard?.writeText(String(v)).catch(() => {}); S().showToast(fmt(t.s2a.measure.copied, { v: fmtMm(v) })) }} />}
           {drawing && <DrawOverlay k={xf.k} tool={tool} anchor={tool === 'room' ? roomPoly![roomPoly!.length - 1] : draw.anchor} cursor={draw.cursor} snapKind={snapKind} lang={lang} poly={tool === 'room' ? roomPoly : null} />}
           {!mini && draw.cursor && tool === 'select' && <circle cx={draw.cursor[0]} cy={draw.cursor[1]} r={px(snapKind === 'none' ? 0 : 8)} fill="rgb(85 211 165 / 0.18)" stroke={C.mint500} strokeWidth={px(2)} pointerEvents="none" />}
           {!mini && calib && calib.map((q, i) => (
@@ -781,12 +815,13 @@ function RectOverlay({ k, tool, anchor, cursor }: { k: number; tool: string; anc
 }
 
 /* ───────── 测距（docs/specs/测距.md）：洋红标注线、两端短竖线、延长虚线、胶囊（点了复制） ───────── */
-function MeasureOverlay({ k, m, a, b, t, onCopy }: { k: number; m: WallMeasurement; a: Wall; b: Wall; t: ReturnType<typeof useT>; onCopy(v: number): void }) {
+function MeasureOverlay({ k, m, faces: outlines, t, onCopy }: { k: number; m: WallMeasurement; faces: Vec2[][]; t: ReturnType<typeof useT>; onCopy(v: number): void }) {
   const px = (v: number) => v / k
   const col = C.magenta500
-  const faces = [a, b].map(w => <path key={w.id} d={polyPath(wallFootprint(w))} fill="rgb(214 51 160 / 0.08)" stroke={col} strokeWidth={px(1.2)} />)
+  const faces = outlines.map((q, i) => <path key={i} d={polyPath(q)} fill="rgb(214 51 160 / 0.08)" stroke={col} strokeWidth={px(1.2)} />)
   if (m.intersect) {
-    const c = mid(pointAt(a, wallLength(a) / 2), pointAt(b, wallLength(b) / 2))
+    const center = (q: Vec2[]): Vec2 => [q.reduce((s, p) => s + p[0], 0) / q.length, q.reduce((s, p) => s + p[1], 0) / q.length]
+    const c = mid(center(outlines[0]), center(outlines[1]))
     return <g pointerEvents="none" data-measure="intersect">{faces}<Capsule at={c} k={k} text={t.s2a.measure.intersect} /></g>
   }
   return (

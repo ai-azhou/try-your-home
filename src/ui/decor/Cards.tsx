@@ -5,20 +5,23 @@
  */
 import { useMemo, useState, type ReactNode } from 'react'
 import { motion } from 'motion/react'
-import { ArrowRight, Check, ChevronRight, Columns3, Inbox, Lock, PaintRoller, Palette, Plus, RotateCw, ScanEye, Search, Sofa, Sparkles, Unlink, Wallpaper, X, Trash } from 'lucide-react'
+import { ArrowRight, Check, ChevronRight, Columns3, DoorOpen, Inbox, Lock, PaintRoller, Palette, Plus, RotateCw, ScanEye, Search, Sofa, Sparkles, Unlink, Wallpaper, X, Trash } from 'lucide-react'
 import type { Plan, Vec2 } from '@/core/types'
-import type { Cabinet, CabinetCell, Decor, FaceRef, Furniture, Material, MaterialCategory, Panel, Recess, StylePreset } from '@/core/decor/types'
+import type { Cabinet, CabinetCell, CustomComponent, Decor, DoorFinish, FaceRef, Furniture, Material, MaterialCategory, MaterialRole, Panel, Recess, StylePreset } from '@/core/decor/types'
 import { checkEmbed } from '@/core/decor/embed'
 import { faceExtent } from '@/core/decor/faces'
-import { layoutCabinet } from '@/core/decor/cabinets'
+import { layoutCabinet, resizeCabinet } from '@/core/decor/cabinets'
+import { COMPONENT_CATEGORIES, componentOf } from '@/core/decor/components'
+import { panelSpan } from '@/core/decor/panels'
 import { effectiveWallHeight, polygonArea, roomsBesideWall } from '@/core/geometry'
-import { useStore } from '../store'
+import { useStore, useT } from '../store'
+import { fmt } from '../i18n'
 import { Pill as KPill, RoundButton, Switch, Tag, Tip } from '../kit'
 import { Actions, Field, Header, MiniSeg, Num, Visual } from '../panels/Inspector'
 import { cn } from '@/lib/utils'
 import { useDecor, type DSel } from './dstore'
-import { elevRoomAt, itemRoom, openElevAt, openCabinetAt, dirWord, allStyles, commitDecor, decorIssues, faceFinish, faceLabel, faceRoom, findItem, floorFinish, matOf, materialUses, removeItem, roleMat, selKey, styleOf, useDecorPlan, WALL_ZH, type DecorIssues } from './model'
-import { FURN_CATS, FURN_LIB, SymbolPreview, furnTones } from './furniture'
+import { doorFinishOf, doorName, elevRoomAt, finishColor, finishMaterialName, indoorSide, itemRoom, itemTitle, openElevAt, openCabinetAt, overheadOf, dirWord, allStyles, changedFields, commitDecor, confirmPending, decorIssues, faceFinish, faceLabel, faceRoom, faceSurfaces, findItem, floorFinish, matOf, materialUses, nextPending, pendingItems, rejectPending, removeItem, roleMat, selKey, selOfItem, styleOf, useDecorPlan, WALL_ZH, type AnyItem, type AnyKind, type DecorIssues } from './model'
+import { ComponentPreview, FURN_CATS, FURN_LIB, SymbolPreview, furnTones } from './furniture'
 import { takeOutFurniture } from './actions'
 import { furniturePose } from '@/core/decor/furniture'
 import { ackItem, applyStyle, moveOrphan, nearestFaces, paintFace, paintFloor, patchCabinet, patchFurniture, patchPanel, patchRecess, resetFace, resetFloor, rotateFurniture, setEmbed } from './actions'
@@ -52,10 +55,11 @@ export function DecorCard() {
   if (!sel) return <Overview plan={plan} base={dp.base} decor={decor} issues={issues} />
   if (sel.k === 'floor') return <FloorCard plan={plan} decor={decor} id={sel.id} />
   if (sel.k === 'face') return <FaceCard plan={plan} decor={decor} face={sel.face} />
+  if (sel.k === 'door') { const door = doorFinishOf(decor, sel.id); return door ? <DoorCard plan={plan} decor={decor} d={door} issues={issues} /> : <Overview plan={plan} base={dp.base} decor={decor} issues={issues} /> }
   const f = findItem(decor, sel.id)
   if (!f) return <Overview plan={plan} base={dp.base} decor={decor} issues={issues} />
   if (issues?.orphans.some(i => i.id === sel.id)) return <OrphanCard plan={plan} base={dp.base} decor={decor} id={sel.id} issues={issues} />
-  if (f.k === 'furniture') return <FurnitureCard plan={plan} decor={decor} f={f.it as Furniture} />
+  if (f.k === 'furniture') return <FurnitureCard plan={plan} decor={decor} f={f.it as Furniture} issues={issues} />
   if (f.k === 'cabinet') return <CabinetCard plan={plan} base={dp.base} decor={decor} c={f.it as Cabinet} issues={issues} cell={sel.k === 'cell' ? sel : null} />
   if (f.k === 'panel') return <PanelCard plan={plan} decor={decor} p={f.it as Panel} />
   return <RecessCard plan={plan} base={dp.base} decor={decor} r={f.it as Recess} issues={issues} />
@@ -63,7 +67,8 @@ export function DecorCard() {
 
 /* ───────── 材料板：地面打底 62%，墙漆、木、石叠在右边，布是圆角胶囊，金属一个小圆片 ───────── */
 export function Board({ st, decor, w = 152, h = 92 }: { st: StylePreset; decor?: Decor; w?: number; h?: number }) {
-  const ids = st.board ?? []
+  // Agent 配的风格可能没写材料板：按角色取那几样，别画成一块空板
+  const ids = st.board ?? (['floor.main', 'wall.main', 'wood.main', 'stone.top', 'fabric.main', 'metal'] as MaterialRole[]).map(r => st.roles[r] ?? '')
   const m = (i: number) => matOf(decor, ids[i])
   const s = w / 152
   const sh = 'drop-shadow(0 1.5px 2px rgb(96 70 40 / 0.18))'
@@ -96,6 +101,7 @@ function StyleCard() {
   const dp = useDecorPlan()
   const decor = dp?.decor
   const preview = useDecor(s => s.preview), keep = useDecor(s => s.keepOverrides)
+  const agentT = useT().decorAgent
   const [picked, setPicked] = useState<string | null>(null)
   const styles = allStyles(decor)
   const target = picked ?? preview ?? decor?.style ?? 'cream'
@@ -113,12 +119,14 @@ function StyleCard() {
             <button key={st.id} data-testid={`style-${st.id}`} onMouseEnter={() => D.set({ preview: st.id === decor?.style ? null : st.id })}
               onClick={() => { setPicked(st.id); D.set({ preview: st.id === decor?.style ? null : st.id }) }} onDoubleClick={() => applyStyle(st.id, keep)}
               className={cn('tile flex flex-col gap-1.5 rounded-[20px] p-1.5 pb-2.5 text-left transition', on && 'bg-white/85 ring-2 ring-inset ring-mint-400 shadow-[0_14px_28px_-16px_rgb(48_44_104/0.45)]')}>
-              <Board st={st} decor={decor} w={152} h={84} />
+              <span className="relative block">
+                <Board st={st} decor={decor} w={152} h={84} />
+                {st.by === 'agent' && <Tag tone="lav" className="absolute right-1.5 top-1.5 shadow-[0_2px_6px_-2px_rgb(48_44_104/0.4)]">{agentT.agentStyle}</Tag>}
+              </span>
               <div className="flex items-center justify-between gap-1 px-1.5">
                 <span className="text-[15px] font-semibold text-ink-900">{st.name}</span>
                 {cur && <Tag tone="ink">当前</Tag>}
                 {on && <Tag tone="mint">预览中</Tag>}
-                {st.by === 'agent' && <Tag tone="lav">Agent 配的</Tag>}
               </div>
               <span className="truncate px-1.5 text-[11px] font-medium text-ink-500">{st.blurb}</span>
             </button>
@@ -150,9 +158,11 @@ function StyleCard() {
 function Overview({ plan, base, decor, issues }: { plan: Plan; base: Plan; decor: Decor; issues: DecorIssues | null }) {
   const st = styleOf(decor.style, decor)
   const D = useDecor.getState()
-  const n = decor.furniture.length + decor.cabinets.length + decor.panels.length + decor.recesses.length + decor.surfaces.length
+  const n = decor.furniture.length + decor.cabinets.length + decor.panels.length + decor.recesses.length + decor.surfaces.length + (decor.doors?.length ?? 0)
   const orphans = [...new Set(issues?.orphans.map(i => i.id) ?? [])]
   const prot = [...new Set(issues?.protected.map(i => i.id) ?? [])]
+  const proposals = pendingItems(decor), agentT = useT().decorAgent
+  const agentStyle = decor.presets?.find(x => x.by === 'agent' && x.id !== decor.style)
   const uses = materialUses(plan, decor).filter(u => u.area > 0.05 || u.overridden || u.where.length || u.count)
   const kindOf = (id: string) => (findItem(decor, id)?.k ?? 'cabinet') as 'cabinet'
   // Agent 待确认的结构提议（D6 B5）：装修按现在（已确认）的结构算；点了切到改造态并选中那条提议
@@ -169,7 +179,8 @@ function Overview({ plan, base, decor, issues }: { plan: Plan; base: Plan; decor
   // 卡片总高不超过下一步条（设计规范 §7）：材料默认只列前几行，其余收进「还有 N 种」
   const [allMats, setAllMats] = useState(false)
   // 「要你看一下」每多一行，材料少列一行，卡片总高不变（不压到下一步条）
-  const matRows = Math.max(2, MAT_ROWS - Math.max(0, orphans.length + prot.length + (pending.length ? 1 : 0) - 2))
+  const look = orphans.length + prot.length + (pending.length ? 1 : 0) + (proposals.length ? 1 : 0)
+  const matRows = Math.max(2, MAT_ROWS - Math.max(0, look - 2))
   return (
     <>
       <Header icon={<Sofa size={18} strokeWidth={2.2} />} iconCls="bg-ink-900 text-white" title={<>这套房的装修 <span className="num font-normal text-ink-400">{n}</span></>} sub="风格给默认，单独改过的会标出来" onClose={() => useStore.getState().setMode('renovation')} />
@@ -178,14 +189,15 @@ function Overview({ plan, base, decor, issues }: { plan: Plan; base: Plan; decor
         <div className="min-w-0 flex-1">
           <div className="text-[11.5px] font-semibold text-ink-500">整体风格</div>
           <div className="text-[16px] font-semibold text-ink-900">{st.name}</div>
-          <div className="truncate text-[11.5px] text-ink-500">{st.blurb}</div>
+          {agentStyle ? <div className="truncate text-[11.5px] font-semibold text-lav-600" data-testid="agent-style-hint">{fmt(agentT.styleHint, { name: agentStyle.name })}</div> : <div className="truncate text-[11.5px] text-ink-500">{st.blurb}</div>}
         </div>
         <KPill tone="tile" size="sm" data-testid="change-style" onClick={() => D.set({ styleCard: true })}>换风格<ChevronRight size={14} /></KPill>
       </div>
-      {(orphans.length + prot.length + (pending.length ? 1 : 0)) > 0 && (
+      {look > 0 && (
         <div>
-          <div className="flex items-center justify-between px-0.5 pb-2"><span className="text-[12px] font-semibold text-ink-500">要你看一下</span><span className="num text-[12px] text-ink-400">{orphans.length + prot.length + (pending.length ? 1 : 0)}</span></div>
+          <div className="flex items-center justify-between px-0.5 pb-2"><span className="text-[12px] font-semibold text-ink-500">要你看一下</span><span className="num text-[12px] text-ink-400">{look}</span></div>
           <div className="flex flex-col gap-1.5">
+            {proposals.length > 0 && <ProposalRow plan={plan} decor={decor} />}
             {pending.length > 0 && <Row testId="look-proposals" disc={<span className="grid size-10 place-items-center rounded-full bg-lav-200 text-lav-800"><Sparkles size={16} strokeWidth={2.3} /></span>}
               title={`有 ${pending.length} 条结构提议还没确认，装修按现在的结构算`} sub="点一下去改造里看这条提议" onClick={goProposal} />}
             {orphans.map(id => {
@@ -221,12 +233,80 @@ function Overview({ plan, base, decor, issues }: { plan: Plan; base: Plan; decor
           ))}
         </div>
         <div className="flex items-center justify-between px-1 pt-2 text-[11px] text-ink-400">
-          <span>面积约数 · 粗估，只用来对量级</span>
+          <span>面积约数 · 粗估，只用来对量级{proposals.length > 0 && <span data-testid="material-not-counted" className="font-semibold text-lav-600"> · {fmt(agentT.notCounted, { n: proposals.length })}</span>}</span>
           {uses.length > matRows && <button data-testid="material-more" onClick={() => setAllMats(v => !v)} className="font-semibold text-ink-600 hover:text-ink-900">{allMats ? '收起' : `还有 ${uses.length - matRows} 种 ›`}</button>}
         </div>
       </div>
     </>
   )
+}
+/** 「有 N 条 Agent 提议待你看」：点开逐条跳到，也可以全部确认 */
+function ProposalRow({ plan, decor }: { plan: Plan; decor: Decor }) {
+  const d = useT().decorAgent
+  const [open, setOpen] = useState(false)
+  const list = pendingItems(decor)
+  return (
+    <div className="tile rounded-[18px] p-2.5 pr-2 ring-1 ring-inset ring-lav-200" data-testid="look-pending">
+      <button onClick={() => setOpen(v => !v)} data-testid="look-pending-toggle" className="flex w-full items-center gap-3 text-left">
+        <span className="grid size-10 shrink-0 place-items-center rounded-full bg-lav-200 text-lav-800"><Sparkles size={16} strokeWidth={2.3} /></span>
+        <span className="min-w-0 flex-1"><span className="block text-[13px] font-semibold leading-snug text-ink-900">{fmt(d.look, { n: list.length })}</span><span className="block truncate text-[11.5px] text-ink-500">{d.lookSub}</span></span>
+        <ChevronRight size={16} className={cn('shrink-0 text-ink-300 transition', open && 'rotate-90')} />
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-col gap-0.5 pl-[52px]">
+          {list.map(x => (
+            <button key={x.it.id} data-testid={`pending-item-${x.it.id}`} onClick={() => useDecor.getState().select(selOfItem(x))} className="flex h-8 items-center gap-2 rounded-[10px] px-2 text-left text-[12.5px] font-semibold text-ink-700 transition hover:bg-white hover:text-ink-900">
+              <span className="min-w-0 flex-1 truncate">{itemTitle(plan, decor, x)}</span>
+              <ChevronRight size={14} className="shrink-0 text-ink-300" />
+            </button>
+          ))}
+          <KPill tone="ink" size="sm" className="mt-1.5 self-start" data-testid="pending-confirm-all" onClick={() => { const n = list.length; confirmPending(list.map(x => x.it.id)); useStore.getState().showToast(fmt(d.confirmedAll, { n })) }}><Check size={14} strokeWidth={2.6} />{d.confirmAll}</KPill>
+        </div>
+      )}
+    </div>
+  )
+}
+/** 这一条是谁加的：确认过的看 by；待确认的「Agent 提议」写在紧跟着的确认卡上，这里不重复 */
+function OriginTag({ it }: { it: { by: 'user' | 'agent'; status: 'pending' | 'confirmed' } }) {
+  const d = useT().decorAgent
+  if (it.status === 'pending') return null
+  return <Tag tone="outline" className="bg-sand-50 text-sand-700 ring-sand-100">{it.by === 'agent' ? d.added : d.mine}</Tag>
+}
+/** 待确认项：我确认 / 不要这条（和结构提议的卡片同一个样子） */
+function PendingCallout({ plan, decor, k, it, label }: { plan: Plan; decor: Decor; k: AnyKind; it: AnyItem; label?: boolean }) {
+  const t = useT(), d = t.decorAgent
+  if (it.status !== 'pending') return null
+  const fields = [...new Set(changedFields(it).map(f => d.field[f]).filter(Boolean))]
+  const text = !it.prev ? d.isNew : fields.length ? fmt(d.isChangeWhat, { what: fields.join('、') }) : d.isChange
+  const others = pendingItems(decor).length - 1
+  const toast = useStore.getState().showToast
+  const note = 'note' in it ? it.note : undefined
+  return (
+    <div className="hatch-lav rounded-[18px] bg-lav-50 p-3.5 ring-1 ring-inset ring-lav-200" data-testid="pending-callout" data-id={it.id}>
+      <div className="flex items-center gap-2">
+        <span className="grid size-6 shrink-0 place-items-center rounded-full bg-lav-300 text-lav-800"><Sparkles size={12} strokeWidth={2.6} /></span>
+        <span className="min-w-0 truncate text-[12.5px] font-semibold text-lav-800">{d.proposed}{label ? ` · ${itemTitle(plan, decor, { k, it })}` : ''}</span>
+        {others > 0 && <button data-testid="pending-next" onClick={() => { const n = nextPending(decor, it.id); if (n) useDecor.getState().select(selOfItem(n)) }} className="ml-auto flex shrink-0 items-center text-[11.5px] font-semibold text-lav-600 hover:text-lav-800">{fmt(d.left, { n: others })}<ChevronRight size={13} /></button>}
+      </div>
+      {note && <p className="mt-2 text-[12.5px] leading-relaxed text-ink-700">{note}</p>}
+      <p className={cn('text-[12.5px] leading-relaxed text-ink-600', note ? 'mt-1' : 'mt-2')}>{text}</p>
+      <div className="mt-3 flex gap-2">
+        <KPill tone="ink" size="sm" data-testid="pending-confirm" onClick={() => { const done = confirmPending([it.id]); toast(done.length > 1 ? d.alsoHost : d.confirmed) }}><Check size={14} strokeWidth={2.6} />{t.act.confirm}</KPill>
+        <KPill tone="plain" size="sm" data-testid="pending-reject" onClick={() => { const r = rejectPending([it.id]); toast(r.removed.length > 1 ? d.alsoChild : r.removed.length ? d.rejected : d.restored) }}><X size={14} />{d.reject}</KPill>
+      </div>
+    </div>
+  )
+}
+/** 一行外观描述，只读：改样子找 Agent。没写（或摆放项写了空字符串）就不出现 */
+function LookLine({ text }: { text?: string }) {
+  const d = useT().decorAgent
+  if (!text) return null
+  return <p className="tile rounded-[16px] px-3 py-2 text-[12.5px] leading-relaxed text-ink-700" data-testid="item-look">{fmt(d.lookLine, { v: text })}</p>
+}
+/** 这件的事实提示（压在门窗上、尺寸对不上定义这类）：只说事实，不拦 */
+function IssueNotes({ id, issues }: { id: string; issues: DecorIssues | null }) {
+  const list = (issues?.byId.get(id) ?? []).filter(i => !['protected', 'host-missing', 'host-cut'].includes(i.code))
+  return <>{list.map(e => <div key={e.code + e.text} data-testid="item-issue" data-code={e.code} className="rounded-[16px] bg-lemon-50 px-3 py-2 text-[12.5px] font-semibold text-lemon-800 ring-1 ring-inset ring-lemon-200">{e.text}</div>)}</>
 }
 function Row({ disc, title, sub, onClick, testId }: { disc: ReactNode; title: string; sub: string; onClick(): void; testId?: string }) {
   return (
@@ -304,6 +384,7 @@ function FloorCard({ plan, decor, id }: { plan: Plan; decor: Decor; id: string }
   return (
     <>
       <Header icon={<PaintRoller size={18} strokeWidth={2.2} />} iconCls={SAND} title={`${r.name} · 地面`} sub={<span className="num">约 {area.toFixed(1)} ㎡ · 粗估</span>} onClose={close} />
+      {decor.surfaces.filter(x => 'floor' in x.target && x.target.floor === id).map(x => <PendingCallout key={x.id} plan={plan} decor={decor} k="surface" it={x} />)}
       <MatRow m={f.material} note={f.overridden ? `单独改过 · 风格默认是${f.styleMaterial.name}` : '跟风格'} right={f.overridden ? <KPill tone="plain" size="sm" onClick={() => resetFloor(id)}>回到默认</KPill> : undefined} />
       <MaterialPicker decor={decor} cats={FLOOR_CATS} value={f.material.id} onPick={m => paintFloor(id, m)} testId="floor-picker" />
       <p className="px-1 text-[11.5px] leading-relaxed text-ink-400">不同地面材料相接的门洞，以后会自动铺门槛石（风格的「门槛石」角色）。</p>
@@ -340,6 +421,7 @@ function FaceCard({ plan, decor, face }: { plan: Plan; decor: Decor; face: FaceR
   return (
     <>
       <Header icon={<PaintRoller size={18} strokeWidth={2.2} />} iconCls={SAND} title={room ? `${lbl.room} · ${faceNick(decor, face, plan, room.id) ?? lbl.dir + '墙'}面` : `${w.name ?? w.id} · 室外那一面`} sub={`${w.name ?? w.id}朝${room ? lbl.room : '室外'}的一面${otherRoom ? ` · 另一面在${otherRoom.name}` : ''}`} onClose={close} />
+      {faceSurfaces(decor, face).map(x => <PendingCallout key={x.id} plan={plan} decor={decor} k="surface" it={x} label />)}
       {m && <Visual label="立面"><div className="absolute right-3 top-2 text-[10.5px] font-semibold text-ink-400">{lbl.look}</div><MiniElev plan={plan} decor={decor} face={face} room={room?.id} /><div className="num pb-1 text-center text-[11px] font-medium text-ink-500">{(segL / 1000).toFixed(2)} × {H.toFixed(2)} m{holes > 0 ? ' · 门洞扣掉' : ''}</div></Visual>}
       <MatRow m={fin.material} note={fin.overridden ? `单独改过 · 风格默认是${fin.styleMaterial.name.replace('乳胶漆', '')}` : '跟风格'} right={fin.overridden ? <KPill tone="plain" size="sm" onClick={() => resetFace(face)} data-testid="face-reset">回到默认</KPill> : undefined} />
       <MaterialPicker decor={decor} cats={FACE_CATS} value={fin.material.id} onPick={pick} testId="face-picker" />
@@ -393,18 +475,47 @@ function MiniElev({ plan, decor, face, cabEdit, room }: { plan: Plan; decor: Dec
 }
 
 /* ───────── 家具库 ───────── */
+/** 分类胶囊里「方案里的构件」那一格（方案里有构件定义才出现） */
+const OWN_CAT = '__own'
 function FurnitureLib({ decor }: { decor: Decor }) {
   const cat = useDecor(s => s.furnCat), placing = useDecor(s => s.placing)
   const [q, setQ] = useState('')
   const tones = furnTones(decor)
-  const list = FURN_LIB.filter(e => q ? e.name.includes(q) || e.type.includes(q) : e.category === cat)
+  const agentT = useT().decorAgent
+  const comps = decor.components ?? []
+  const ownTab = cat === OWN_CAT && comps.length > 0
+  const list = FURN_LIB.filter(e => q ? e.name.includes(q) || e.type.includes(q) : e.category === (cat === OWN_CAT ? FURN_CATS[0] : cat))
+  const catName = (c: CustomComponent) => c.category === 'other' ? c.label?.trim() || COMPONENT_CATEGORIES.other : COMPONENT_CATEGORIES[c.category]
+  const shown = q ? comps.filter(c => c.name.includes(q) || catName(c).includes(q)) : ownTab ? comps : []
+  const groups = [...new Set(shown.map(catName))]
   const D = useDecor.getState()
   return (
     <>
       <Header icon={<Sofa size={18} strokeWidth={2.2} />} iconCls={SAND} title="家具库" sub="点一件，再在平面上点一下放下" onClose={() => D.setTool('select')} />
       <label className="tile-sunken flex h-9 items-center gap-2 rounded-full px-3.5"><Search size={14} className="text-ink-400" /><input value={q} onChange={e => setQ(e.target.value)} placeholder="搜：沙发、冰箱…" className="min-w-0 flex-1 bg-transparent text-[13px] font-medium outline-none placeholder:text-ink-300" /></label>
-      {!q && <div className="flex flex-wrap gap-1.5">{FURN_CATS.map(c => <button key={c} onClick={() => D.set({ furnCat: c })} className={cn('h-7 rounded-full px-3 text-[12px] font-semibold', c === cat ? 'bg-ink-900 text-white' : 'tile text-ink-500')}>{c}</button>)}</div>}
-      <div className="grid grid-cols-3 gap-2">
+      {!q && <div className="flex flex-wrap gap-1.5">
+        {comps.length > 0 && <button data-testid="furn-cat-own" onClick={() => D.set({ furnCat: OWN_CAT })} className={cn('h-7 rounded-full px-3 text-[12px] font-semibold', ownTab ? 'bg-lav-800 text-white' : 'bg-lav-100 text-lav-800')}>{agentT.fromPlan}</button>}
+        {FURN_CATS.map(c => <button key={c} onClick={() => D.set({ furnCat: c })} className={cn('h-7 rounded-full px-3 text-[12px] font-semibold', c === cat ? 'bg-ink-900 text-white' : 'tile text-ink-500')}>{c}</button>)}
+      </div>}
+      {groups.map(g => (
+        <div key={g} data-testid="furn-own-group">
+          <div className="px-0.5 pb-1.5 text-[12px] font-semibold text-ink-500">{q ? `${agentT.fromPlan} · ${g}` : g}</div>
+          <div className="grid grid-cols-3 gap-2">
+            {shown.filter(c => catName(c) === g).map(c => {
+              const type = `custom:${c.id}`
+              return (
+                <button key={c.id} data-testid={`furn-own-${c.id}`} onClick={() => D.set({ placing: type, tool: 'furniture' })}
+                  className={cn('tile flex flex-col items-center gap-1 rounded-[16px] px-1 pb-2 pt-2 transition', placing === type && 'bg-white ring-2 ring-inset ring-mint-400')}>
+                  <span className="grid h-[52px] w-full place-items-center rounded-[11px] bg-white"><ComponentPreview def={c} size={70} /></span>
+                  <span className="w-full truncate px-1 text-center text-[12px] font-semibold text-ink-900">{c.name}</span>
+                  <span className="num text-[10.5px] text-ink-400">{c.size[0]} × {c.size[1]}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+      {!ownTab && <div className="grid grid-cols-3 gap-2">
         {list.map(e => (
           <button key={e.type} data-testid={`furn-${e.type}`} onClick={() => D.set({ placing: e.type, tool: 'furniture' })}
             className={cn('tile flex flex-col items-center gap-1 rounded-[16px] px-1 pb-2 pt-2 transition', placing === e.type && 'bg-white ring-2 ring-inset ring-mint-400')}>
@@ -413,23 +524,32 @@ function FurnitureLib({ decor }: { decor: Decor }) {
             <span className="num text-[10.5px] text-ink-400">{e.size[0]} × {e.size[1]}</span>
           </button>
         ))}
-      </div>
-      <p className="px-1 text-[11.5px] text-ink-400">常见尺寸，放下后可改</p>
+      </div>}
+      <p className="px-1 text-[11.5px] text-ink-400">{ownTab ? agentT.placeNote : '常见尺寸，放下后可改'}</p>
     </>
   )
 }
 
 /* ───────── 家具检查器 ───────── */
-function FurnitureCard({ plan, decor, f }: { plan: Plan; decor: Decor; f: Furniture }) {
+function FurnitureCard({ plan, decor, f, issues }: { plan: Plan; decor: Decor; f: Furniture; issues: DecorIssues | null }) {
   const e = FURN_LIB.find(x => x.type === f.type)
+  const def = componentOf(decor, f.type)
+  const custom = f.type.startsWith('custom:')
+  const d = useT().decorAgent
   const ag = f.against && faceLabel(plan, f.against.face)
+  const category = def ? (def.category === 'other' ? def.label?.trim() || COMPONENT_CATEGORIES.other : COMPONENT_CATEGORIES[def.category]) : e?.category ?? '家具'
+  const overhead = overheadOf(plan, f)
   return (
     <>
-      <Header icon={<Sofa size={18} strokeWidth={2.2} />} iconCls={SAND} title={f.name ?? e?.name ?? f.type} sub={<><span>{e?.category ?? '家具'}</span><span className="text-ink-300">·</span><span className="num">{f.id}</span></>} onClose={close} />
-      <div className="flex flex-wrap gap-1.5">
-        <Tag tone="outline" className="bg-sand-50 text-sand-700 ring-sand-100">{f.by === 'agent' ? 'Agent 提议' : '你加的'}</Tag>
+      <Header icon={<Sofa size={18} strokeWidth={2.2} />} iconCls={SAND} title={f.name ?? def?.name ?? e?.name ?? (custom ? '构件' : f.type)} sub={<><span>{category}</span><span className="text-ink-300">·</span><span className="num">{f.id}</span></>} onClose={close} />
+      {(f.status !== 'pending' || ag || overhead) && <div className="flex flex-wrap gap-1.5">
+        <OriginTag it={f} />
         {ag && <Tag tone="gray">贴着{ag.room}{ag.dir}墙</Tag>}
-      </div>
+        {overhead && <Tag tone="gray">{d.overheadTag}</Tag>}
+      </div>}
+      <PendingCallout plan={plan} decor={decor} k="furniture" it={f} />
+      <IssueNotes id={f.id} issues={issues} />
+      <LookLine text={f.look ?? def?.look} />
       {f.in && <HostRow plan={plan} decor={decor} f={f} />}
       {!f.in && f.at && (
         <div className="grid grid-cols-2 gap-2.5" data-testid="furn-xy">
@@ -437,13 +557,30 @@ function FurnitureCard({ plan, decor, f }: { plan: Plan; decor: Decor; f: Furnit
           <Num label="位置 y" value={Math.round(f.at[1])} unit="mm" step={10} min={-100000} max={100000} onChange={v => patchFurniture(f.id, { at: [f.at![0], v], against: undefined }, `fy-${f.id}`)} />
         </div>
       )}
-      <div className="grid grid-cols-2 gap-2.5">
-        <Num label="宽" value={f.size[0]} unit="mm" step={10} min={100} max={6000} onChange={v => patchFurniture(f.id, { size: [v, f.size[1]] }, `fw-${f.id}`)} testId="furn-w" />
-        <Num label="深" value={f.size[1]} unit="mm" step={10} min={20} max={6000} onChange={v => patchFurniture(f.id, { size: [f.size[0], v] }, `fd-${f.id}`)} />
-        <Num label="高" value={f.height} unit="m" step={0.01} min={0.01} max={3} digits={2} onChange={v => patchFurniture(f.id, { height: v }, `fh-${f.id}`)} />
-        {!f.in && <Num label="转角" value={f.rot ?? 0} unit="°" step={15} min={-360} max={360} onChange={v => patchFurniture(f.id, { rot: v, against: undefined }, `fr-${f.id}`)} />}
-      </div>
-      <p className="px-1 text-[11.5px] leading-relaxed text-ink-400">{e ? `常见尺寸 ${e.size[0]} × ${e.size[1]}，可以改成你家的实际尺寸。` : '不认识的家具画成通用盒子。'}拖的时候会显示到墙和别的家具的净距。</p>
+      {custom ? (
+        // Agent 画的构件：形状和尺寸在定义里，用户只调位置；要改形状走「交给 Agent」
+        <>
+          {!f.in && <div className="grid grid-cols-2 gap-2.5">
+            <Num label={d.lift} value={f.z ?? 0} unit="m" step={0.01} min={0} max={3} digits={2} onChange={v => patchFurniture(f.id, { z: v }, `fz-${f.id}`)} testId="furn-lift" />
+            <Num label="转角" value={f.rot ?? 0} unit="°" step={15} min={-360} max={360} onChange={v => patchFurniture(f.id, { rot: v, against: undefined }, `fr-${f.id}`)} />
+          </div>}
+          <div className="tile rounded-[18px] px-3 py-2.5" data-testid="comp-facts">
+            <div className="flex items-center justify-between gap-3"><span className="text-[12px] font-semibold text-ink-500">{d.sizeRow}</span><span className="num text-[13px] font-semibold text-ink-900" data-testid="comp-size">{Math.round(f.size[0])} × {Math.round(f.size[1])} × {Math.round(f.height * 1000)} mm</span></div>
+            {def?.basis && <p className="mt-1.5 text-[12px] leading-relaxed text-ink-600" data-testid="comp-basis">{fmt(d.basis, { v: def.basis })}</p>}
+          </div>
+          <p className="px-1 text-[11.5px] leading-relaxed text-ink-400" data-testid={overhead ? 'overhead-note' : undefined}>{d.shapeNote}{overhead ? d.overheadNote : '拖的时候会显示到墙和别的家具的净距。'}</p>
+        </>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-2.5">
+            <Num label="宽" value={f.size[0]} unit="mm" step={10} min={100} max={6000} onChange={v => patchFurniture(f.id, { size: [v, f.size[1]] }, `fw-${f.id}`)} testId="furn-w" />
+            <Num label="深" value={f.size[1]} unit="mm" step={10} min={20} max={6000} onChange={v => patchFurniture(f.id, { size: [f.size[0], v] }, `fd-${f.id}`)} />
+            <Num label="高" value={f.height} unit="m" step={0.01} min={0.01} max={3} digits={2} onChange={v => patchFurniture(f.id, { height: v }, `fh-${f.id}`)} />
+            {!f.in && <Num label="转角" value={f.rot ?? 0} unit="°" step={15} min={-360} max={360} onChange={v => patchFurniture(f.id, { rot: v, against: undefined }, `fr-${f.id}`)} />}
+          </div>
+          <p className="px-1 text-[11.5px] leading-relaxed text-ink-400">{e ? `常见尺寸 ${e.size[0]} × ${e.size[1]}，可以改成你家的实际尺寸。` : '不认识的家具画成通用盒子。'}拖的时候会显示到墙和别的家具的净距。</p>
+        </>
+      )}
       <Actions onAgent={() => openAgentDecor([f.id])} onRemove={() => removeItem(f.id)} extra={<Tip label="转 90°" kbd="R" side="top"><RoundButton tone="tile" size="md" onClick={() => rotateFurniture(f.id)} aria-label="转 90°"><RotateCw size={16} /></RoundButton></Tip>} />
     </>
   )
@@ -580,15 +717,17 @@ function CabinetCard({ plan, base, decor, c, issues, cell }: { plan: Plan; base:
         <div className="flex flex-wrap gap-1.5">
           {prot && w && <Tag tone="ink" icon={<Lock size={10} strokeWidth={3} />}>{WALL_ZH[w.kind]}</Tag>}
           {!!c.embed && <Tag tone="gray">嵌进墙 {c.embed} mm</Tag>}
-          <Tag tone="outline" className="bg-sand-50 text-sand-700">{c.by === 'agent' ? 'Agent 提议' : '你加的'}</Tag>
+          <OriginTag it={c} />
         </div>
       )}
+      {!editing && <PendingCallout plan={plan} decor={decor} k="cabinet" it={c} />}
+      {!editing && <LookLine text={c.look} />}
       {!editing && w && <FactCard plan={plan} base={base} decor={decor} id={c.id} wallId={w.id} issues={issues} />}
       {editing ? <CabinetEditBody plan={plan} decor={decor} c={c} cell={cell} /> : (
         <>
           {w && !!c.embed && <Visual label="俯视局部"><div className="absolute right-3 top-2 text-[10.5px] font-semibold text-ink-400">挖进墙里多深</div><TopView t={w.thickness} depth={c.embed} deep={c.depth} width={c.width} kind={w.kind} /></Visual>}
           <div className="grid grid-cols-2 gap-2.5">
-            <Num label="宽" value={c.width} unit="mm" step={10} min={200} max={8000} onChange={v => patchCabinet(c.id, x => { const f = v / x.width; x.columns = x.columns.map((col, i) => i === x.columns.length - 1 ? { ...col, width: undefined } : { ...col, width: Math.round((col.width ?? 0) * f) }); x.width = v }, `cw-${c.id}`)} testId="cab-width" />
+            <Num label="宽" value={c.width} unit="mm" step={10} min={200} max={8000} onChange={v => patchCabinet(c.id, x => { const n = resizeCabinet(x, v); x.width = n.width; x.columns = n.columns }, `cw-${c.id}`)} testId="cab-width" />
             <Num label="高" value={c.z[1] - c.z[0]} unit="m" step={0.01} min={0.2} max={3.2} digits={2} onChange={v => patchCabinet(c.id, x => { x.z = [x.z[0], +(x.z[0] + v).toFixed(3)]; x.columns = x.columns.map(col => ({ ...col, cells: col.cells.map((cl, i) => i === col.cells.length - 1 ? { ...cl, h: undefined } : cl) })) }, `ch-${c.id}`)} />
             <Num label="柜深" value={c.depth} unit="mm" step={10} min={100} max={1200} onChange={v => patchCabinet(c.id, x => { x.depth = v }, `cd-${c.id}`)} testId="cab-depth" />
             <Num label="嵌进墙里" value={c.embed ?? 0} unit="mm" step={10} min={0} max={w ? w.thickness + 200 : 0} disabled={!face} onChange={v => setEmbed('cabinet', c.id, v)} testId="cab-embed" />
@@ -684,7 +823,11 @@ function CabPlanMini({ c, decor, sel }: { c: Cabinet; decor: Decor; sel?: number
 
 /* ───────── 造型检查器 ───────── */
 function PanelCard({ plan, decor, p }: { plan: Plan; decor: Decor; p: Panel }) {
-  const face = p.span?.face
+  const arch = p.type === 'arch'
+  const archDoor = arch ? plan.openings.find(o => o.id === p.opening) : undefined
+  let archFace: FaceRef | undefined
+  try { if (arch) archFace = panelSpan(plan, p).face } catch { /* 门洞不在了：走「没地方挂了」 */ }
+  const face = p.span?.face ?? archFace
   const w = face ? plan.walls.find(x => x.id === face.wall) : undefined
   const lbl = face ? faceLabel(plan, face) : null
   const holes = decor.recesses.filter(r => 'panel' in r.host && r.host.panel === p.id)
@@ -692,20 +835,54 @@ function PanelCard({ plan, decor, p }: { plan: Plan; decor: Decor; p: Panel }) {
   const sp = p.span
   return (
     <>
-      <Header icon={<Wallpaper size={18} strokeWidth={2.2} />} iconCls={SAND} title={p.name ?? typeZh} sub={<><span>{typeZh}</span><span className="text-ink-300">·</span><span>贴在{lbl?.title ?? ''}</span><span className="text-ink-300">·</span><span className="num">{p.id}</span></>} onClose={close} />
+      <Header icon={<Wallpaper size={18} strokeWidth={2.2} />} iconCls={SAND} title={p.name ?? typeZh} sub={<><span>{typeZh}</span><span className="text-ink-300">·</span><span>{arch ? (archDoor ? `做在${archDoor.name ?? `${lbl?.room ?? ''}门洞`}上` : '门洞不在了') : `贴在${lbl?.title ?? ''}`}</span><span className="text-ink-300">·</span><span className="num">{p.id}</span></>} onClose={close} />
+      {p.status !== 'pending' && <div className="flex flex-wrap gap-1.5"><OriginTag it={p} /></div>}
+      <PendingCallout plan={plan} decor={decor} k="panel" it={p} />
+      <LookLine text={p.look} />
       {sp && <div className="grid grid-cols-2 gap-2.5">
         <Num label="宽" value={sp.s[1] - sp.s[0]} unit="mm" step={10} min={100} max={20000} onChange={v => patchPanel(p.id, x => { x.span = { ...x.span!, s: [x.span!.s[0], x.span!.s[0] + v] } }, `pw-${p.id}`)} testId="panel-w" />
         <Num label="高" value={sp.z[1] - sp.z[0]} unit="m" step={0.01} min={0.05} max={w ? effectiveWallHeight(plan, w) : 3} digits={2} onChange={v => patchPanel(p.id, x => { x.span = { ...x.span!, z: [x.span!.z[0], +(x.span!.z[0] + v).toFixed(3)] } }, `ph-${p.id}`)} />
         <Num label="出墙厚度（含龙骨）" value={p.thickness} unit="mm" step={5} min={5} max={400} onChange={v => patchPanel(p.id, x => { x.thickness = v }, `pt-${p.id}`)} className="col-span-2" />
       </div>}
-      <p className="-mt-1 px-1 text-[11.5px] text-ink-400">常见 20–200 mm（常见值）。</p>
-      <div className="flex items-center justify-between px-1"><span className="text-[12px] font-semibold text-ink-500">分缝</span>
+      {arch && <Num label="出墙厚度（含龙骨）" value={p.thickness} unit="mm" step={5} min={5} max={400} onChange={v => patchPanel(p.id, x => { x.thickness = v }, `pt-${p.id}`)} />}
+      <p className="-mt-1 px-1 text-[11.5px] text-ink-400">{arch ? `跟着门洞走，不改洞口。拱的形状要改就交给 Agent。` : '常见 20–200 mm（常见值）。'}</p>
+      {!arch && <div className="flex items-center justify-between px-1"><span className="text-[12px] font-semibold text-ink-500">分缝</span>
         <MiniSeg value={p.grooves?.dir ?? 'none'} options={[{ v: 'v', l: '竖缝' }, { v: 'h', l: '横缝' }, { v: 'none', l: '无' }]} onChange={v => patchPanel(p.id, x => { x.grooves = v === 'none' ? undefined : { dir: v as 'v' | 'h', spacing: v === 'v' ? 600 : 400, width: 3 } })} />
-      </div>
+      </div>}
       <MatRow m={matOf(decor, p.material)} note={p.material === styleOf(decor.style, decor).roles['wall.accent'] ? '跟风格的点缀墙' : '单独改过'} />
       <MaterialPicker decor={decor} cats={FACE_CATS} value={p.material} onPick={m => patchPanel(p.id, x => { x.material = m })} />
       {holes.length > 0 && <div className="flex flex-col gap-1.5">{holes.map(h => <Row key={h.id} disc={<span className="grid size-10 place-items-center rounded-full bg-sand-100 text-sand-700"><Inbox size={16} /></span>} title={h.name ?? '挖洞'} sub={`${Math.round((h.rect.u?.[1] ?? 0) - (h.rect.u?.[0] ?? 0))} × ${(h.rect.z[1] - h.rect.z[0]).toFixed(2)} · ${h.depth === 'through' ? '挖穿' : `挖进 ${h.depth}`}`} onClick={() => useDecor.getState().select({ k: 'recess', id: h.id })} />)}</div>}
       <Actions onAgent={() => openAgentDecor([p.id])} onRemove={() => removeItem(p.id)} />
+    </>
+  )
+}
+
+/* ───────── 门的外观：Agent 写的，这里看、确认或不要；要改样子找 Agent ───────── */
+const DOOR_KIND_ZH: Record<string, string> = { door: '平开门', sliding: '推拉门' }
+function DoorCard({ plan, decor, d, issues }: { plan: Plan; decor: Decor; d: DoorFinish; issues: DecorIssues | null }) {
+  const t = useT().decorAgent
+  const o = plan.openings.find(x => x.id === d.opening)
+  const leaf = finishColor(decor, d), frame = finishColor(decor, d.frame)
+  const swatch = (color: string, name: string): Material => ({ id: 'door', name, category: 'other', color })
+  const look = () => {
+    if (!o) return
+    const side = indoorSide(plan, o.wall) ?? o.swing?.side ?? 1, face: FaceRef = { wall: o.wall, side }
+    openElevAt(face, { s: o.offset + o.width / 2 })
+    useDecor.getState().select({ k: 'door', id: d.id })
+  }
+  return (
+    <>
+      <Header icon={<DoorOpen size={18} strokeWidth={2.2} />} iconCls={SAND} title={doorName(plan, d)} sub={<><span>{t.doorLook}</span>{o && <><span className="text-ink-300">·</span><span>{DOOR_KIND_ZH[o.kind] ?? '门'}</span><span className="text-ink-300">·</span><span className="num">{Math.round(o.width)} × {Math.round((o.head - o.sill) * 1000)} mm</span></>}</>} onClose={close} />
+      {d.status !== 'pending' && <div className="flex flex-wrap gap-1.5"><OriginTag it={d} /></div>}
+      <PendingCallout plan={plan} decor={decor} k="door" it={d} />
+      {!o && <div data-testid="door-missing" className="rounded-[16px] bg-lemon-50 px-3 py-2 text-[12.5px] font-semibold text-lemon-800 ring-1 ring-inset ring-lemon-200">{t.doorMissing}</div>}
+      <IssueNotes id={d.id} issues={issues} />
+      <LookLine text={d.look} />
+      {leaf && <div data-testid="door-leaf"><MatRow m={swatch(leaf, finishMaterialName(decor, d))} note={t.doorLeaf} right={o && <KPill tone="plain" size="sm" data-testid="door-elev" onClick={look}>{t.doorSee}<ChevronRight size={14} /></KPill>} /></div>}
+      {frame && <div data-testid="door-frame"><MatRow m={swatch(frame, finishMaterialName(decor, d.frame))} note={t.doorFrame} /></div>}
+      {!leaf && o && <KPill tone="tile" size="md" data-testid="door-elev" onClick={look}>{t.doorSee}<ChevronRight size={14} /></KPill>}
+      <p className="px-1 text-[11.5px] leading-relaxed text-ink-400">{t.doorNote}</p>
+      <Actions onAgent={() => openAgentDecor([d.id])} onRemove={() => removeItem(d.id)} />
     </>
   )
 }
@@ -725,6 +902,9 @@ function RecessCard({ plan, base, decor, r, issues }: { plan: Plan; base: Plan; 
   return (
     <>
       <Header icon={<Inbox size={18} strokeWidth={2.2} />} iconCls={SAND} title={r.name ?? (r.kind === 'niche' ? '壁龛' : '挖洞')} sub={<><span>挖在：{where}</span></>} onClose={close} />
+      {r.status !== 'pending' && <div className="flex flex-wrap gap-1.5"><OriginTag it={r} /></div>}
+      <PendingCallout plan={plan} decor={decor} k="recess" it={r} />
+      <LookLine text={r.look} />
       {w && face && <FactCard plan={plan} base={base} decor={decor} id={r.id} wallId={w.id} issues={issues} />}
       {errs.map(e => <div key={e.code} className="rounded-[16px] bg-lemon-50 px-3 py-2 text-[12.5px] font-semibold text-lemon-800 ring-1 ring-inset ring-lemon-200">{e.text}</div>)}
       <Visual label="俯视局部"><div className="absolute right-3 top-2 text-[10.5px] font-semibold text-ink-400">{onWall ? '挖进墙里多深' : '挖进造型多深'}</div><TopView t={hostT} depth={depthN} deep={0} width={(r.rect.s ? r.rect.s[1] - r.rect.s[0] : (r.rect.u?.[1] ?? 0) - (r.rect.u?.[0] ?? 0))} kind={panel ? 'partition' : w?.kind ?? 'partition'} through={r.depth === 'through'} /></Visual>

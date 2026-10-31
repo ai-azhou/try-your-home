@@ -18,7 +18,9 @@ export function panelGeometry(plan: Plan, panel: Panel): PanelGeometry {
   let polygons: Vec2[][][] = [[rectPoly(rect)]]
   if (panel.type === 'arch') {
     const radius = Math.max(width / 2, panel.arch?.radius ?? width / 2), rise = radius - Math.sqrt(Math.max(0, radius * radius - width * width / 4)), base = span.z[1] - rise / 1000
-    const curve: Vec2[] = Array.from({ length: 65 }, (_, i) => { const x = width * i / 64; return [x, base + (Math.sqrt(Math.max(0, radius * radius - (x - width / 2) ** 2)) - Math.sqrt(Math.max(0, radius * radius - width * width / 4))) / 1000] })
+    // 按角度等分（按 x 等分时靠近门边的一段又陡又稀，3D 按高度切片后是一级级大台阶）
+    const a0 = Math.acos(Math.min(1, width / 2 / radius)), off = radius * Math.sin(a0)
+    const curve: Vec2[] = Array.from({ length: 65 }, (_, i) => { const a = Math.PI - a0 - (Math.PI - 2 * a0) * i / 64; return [i === 0 ? 0 : i === 64 ? width : width / 2 + radius * Math.cos(a), base + (radius * Math.sin(a) - off) / 1000] })
     const hole: Vec2[] = [[0, span.z[0]], [width, span.z[0]], ...curve.reverse()]
     polygons = difference(polygons, [[hole]])
   } else if (panel.type === 'slats') {

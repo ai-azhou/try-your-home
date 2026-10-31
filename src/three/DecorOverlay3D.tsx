@@ -14,7 +14,9 @@ import type { DecorSolid } from '@/core/decor/solids'
 import { wallSkins } from '@/core/decor/wall-skins'
 import { faceAxis } from '@/core/decor/faces'
 import { levelOf } from '@/core/levels'
+import { effectiveWallHeight } from '@/core/geometry'
 import { solidToGeometry } from './geometry'
+import { fixturePieces } from './pieces'
 import type { Solid } from '@/core/solids'
 import { Pin, Projector, type Anchor } from './Overlay3D'
 import { useDecor, type DSel } from '@/ui/decor/dstore'
@@ -57,9 +59,31 @@ function geosOf(plan: Plan, decor: Decor | undefined, solids: DecorSolid[], s: D
   if (!s) return []
   if (s.k === 'face') return faceGeos(plan, decor, s)
   if (s.k === 'floor' || s.k === 'cell') return []
+  // 门：叠在门扇上（开着 68° 的那一片），不是洞口
+  if (s.k === 'door') {
+    const o = decor?.doors?.find(d => d.id === s.id)?.opening
+    return o ? fixturePieces(plan).filter(p => p.ids.includes(o) && p.kind !== 'rail').map(p => p.geo) : []
+  }
   const id = s.id
   // 和实体重合的面靠材质的 polygonOffset 盖在上面
   return solids.filter(x => !x.replaces && x.ids.includes(id)).map(x => solidToGeometry({ ...x, kind: 'wall' } as unknown as Solid))
+}
+
+const LAV = new THREE.MeshBasicMaterial({ color: '#a693f6', transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
+/** Agent 提议还没确认的墙面、地面：贴一层淡紫（界面层，导出 PNG 时不进图） */
+export function PendingSurfaces3D({ plan, decor }: { plan: Plan; decor: Decor }) {
+  const geos = useMemo(() => decor.surfaces.filter(s => s.status === 'pending').flatMap(s => {
+    try {
+      const t = s.target
+      if ('face' in t) {
+        const ax = faceAxis(plan, t.face), el = levelOf(plan, ax.wall).elevation, [a, b] = t.s ?? [0, ax.length], z = t.z ?? [0, effectiveWallHeight(plan, ax.wall)]
+        return [solidToGeometry({ kind: 'wall', ids: [], polygons: [[[ax.at(a, 3), ax.at(b, 3), ax.at(b, 6), ax.at(a, 6)]]], z0: el + z[0], z1: el + z[1] } as unknown as Solid)]
+      }
+      const r = plan.rooms.find(x => x.id === ('floor' in t ? t.floor : t.ceiling))
+      return r ? [solidToGeometry({ kind: 'floor', ids: [], polygons: [[r.poly]], z0: levelOf(plan, r).elevation + 0.002, z1: levelOf(plan, r).elevation + 0.006 } as unknown as Solid)] : []
+    } catch { return [] }
+  }), [plan, decor])
+  return <group userData={{ ui: true }}>{geos.map((g, i) => <mesh key={i} geometry={g} material={LAV} raycast={() => null} renderOrder={4} />)}</group>
 }
 
 /* ───────── 旁边的小标签 / 按钮 ───────── */

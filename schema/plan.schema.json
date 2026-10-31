@@ -1759,6 +1759,12 @@
             "$ref": "#/$defs/StylePreset"
           }
         },
+        "components": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CustomComponent"
+          }
+        },
         "surfaces": {
           "type": "array",
           "items": {
@@ -1769,6 +1775,12 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/Furniture"
+          }
+        },
+        "doors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DoorFinish"
           }
         },
         "cabinets": {
@@ -1876,6 +1888,10 @@
     "DecorBase": {
       "type": "object",
       "properties": {
+        "prev": {
+          "type": "object",
+          "additionalProperties": {}
+        },
         "id": {
           "type": "string",
           "minLength": 1
@@ -1907,6 +1923,9 @@
           ]
         },
         "note": {
+          "type": "string"
+        },
+        "look": {
           "type": "string"
         },
         "ack": {
@@ -2119,6 +2138,10 @@
         "trim": {
           "type": "string"
         },
+        "prev": {
+          "type": "object",
+          "additionalProperties": {}
+        },
         "id": {
           "type": "string",
           "minLength": 1
@@ -2150,6 +2173,9 @@
           ]
         },
         "note": {
+          "type": "string"
+        },
+        "look": {
           "type": "string"
         },
         "ack": {
@@ -2375,6 +2401,10 @@
             }
           ]
         },
+        "prev": {
+          "type": "object",
+          "additionalProperties": {}
+        },
         "id": {
           "type": "string",
           "minLength": 1
@@ -2406,6 +2436,9 @@
           ]
         },
         "note": {
+          "type": "string"
+        },
+        "look": {
           "type": "string"
         },
         "ack": {
@@ -2736,6 +2769,10 @@
             }
           ]
         },
+        "prev": {
+          "type": "object",
+          "additionalProperties": {}
+        },
         "id": {
           "type": "string",
           "minLength": 1
@@ -2769,6 +2806,9 @@
         "note": {
           "type": "string"
         },
+        "look": {
+          "type": "string"
+        },
         "ack": {
           "type": "object",
           "properties": {
@@ -2800,6 +2840,9 @@
         {
           "type": "object",
           "properties": {
+            "flip": {
+              "type": "boolean"
+            },
             "type": {
               "type": "string"
             },
@@ -2859,6 +2902,10 @@
               "required": [],
               "additionalProperties": false
             },
+            "prev": {
+              "type": "object",
+              "additionalProperties": {}
+            },
             "id": {
               "type": "string",
               "minLength": 1
@@ -2890,6 +2937,9 @@
               ]
             },
             "note": {
+              "type": "string"
+            },
+            "look": {
               "type": "string"
             },
             "ack": {
@@ -2930,6 +2980,9 @@
         {
           "type": "object",
           "properties": {
+            "flip": {
+              "type": "boolean"
+            },
             "type": {
               "type": "string"
             },
@@ -2989,6 +3042,10 @@
               "required": [],
               "additionalProperties": false
             },
+            "prev": {
+              "type": "object",
+              "additionalProperties": {}
+            },
             "id": {
               "type": "string",
               "minLength": 1
@@ -3020,6 +3077,9 @@
               ]
             },
             "note": {
+              "type": "string"
+            },
+            "look": {
               "type": "string"
             },
             "ack": {
@@ -3061,6 +3121,9 @@
     "FurnitureBase": {
       "type": "object",
       "properties": {
+        "flip": {
+          "type": "boolean"
+        },
         "type": {
           "type": "string"
         },
@@ -3120,6 +3183,10 @@
           "required": [],
           "additionalProperties": false
         },
+        "prev": {
+          "type": "object",
+          "additionalProperties": {}
+        },
         "id": {
           "type": "string",
           "minLength": 1
@@ -3151,6 +3218,9 @@
           ]
         },
         "note": {
+          "type": "string"
+        },
+        "look": {
           "type": "string"
         },
         "ack": {
@@ -3571,6 +3641,10 @@
     "Surface": {
       "type": "object",
       "properties": {
+        "prev": {
+          "type": "object",
+          "additionalProperties": {}
+        },
         "id": {
           "type": "string",
           "minLength": 1
@@ -3666,6 +3740,371 @@
     },
     "Decor": {
       "$ref": "#/$defs/DecorLayer"
+    },
+    "ComponentCategory": {
+      "anyOf": [
+        {
+          "const": "furniture"
+        },
+        {
+          "const": "appliance"
+        },
+        {
+          "const": "sanitary"
+        },
+        {
+          "const": "lighting"
+        },
+        {
+          "const": "ceiling"
+        },
+        {
+          "const": "plant"
+        },
+        {
+          "const": "soft"
+        },
+        {
+          "const": "storage"
+        },
+        {
+          "const": "other"
+        }
+      ]
+    },
+    "ComponentPath": {
+      "type": "object",
+      "properties": {
+        "d": {
+          "type": "string"
+        },
+        "style": {
+          "anyOf": [
+            {
+              "const": "outline"
+            },
+            {
+              "const": "detail"
+            },
+            {
+              "const": "dashed"
+            }
+          ]
+        },
+        "fill": {
+          "type": "string"
+        },
+        "stroke": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "d"
+      ],
+      "additionalProperties": false
+    },
+    "ComponentPartBase": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "material": {
+          "type": "string"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "ComponentPart": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "color": {
+              "type": "string"
+            },
+            "material": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "extrude"
+            },
+            "outline": {
+              "type": "string"
+            },
+            "z": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "outline",
+            "z"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "color": {
+              "type": "string"
+            },
+            "material": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "side"
+            },
+            "along": {
+              "anyOf": [
+                {
+                  "const": "width"
+                },
+                {
+                  "const": "depth"
+                }
+              ]
+            },
+            "profile": {
+              "type": "string"
+            },
+            "span": {
+              "type": "array",
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2
+            }
+          },
+          "required": [
+            "kind",
+            "along",
+            "profile",
+            "span"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "color": {
+              "type": "string"
+            },
+            "material": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "revolve"
+            },
+            "profile": {
+              "type": "string"
+            },
+            "center": {
+              "$ref": "#/$defs/Vec2"
+            }
+          },
+          "required": [
+            "kind",
+            "profile"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "CustomComponent": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "category": {
+          "$ref": "#/$defs/ComponentCategory"
+        },
+        "label": {
+          "type": "string"
+        },
+        "basis": {
+          "type": "string"
+        },
+        "look": {
+          "type": "string"
+        },
+        "size": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "height": {
+          "type": "number"
+        },
+        "plan": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComponentPath"
+          }
+        },
+        "front": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComponentPath"
+          }
+        },
+        "parts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComponentPart"
+          }
+        },
+        "seg": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "category",
+        "size",
+        "height",
+        "parts"
+      ],
+      "additionalProperties": false
+    },
+    "DoorFinish": {
+      "type": "object",
+      "properties": {
+        "opening": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        },
+        "material": {
+          "type": "string"
+        },
+        "frame": {
+          "type": "object",
+          "properties": {
+            "color": {
+              "type": "string"
+            },
+            "material": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "front": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ComponentPath"
+          }
+        },
+        "flip": {
+          "type": "boolean"
+        },
+        "prev": {
+          "type": "object",
+          "additionalProperties": {}
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "by": {
+          "anyOf": [
+            {
+              "const": "user"
+            },
+            {
+              "const": "agent"
+            }
+          ]
+        },
+        "status": {
+          "anyOf": [
+            {
+              "const": "pending"
+            },
+            {
+              "const": "confirmed"
+            }
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "look": {
+          "type": "string"
+        },
+        "ack": {
+          "type": "object",
+          "properties": {
+            "by": {
+              "type": "string"
+            },
+            "at": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "by"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "opening",
+        "id",
+        "by",
+        "status"
+      ],
+      "additionalProperties": false
     }
   }
 }

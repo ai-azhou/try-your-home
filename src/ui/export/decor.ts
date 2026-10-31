@@ -12,15 +12,17 @@ import { faceAxis, faceExtent, faceRun } from '@/core/decor/faces'
 import { joinedWallFootprint } from '@/core/walls'
 import { levelOf } from '@/core/levels'
 import { cabinetFootprint, layoutCabinet } from '@/core/decor/cabinets'
-import { furniturePose } from '@/core/decor/furniture'
+import { furniturePose, isFlatFurniture } from '@/core/decor/furniture'
+import { pendingCount } from '@/core/decor/resolve'
 import { embedFootprint, embedsOf } from '@/core/decor/embed'
 import { materialOf, materialTakeoff, resolveFinish, faceRoom, styleOf as coreStyleOf } from '@/core/decor/surfaces'
 import { labelPoint, planBounds, pointInPolygon } from '@/core/geometry'
 import { planTone, elevTone } from '../canvas2d/style'
-import { decorIssues, footprintOf, faceLabel, WALL_ZH, type ItemKind } from '../decor/model'
+import { decorIssues, footprintOf, faceLabel, overheadIds, WALL_ZH, type ItemKind } from '../decor/model'
+import { panelSpan } from '@/core/decor/panels'
 import { elevationModel, type ElevModel } from '../decor/elev-model'
-import { FURN_LIB } from '../decor/furniture'
-import { K, NUM, badge, chip, lockIcon, newPage, panel, para, rrect, text, vdim, type Ctx } from './canvas'
+import { furnitureName } from '../decor/furniture'
+import { K, NUM, badge, chip, lockIcon, newPage, panel, para, pattern, rrect, text, vdim, type Ctx } from './canvas'
 import { boxOf, drawPlan, fitFrame, frameFor, polyPath, type Rect, type Xf } from './plan-draw'
 import { layoutBadges, type BadgeIn } from './badges'
 import { BADGE, BODY, DETAIL, MIN_GAP_PX, PAGE, PANEL_PAD, type ExportDoc } from './model'
@@ -73,7 +75,9 @@ function cabinetLines(p: Plan, c: Cabinet): string[] {
 }
 function panelLines(p: Plan, pn: Panel): string[] {
   const out: string[] = []
-  const w = pn.span ? Math.abs(pn.span.s[1] - pn.span.s[0]) : 0, h = pn.span ? pn.span.z[1] - pn.span.z[0] : 0
+  let sp = pn.span
+  try { sp = panelSpan(p, pn) } catch { /* 拱形门套的门洞不在了 */ }
+  const w = sp ? Math.abs(sp.s[1] - sp.s[0]) : 0, h = sp ? sp.z[1] - sp.z[0] : 0
   out.push(`${PANEL_ZH[pn.type]}：宽 ${mm(w)} × 高 ${h.toFixed(2)} m，出墙 ${mm(pn.thickness)} mm（含龙骨）`)
   out.push(`${materialOf(p, pn.material).name}${pn.grooves ? ` · ${pn.grooves.dir === 'v' ? '竖' : '横'}缝，间距 ${mm(pn.grooves.spacing)}` : ''}`)
   return out
@@ -84,7 +88,7 @@ function recessLines(p: Plan, d: Decor, r: Recess): string[] {
   const on = host ? `挖在${host.name ?? ('thickness' in host ? '造型' : '柜子')}上` : '挖在墙上（壁龛）'
   const out = [`${on}：宽 ${mm(w)} × 高 ${(r.rect.z[1] - r.rect.z[0]).toFixed(2)} m，离地 ${r.rect.z[0].toFixed(2)} m，${r.depth === 'through' ? '挖穿' : `挖进 ${mm(r.depth)} mm`}`]
   const inside = d.furniture.filter(f => f.in === r.id)
-  if (inside.length) out.push(`里面放：${inside.map(f => f.name ?? FURN_LIB.find(e => e.type === f.type)?.name ?? f.type).join('、')}`)
+  if (inside.length) out.push(`里面放：${inside.map(f => furnitureName(d, f)).join('、')}`)
   if (r.back) out.push(`背板 ${materialOf(p, r.back).name}`)
   return out
 }
@@ -192,6 +196,7 @@ const S = {
   disclaimer: '我的装修想法，可行性待专业确认',
   pipes: '墙里可能有水电管线，嵌入、挖槽的位置都要现场确认',
   rough: '面积约数 · 粗估，只用来对量级',
+  pendingItem: '待确认：Agent 提议，还没算数',
 }
 
 /** 平面：地面铺样色（打印更浅一档），装修构件画在结构上面 */
@@ -212,19 +217,27 @@ function drawDecorPlan(ctx: Ctx, part: DecorPart, x: Xf, r: Rect, o: { strong?: 
     } catch { /* */ }
   }
   // 家具：淡墨轮廓（不编号，进家具尺寸表）
+  const overhead = overheadIds(plan, decor)
   for (const f of decor.furniture) {
-    if (f.type === 'rug') continue
+    if (isFlatFurniture(decor, f) && !overhead.has(f.id)) continue
     try {
       const pose = furniturePose(plan, f)
       ctx.beginPath(); polyPath(ctx, x, pose.footprint)
-      ctx.fillStyle = f.type === 'tv' ? '#3b4048' : K.paper; ctx.fill(); ctx.strokeStyle = K.ink300; ctx.lineWidth = 0.8; ctx.stroke()
+      // 顶上的东西（吊顶、顶灯）：和界面一样只画虚线，不盖住地面和家具
+      if (overhead.has(f.id)) { ctx.setLineDash([5, 4]); ctx.strokeStyle = f.status === 'pending' ? K.lav : K.ink300; ctx.lineWidth = 0.9; ctx.stroke(); ctx.setLineDash([]); continue }
+      // 待确认的：淡紫斜纹 + 紫色虚线，和界面同一个说法
+      if (f.status === 'pending') { ctx.fillStyle = pattern(ctx, 'lav'); ctx.fill(); ctx.setLineDash([4, 3]); ctx.strokeStyle = K.lav; ctx.lineWidth = 1.1; ctx.stroke(); ctx.setLineDash([]) }
+      else { ctx.fillStyle = f.type === 'tv' ? '#3b4048' : K.paper; ctx.fill(); ctx.strokeStyle = K.ink300; ctx.lineWidth = 0.8; ctx.stroke() }
     } catch { /* */ }
   }
   // 造型、柜子、壁龛
   for (const pn of decor.panels) {
     const fp = footprintOf(plan, 'panel', pn); if (!fp) continue
     ctx.globalAlpha = faint(pn.id) ? 0.45 : 1
-    ctx.beginPath(); polyPath(ctx, x, fp); ctx.fillStyle = planTone(materialOf(plan, pn.material).color, -0.04); ctx.fill(); ctx.strokeStyle = K.ink600; ctx.lineWidth = 0.9; ctx.stroke()
+    ctx.beginPath(); polyPath(ctx, x, fp)
+    if (pn.type === 'arch') { ctx.setLineDash([5, 4]); ctx.strokeStyle = K.ink600; ctx.lineWidth = 0.9; ctx.stroke(); ctx.setLineDash([]) } // 门洞上方，不盖住门洞
+    else { ctx.fillStyle = planTone(materialOf(plan, pn.material).color, -0.04); ctx.fill(); ctx.strokeStyle = K.ink600; ctx.lineWidth = 0.9; ctx.stroke() }
+    if (pn.status === 'pending') pendingMark(ctx, x, fp)
     ctx.globalAlpha = 1
   }
   for (const c of decor.cabinets) {
@@ -237,6 +250,7 @@ function drawDecorPlan(ctx: Ctx, part: DecorPart, x: Xf, r: Rect, o: { strong?: 
     if (c.family === 'wall') ctx.setLineDash([5, 4])
     ctx.strokeStyle = K.ink600; ctx.lineWidth = 1; ctx.stroke(); ctx.setLineDash([])
     if (c.family === 'tall') { const q = fp.map(p => x.P(p)); ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); ctx.lineTo(q[2][0], q[2][1]); ctx.moveTo(q[1][0], q[1][1]); ctx.lineTo(q[3][0], q[3][1]); ctx.strokeStyle = K.ink300; ctx.lineWidth = 0.7; ctx.stroke() }
+    if (c.status === 'pending') pendingMark(ctx, x, fp)
     ctx.globalAlpha = 1
   }
   for (const e of embedsOf(plan, decor)) {
@@ -249,6 +263,11 @@ function drawDecorPlan(ctx: Ctx, part: DecorPart, x: Xf, r: Rect, o: { strong?: 
     ctx.setLineDash([5, 4]); ctx.strokeStyle = '#a08a1c'; ctx.lineWidth = 1.3; ctx.strokeRect(A[0], A[1], B[0] - A[0], B[1] - A[1]); ctx.setLineDash([])
   }
   ctx.restore()
+}
+
+function pendingMark(ctx: Ctx, x: Xf, fp: Vec2[]) {
+  ctx.beginPath(); polyPath(ctx, x, fp); ctx.fillStyle = pattern(ctx, 'lav'); ctx.globalAlpha = 0.7; ctx.fill(); ctx.globalAlpha = 1
+  ctx.setLineDash([4, 3]); ctx.strokeStyle = K.lav; ctx.lineWidth = 1.1; ctx.stroke(); ctx.setLineDash([])
 }
 
 /* ───────── 立面取景 ───────── */
@@ -334,6 +353,8 @@ function drawDecorElevation(ctx: Ctx, part: DecorPart, base: Plan, face: FaceRef
   const anchors = new Map<string, [number, number]>()
   const pin = (id: string, a: number, b: number, z: number) => { const p = Math.max(a, v0), q = Math.min(b, v1); if (q - p >= 60) anchors.set(id, [X((p + q) / 2), Y(z)]) }
   const fin = resolveFinish(plan, { face }).material
+  // 待确认的：淡紫斜纹 + 紫色虚线，和平面、界面同一个说法
+  const elevPending = (a: number, z0: number, b: number, z1: number) => { ctx.save(); ctx.globalAlpha = 0.6; ctx.fillStyle = pattern(ctx, 'lav'); ctx.fillRect(...rect(a, z0, b, z1)); ctx.globalAlpha = 1; ctx.setLineDash([4, 3]); ctx.strokeStyle = K.lav; ctx.lineWidth = 1.1; ctx.strokeRect(...rect(a, z0, b, z1)); ctx.restore() }
   ctx.save(); ctx.beginPath(); ctx.rect(X(v0), Y(H + SL), (v1 - v0) * s, HZ * s); ctx.clip()
   // 墙面
   ctx.fillStyle = elevTone(fin.color, 0.02); ctx.fillRect(...rect(v0, 0, v1, H))
@@ -356,6 +377,7 @@ function drawDecorElevation(ctx: Ctx, part: DecorPart, base: Plan, face: FaceRef
     ctx.beginPath(); for (const rings of p.geo.visiblePolygons) for (const ring of rings) { ring.forEach(([u, z], i) => i ? ctx.lineTo(X(p.u0 + u), Y(z)) : ctx.moveTo(X(p.u0 + u), Y(z))); ctx.closePath() }
     ctx.fillStyle = elevTone(materialOf(plan, p.p.material).color); ctx.fill('evenodd'); ctx.strokeStyle = K.ink600; ctx.lineWidth = 0.9; ctx.stroke()
     for (const [a, b] of p.geo.grooves) { ctx.beginPath(); ctx.moveTo(X(p.u0 + a[0]), Y(a[1])); ctx.lineTo(X(p.u0 + b[0]), Y(b[1])); ctx.strokeStyle = 'rgba(22,25,30,0.18)'; ctx.lineWidth = 0.6; ctx.stroke() }
+    if (p.p.status === 'pending') elevPending(p.u0 + p.geo.rect.u[0], p.geo.rect.z[0], p.u0 + p.geo.rect.u[1], p.geo.rect.z[1])
     pin(p.p.id, p.u0 + p.geo.rect.u[0], p.u0 + p.geo.rect.u[1], p.geo.rect.z[1] - 0.25)
     for (const h of decor.recesses.filter(x => 'panel' in x.host && x.host.panel === p.p.id && x.rect.u)) {
       ctx.fillStyle = elevTone(materialOf(plan, h.back ?? p.p.material).color, -0.1); ctx.fillRect(...rect(p.u0 + h.rect.u![0], h.rect.z[0], p.u0 + h.rect.u![1], h.rect.z[1])); ctx.strokeStyle = K.ink600; ctx.strokeRect(...rect(p.u0 + h.rect.u![0], h.rect.z[0], p.u0 + h.rect.u![1], h.rect.z[1]))
@@ -375,12 +397,15 @@ function drawDecorElevation(ctx: Ctx, part: DecorPart, base: Plan, face: FaceRef
       if (p.kind === 'appliance') { ctx.setLineDash([4, 3]); ctx.strokeStyle = K.ink500; ctx.lineWidth = 0.8; ctx.strokeRect(...rect(c.u0 + p.u[0], p.z[0], c.u0 + p.u[1], p.z[1])); ctx.setLineDash([]) }
     }
     ctx.strokeStyle = K.ink600; ctx.lineWidth = 1; ctx.strokeRect(...rect(c.u0, c.c.z[0] + pl, c.u0 + c.c.width, c.c.z[1]))
+    if (c.c.status === 'pending') elevPending(c.u0, c.c.z[0], c.u0 + c.c.width, c.c.z[1])
     pin(c.c.id, c.u0, c.u0 + c.c.width, Math.min(c.c.z[1] - 0.25, (c.c.z[0] + c.c.z[1]) / 2 + 0.4))
   }
   // 洞里的家电（电视）
   for (const f of m.furniture) {
-    if (f.f.type === 'tv' || f.held) { ctx.fillStyle = '#3b4048'; ctx.fillRect(...rect(f.u[0], f.z[0], f.u[1], f.z[1])) }
-    else if (f.f.type !== 'rug') { ctx.setLineDash([4, 3]); ctx.strokeStyle = K.ink300; ctx.lineWidth = 0.8; ctx.strokeRect(...rect(f.u[0], f.z[0], f.u[1], f.z[1])); ctx.setLineDash([]) }
+    if (isFlatFurniture(decor, f.f)) continue
+    if (f.f.status === 'pending') elevPending(f.u[0], f.z[0], f.u[1], f.z[1])
+    else if (f.f.type === 'tv' || f.held) { ctx.fillStyle = '#3b4048'; ctx.fillRect(...rect(f.u[0], f.z[0], f.u[1], f.z[1])) }
+    else { ctx.setLineDash([4, 3]); ctx.strokeStyle = K.ink300; ctx.lineWidth = 0.8; ctx.strokeRect(...rect(f.u[0], f.z[0], f.u[1], f.z[1])); ctx.setLineDash([]) }
   }
   ctx.restore()
   // 墙面换材料的序号：露出来那部分的左上
@@ -451,6 +476,8 @@ function itemBlock(ctx: Ctx, it: DecorExportItem, x: number, y: number, w: numbe
   if (!dry) badge(ctx, x + 12, y + 10, it.number, { d: 24 })
   let yy = y + 4 + size * 0.95
   yy = para(ctx, it.title, tx, yy, tw, size * 1.4, { size: size + 0.5, weight: 650, color: K.ink }, 2, dry).y
+  // 待确认：明确写出来，和已确认的分开读
+  if (it.status === 'pending') yy = para(ctx, S.pendingItem, tx, yy, tw, size * 1.4, { size: size - 1, weight: 700, color: K.lav }, 2, dry).y
   for (const ln of it.lines) yy = para(ctx, ln, tx, yy, tw, size * 1.4, { size: size - 1, weight: 500, color: K.ink700 }, 3, dry).y
   if (it.note) {
     const top = yy - size + 2
@@ -539,7 +566,9 @@ function overview(doc: ExportDoc, part: DecorPart, index: number, footer: Foot):
   }
   y += 22
   const free = part.decor.furniture.filter(f => !f.in).length
-  para(ctx, `家具 ${free} 件不编号，尺寸见「用到的材料 · 家具尺寸」页。`, cx, y, cw, 16, { size: 11, weight: 500, color: K.ink500 }, 2)
+  y = para(ctx, `家具 ${free} 件不编号，尺寸见「用到的材料 · 家具尺寸」页。`, cx, y, cw, 16, { size: 11, weight: 500, color: K.ink500 }, 2).y
+  const waiting = pendingCount(part.decor)
+  if (waiting) para(ctx, `其中 ${waiting} 条是 Agent 提议，还没确认：图上淡紫斜纹，右栏写着「待确认」。`, cx, y + 4, cw, 16, { size: 11, weight: 700, color: K.lav }, 3)
   footer(ctx, index)
   return { canvas, title: '装修总览', badges, regions }
 }
@@ -602,16 +631,19 @@ function materials(doc: ExportDoc, part: DecorPart, index: number, footer: Foot)
     y += rowH
     ctx.fillStyle = K.ink100; ctx.fillRect(BODY.x + 58, y - 8, leftW - 74, 1)
   }
+  // 粗估只算已确认的（core materialTakeoff 走 confirmedDecor，和 Agent 那边的 decor 命令一致）
+  const waiting = pendingCount(part.decor)
+  if (waiting) text(ctx, `另有 ${waiting} 条待确认未计入`, BODY.x + 16, BODY.y + BODY.h - 34, { size: 11, weight: 700, color: K.lav })
   para(ctx, '面积按各片真实面积扣掉门窗洞、造型遮挡算的，不含损耗；只用来对量级，不是用料或报价。品牌、色号自己记。', BODY.x + 16, BODY.y + BODY.h - 26, leftW - 32, 15, { size: 10.5, weight: 500, color: K.ink500 }, 2)
   // 家具尺寸表
   const cx = BODY.x + leftW + 18, cw = BODY.w - leftW - 18
   panel(ctx, cx, BODY.y, cw, BODY.h, '家具尺寸', { tone: 'plain', right: '宽 × 深 mm · 高 m' })
-  const fs = part.decor.furniture.filter(f => f.type !== 'rug')
+  const fs = part.decor.furniture.filter(f => !isFlatFurniture(part.decor, f))
   const fh = Math.min(30, (BODY.h - 60) / Math.max(1, fs.length))
   y = BODY.y + 52
   for (const f of fs) {
-    const name = f.name ?? FURN_LIB.find(e => e.type === f.type)?.name ?? f.type
-    text(ctx, name, cx + 16, y, { size: Math.min(12, fh * 0.48), weight: 600, color: K.ink800 })
+    const name = furnitureName(part.decor, f)
+    text(ctx, f.status === 'pending' ? `${name} · 待确认` : name, cx + 16, y, { size: Math.min(12, fh * 0.48), weight: 600, color: f.status === 'pending' ? K.lav : K.ink800 })
     text(ctx, `${mm(f.size[0])} × ${mm(f.size[1])} · ${f.height.toFixed(2)}${f.in ? ' · 放在洞里' : ''}`, cx + cw - 16, y, { size: Math.min(11.5, fh * 0.46), weight: 600, family: NUM, color: K.ink600, align: 'right' })
     y += fh
   }

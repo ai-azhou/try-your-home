@@ -4,18 +4,20 @@
  */
 import type { ReactNode } from 'react'
 import { motion } from 'motion/react'
-import { ArrowRight, ChevronLeft, ChevronRight, Lock, MousePointerClick, Palette, Sofa, Unlink, ScanEye, PaintRoller, Columns3, FileDown } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, Lock, MousePointerClick, Palette, Sofa, Sparkles, Unlink, ScanEye, PaintRoller, Columns3, FileDown } from 'lucide-react'
 import type { Plan, Room, Vec2 } from '@/core/types'
 import type { FaceRef } from '@/core/decor/types'
 import { faceAxis, faceExtent } from '@/core/decor/faces'
 import { effectiveWallHeight, labelPoint, pointInPolygon, roomsBesideWall, wallNormal } from '@/core/geometry'
 import { cabinetFootprint } from '@/core/decor/cabinets'
 import { useStore } from '../store'
+import { dicts, fmt } from '../i18n'
+import { pendingCount } from '@/core/decor/resolve'
 import { Glass, Pill, Tip } from '../kit'
 import { cn } from '@/lib/utils'
 import { bottomSlot, useIsNarrow } from '../layout'
 import { useDecor } from './dstore'
-import { faceLabel, faceRoom, styleOf, useDecorIssues, useDecorPlan, WALL_ZH, matOf } from './model'
+import { faceLabel, faceRoom, pendingItems, selOfItem, styleOf, useDecorIssues, useDecorPlan, WALL_ZH, matOf } from './model'
 import { elevSegmentRooms, elevationModel } from './elev-model'
 import { FURN_CATS } from './furniture'
 import { openExportPanel } from '../export/entry'
@@ -57,6 +59,7 @@ export function DecorTitle() {
   const issues = useDecorIssues()
   if (!dp) return null
   const { plan, decor } = dp
+  const nPending = pendingCount(decor), agentT = dicts[useStore.getState().lang].decorAgent
   let l1: ReactNode = plan.title, l2: ReactNode = '装修方案', meta: ReactNode = null, nav: ReactNode = null
   if (canvas.k !== 'plan') {
     const face = canvas.face, w = plan.walls.find(x => x.id === face.wall)
@@ -106,7 +109,7 @@ export function DecorTitle() {
   } else if (decor) {
     const st = styleOf(decor.style, decor)
     const orphans = new Set(issues?.orphans.map(i => i.id) ?? []).size
-    meta = <><span>{st.name}</span><Dot /><span>家具 <span className="num">{decor.furniture.length}</span> · 柜子 <span className="num">{decor.cabinets.length}</span></span>{orphans > 0 && <><Dot /><span className="font-semibold text-lemon-800">{orphans} 项没地方挂</span></>}</>
+    meta = <><span>{st.name}</span><Dot /><span>家具 <span className="num">{decor.furniture.length}</span> · 柜子 <span className="num">{decor.cabinets.length}</span></span>{orphans > 0 && <><Dot /><span className="font-semibold text-lemon-800">{orphans} 项没地方挂</span></>}{nPending > 0 && <><Dot /><span className="font-semibold text-lav-600" data-testid="decor-title-pending">{fmt(agentT.meta, { n: nPending })}</span></>}</>
   } else meta = <span>还没选风格</span>
   return (
     <motion.div key={canvas.k} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.32, ease: [0.2, 0.8, 0.2, 1] }}
@@ -166,7 +169,9 @@ export function DecorNext() {
   if (!dp || agentOpen) return null
   if (tool !== 'select' && !sel && !hint) return null
   const decor = dp.decor
-  let tone: 'ink' | 'lemon' | 'mint' = 'ink', icon: ReactNode = <MousePointerClick size={15} strokeWidth={2.4} />, lead = '', cta = '', act = () => {}
+  let tone: 'ink' | 'lemon' | 'mint' | 'lav' = 'ink', icon: ReactNode = <MousePointerClick size={15} strokeWidth={2.4} />, lead = '', cta = '', act = () => {}
+  const proposals = pendingItems(decor), agentT = dicts[useStore.getState().lang].decorAgent
+  const selPending = !!sel && 'id' in sel && proposals.some(x => x.it.id === sel.id)
   const orphanIds = [...new Set(issues?.orphans.map(i => i.id) ?? [])]
   if (hint) {
     tone = 'lemon'; icon = <Lock size={14} strokeWidth={2.6} />
@@ -175,13 +180,18 @@ export function DecorNext() {
   } else if (preview) {
     icon = <Palette size={15} strokeWidth={2.4} />
     lead = `正在预览，Esc 回到「${styleOf(decor?.style, decor).name}」`
+  } else if (selPending) {
+    tone = 'lav'; icon = <Sparkles size={15} strokeWidth={2.4} />
+    lead = agentT.barSel
   } else if (sel) {
-    lead = canvas.k === 'cabinet' ? '点格子换类型，拖竖线改列宽 · Esc 回到整面墙'
+    lead = sel.k === 'door' ? (canvas.k === 'plan' ? '样子要改就交给 Agent · 双击进立面看门板 · ⌫ 删除' : '样子要改就交给 Agent · ⌫ 删除')
+      : sel.k === 'panel' && decor?.panels.find(p => p.id === sel.id)?.type === 'arch' ? '跟着门洞走，拱的形状要改就交给 Agent · ⌫ 删除'
+      : canvas.k === 'cabinet' ? '点格子换类型，拖竖线改列宽 · Esc 回到整面墙'
       : sel.k === 'face' ? (canvas.k === 'plan' ? '点色块直接换 · 双击这面墙进立面' : '拖框画造型，用「挖」在墙上挖壁龛')
       : sel.k === 'floor' ? '点色块直接换这间房的地面'
-      : sel.k === 'furniture' ? '拖动换位置，R 转 90° · ⌫ 删除'
-      : sel.k === 'cabinet' ? (canvas.k === 'plan' ? '双击进柜体编辑 · ⌫ 删除' : '拖四边改尺寸，拖进墙里就是嵌入 · ⌫ 删除')
-      : '拖四边改尺寸 · ⌫ 删除'
+      : sel.k === 'furniture' ? (canvas.k === 'plan' ? '拖动或方向键换位置（⇧ 大步）· 按住 ⌥ 悬停量净距 · R 转 90° · ⌫ 删除' : '拖动换位置，←→ 沿墙挪、↑↓ 调离地高度（⇧ 大步）· R 转 90° · ⌫ 删除')
+      : sel.k === 'cabinet' ? (canvas.k === 'plan' ? '双击进柜体编辑 · 按住 ⌥ 悬停量净距 · ⌫ 删除' : '拖四边改尺寸，拖进墙里就是嵌入 · ←→ 沿墙挪、↑↓ 调离地高度（⇧ 大步）· ⌫ 删除')
+      : canvas.k === 'plan' ? '拖四边改尺寸 · ⌫ 删除' : '拖四边改尺寸 · ←→ 沿墙挪、↑↓ 调离地高度（⇧ 大步）· ⌫ 删除'
   } else if (!decor || styleCard) {
     tone = 'mint'; icon = <Palette size={15} strokeWidth={2.4} />
     lead = '先选一个整体风格，之后每块地、每面墙都能单独改'
@@ -191,6 +201,10 @@ export function DecorNext() {
     const wall = it && 'face' in it.place ? dp.base.walls.find(w => w.id === (it.place as { face: FaceRef }).face.wall) : undefined
     lead = wall ? `拆掉${wall.name ?? wall.id}后，${orphanIds.length} 项装修没地方挂了` : `${orphanIds.length} 项装修没地方挂了`
     cta = '去处理'; act = () => { const k = decor.cabinets.some(c => c.id === orphanIds[0]) ? 'cabinet' : decor.panels.some(c => c.id === orphanIds[0]) ? 'panel' : decor.recesses.some(c => c.id === orphanIds[0]) ? 'recess' : 'furniture'; useDecor.getState().select({ k, id: orphanIds[0] } as never) }
+  } else if (proposals.length) {
+    tone = 'lav'; icon = <Sparkles size={15} strokeWidth={2.4} />
+    lead = fmt(agentT.bar, { n: proposals.length }); cta = agentT.barCta
+    act = () => useDecor.getState().select(selOfItem(proposals[0]))
   } else if (!decor.furniture.length) {
     icon = <Sofa size={15} strokeWidth={2.4} />
     lead = '从家具库拖几件进来，看看放不放得下'; cta = '打开家具库'; act = () => useDecor.getState().setTool('furniture')
@@ -199,11 +213,11 @@ export function DecorNext() {
     lead = '双击一面墙，做背景墙、嵌墙柜'
   } else {
     tone = 'mint'; icon = <FileDown size={15} strokeWidth={2.4} />
-    const n = decor.furniture.length + decor.cabinets.length + decor.panels.length + decor.recesses.length + decor.surfaces.length
+    const n = decor.furniture.length + decor.cabinets.length + decor.panels.length + decor.recesses.length + decor.surfaces.length + (decor.doors?.length ?? 0)
     lead = `${styleOf(decor.style, decor).name} · ${n} 项装修`; cta = '改造清单导出'
     act = () => openExportPanel()
   }
-  const disc = { lemon: 'bg-lemon-200 text-ink-900', mint: 'bg-mint-200 text-mint-900', ink: 'bg-ink-900 text-white' }[tone]
+  const disc = { lemon: 'bg-lemon-200 text-ink-900', mint: 'bg-mint-200 text-mint-900', lav: 'bg-lav-200 text-lav-800', ink: 'bg-ink-900 text-white' }[tone]
   return (
     <motion.div key={lead} initial={{ opacity: 0, y: 12, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ type: 'spring', stiffness: 420, damping: 30 }}
       className={cn('absolute bottom-5 z-30', narrow ? 'flex justify-center' : 'left-1/2 -translate-x-1/2')} style={narrow ? bottomSlot(shift) : undefined}>

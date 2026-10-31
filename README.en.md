@@ -6,7 +6,7 @@
 
 # try-your-home
 
-**v0.12.0 preview** — a local browser tool for editing floor-plan structure, comparing renovation ideas, and previewing interior layouts. Interior features are still being developed. [中文完整说明](README.md)
+**v0.13.0 preview** — a local browser tool for editing floor-plan structure, comparing renovation ideas, and previewing interior layouts. An Agent can now furnish the plan too, including drawing an item from your dimensions or a photo; its proposals show in lavender for you to confirm. [中文完整说明](README.md)
 
 Edit walls, openings, rooms and levels; inspect a 3D model; arrange materials, furniture and cabinetry; export plan JSON, images, models and a renovation PDF. This is **not a construction drawing or a basis for structural or demolition decisions**. Dimensions and material quantities need independent verification.
 

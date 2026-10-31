@@ -8,7 +8,8 @@ export function mirrorDecor(plan: Plan, axis: 'x' | 'y', sum: number, mirrorPoin
   const d = structuredClone(plan.decor), index = axis === 'x' ? 0 : 1
   const point = mirrorPoint ?? ((p: Vec2): Vec2 => index === 0 ? [sum - p[0], p[1]] : [p[0], sum - p[1]])
   const face = (f: FaceRef) => { f.side = -f.side as 1 | -1 }, interval = (u: [number, number], width: number): [number, number] => [width - u[1], width - u[0]]
-  for (const f of d.furniture) { if (f.at) f.at = point(f.at, `furniture.${f.id}`); if (f.rot !== undefined) f.rot = f.in ? -f.rot : axis === 'x' ? -f.rot : 180 - f.rot; if (f.against) face(f.against.face) }
+  for (const door of d.doors ?? []) if (door.front) door.flip = !door.flip
+  for (const f of d.furniture) { f.flip = !f.flip; if (f.at) f.at = point(f.at, `furniture.${f.id}`); if (f.rot !== undefined) f.rot = f.in ? -f.rot : axis === 'x' ? -f.rot : 180 - f.rot; if (f.against) face(f.against.face) }
   for (const f of d.furniture) if (f.in) {
     const match = /^(.*):cell:(\d+):(\d+)$/.exec(f.in)
     const cabinet = match && plan.decor.cabinets.find(c => c.id === match[1])
@@ -42,6 +43,19 @@ export function mirrorDecor(plan: Plan, axis: 'x' | 'y', sum: number, mirrorPoin
     if (cache.anchor) { cache.anchor.a = point(cache.anchor.a, `cache.${id}.anchor.a`); cache.anchor.b = point(cache.anchor.b, `cache.${id}.anchor.b`) }
     if (cache.pose) { cache.pose.at = point(cache.pose.at, `cache.${id}.pose`); cache.pose.rot = axis === 'x' ? -cache.pose.rot : 180 - cache.pose.rot }
     if (cache.face) cache.face = cache.face.map((p, i) => point(p, `cache.${id}.face.${i}`)) as [Vec2, Vec2]
+  }
+  // Snapshots are world-space items too; mirror them against the same source hosts.
+  const snapshot = structuredClone(plan.decor)
+  let hasPrev = false
+  for (const key of ['furniture', 'cabinets', 'panels', 'recesses', 'surfaces', 'doors'] as const) if (snapshot[key]) snapshot[key] = snapshot[key]!.map(item => {
+    if (!item.prev) return item
+    hasPrev = true
+    const old = structuredClone(item.prev); delete old.prev
+    return old
+  }) as never
+  if (hasPrev) {
+    const mirrored = mirrorDecor({ ...plan, decor: snapshot }, axis, sum)!
+    for (const key of ['furniture', 'cabinets', 'panels', 'recesses', 'surfaces', 'doors'] as const) for (const item of d[key] ?? []) if (item.prev) item.prev = mirrored[key]?.find(v => v.id === item.id) as unknown as Record<string, unknown>
   }
   return d
 }

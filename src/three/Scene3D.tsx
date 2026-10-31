@@ -21,16 +21,22 @@ import { spanOf } from '@/ui/geom'
 import { freeRect, rectToInsets, useIsMobile } from '@/ui/layout'
 import { buildPieces, elementGeometries, mergedPieces, plinthGeometry, prism, type Piece } from './pieces'
 import { buildDecorSolids, decorWallSolids, sectionAt, type DecorSolid } from '@/core/decor/solids'
+import { confirmedDecor, decorItems } from '@/core/decor/resolve'
+import { isCustomType } from '@/core/decor/components'
+import { fromOklch, oklch } from '@/ui/canvas2d/style'
 import { materialOf, resolveFinish } from '@/core/decor/surfaces'
+import { floorFillPieces, floorFills } from '@/core/decor/floor-fill'
+import { difference } from '@/core/decor/math'
 import { STYLE_PRESETS } from '@/core/decor/presets'
-import { CAP, FLAT_TOP, SECTION_Z, capGeometry, flatMat, floorMat, paintWalls, wallSkinMeshes, tone3d, vertexColorMat, wallFaceTable } from './decor3d'
+import { CAP, FLAT_TOP, SECTION_Z, capGeometry, flatMat, floorMat, paintWalls, wallBodyGeometry, wallCreases, wallSkinMeshes, tone3d, vertexColorMat, wallFaceTable } from './decor3d'
 import type { Solid } from '@/core/solids'
 import { mergeByKind } from './geometry'
 import { useDecor } from '@/ui/decor/dstore'
-import { openCabinetAt, openElevAt, selKey as selKey3, tempDecor, useShownDecor } from '@/ui/decor/model'
+import { doorOfOpening, finishColor, openCabinetAt, openElevAt, overheadIds, selKey as selKey3, tempDecor, useShownDecor } from '@/ui/decor/model'
+import { panelSpan } from '@/core/decor/panels'
 import type { DSel } from '@/ui/decor/dstore'
 import { faceOfWallHit, pickDecorItem } from './decor-pick'
-import { DecorHighlight3D, DecorSpotLayer, DecorSpotProjector } from './DecorOverlay3D'
+import { DecorHighlight3D, DecorSpotLayer, DecorSpotProjector, PendingSurfaces3D } from './DecorOverlay3D'
 import { mats } from './materials'
 import { applyAOField } from './ao'
 import { solidToGeometry } from './geometry'
@@ -164,6 +170,13 @@ const PICK: Record<string, Ref['type'][]> = { wall: ['opening', 'wall'], sill: [
 
 /** 电视（放进电视位的家电）：白模里唯一的深色块，看得出「洞里放着东西」 */
 const TV_MAT = new THREE.MeshStandardMaterial({ color: '#2b2f36', roughness: 0.4, metalness: 0.1 })
+/** 待确认的装修构件：淡紫（和结构提议同一个色），半透明但看得清形状 */
+const PENDING_MAT = new THREE.MeshStandardMaterial({ color: '#b7a8f7', transparent: true, opacity: 0.78, roughness: 0.7, metalness: 0 })
+/** Agent 指定的颜色：稍微往纸白拉一点、压一下彩度，深色（电视）还是深色 */
+/** 吊顶、顶灯从下往上看，主光照不到底面：自发一点光，平涂色不被压成深褐 */
+const overheadMats = new Map<string, THREE.MeshStandardMaterial>()
+const overheadMat = (hex: string) => { let m = overheadMats.get(hex); if (!m) { m = new THREE.MeshStandardMaterial({ color: hex, emissive: hex, emissiveIntensity: 0.42, roughness: 0.92, metalness: 0 }); overheadMats.set(hex, m) } return m }
+const customTone = (hex: string) => { const c = oklch(hex); return fromOklch({ L: c.L + (1 - c.L) * 0.12, C: Math.min(c.C, 0.09), h: c.h }) }
 const Model = memo(function Model({ mini }: { mini?: boolean }) {
   const view = useView()!
   const mode = useStore(s => s.mode), sel = useStore(s => s.sel), hover = useStore(s => s.hover), layers = useStore(s => s.layers), cam = useStore(s => s.cam)
@@ -179,11 +192,24 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
   // 装修态（docs/decor 探针 P1–P3 → D5 正式）：core buildDecorSolids——柜体板件、造型、挖洞、家具盒子；
   // 有嵌入的墙给替换实体（墙体真的变薄），只藏 core 列出的那几面（hideWallIds），其余墙照常按墙分组上色、剖切、点选
   // 没有装修层时悬停风格：画 core createDecor 临时生成的一份（不写进数据，D6 A1）
-  const decor = useShownDecor()
-  const decorSolids = useMemo((): (DecorSolid[] & { hideWallIds?: string[] }) => {
+  const shownDecor = useShownDecor(), exportView = useDecor(s => s.exportView)
+  // 导出 PNG：默认只画已确认的（有改动的画改之前，和 render 一致）；平时待确认的画当前提议，淡紫
+  const decor = useMemo(() => exportView === 'confirmed' ? confirmedDecor(shownDecor) : shownDecor, [shownDecor, exportView])
+  const pendingIds = useMemo(() => new Set(!exportView && decor ? decorItems(decor).filter(i => i.status === 'pending').map(i => i.id) : []), [decor, exportView])
+  const allSolids = useMemo((): (DecorSolid[] & { hideWallIds?: string[] }) => {
     if (mode !== 'decor' || !decor) return []
     try { return buildDecorSolids({ ...plan, decor }) } catch (e) { console.warn('buildDecorSolids', e); return [] }
   }, [mode, decor, plan])
+  // 顶上的东西（吊顶、吸顶灯、吊灯）：只有平视才画（和 render 一样，斜视、俯视不画，不然吊顶悬在半空把房间挡住）。
+  // 「3D 顶面和梁」打开时斜视也画，但只是看看：算界面层，导出 PNG 不带。对准时看机位仰角；对准的就是它也画。1.1 m 剖切时不画。
+  const overhead = useMemo(() => overheadIds(plan, decor), [plan, decor])
+  const probe = useDecor(s => s.probe), section3d = useDecor(s => s.section3d), overheadLayer = useDecor(s => s.overhead3d)
+  const overheadInView = aiming ? !!probe && (probe.el < 30 || overhead.has(probe.item)) : cam === 'eye'
+  const overheadShown = !section3d && (overheadInView || overheadLayer), overheadUiOnly = overheadShown && !overheadInView
+  const decorSolids = useMemo((): (DecorSolid[] & { hideWallIds?: string[] }) => {
+    if (overheadShown || !overhead.size) return allSolids
+    return Object.assign(allSolids.filter(s => s.replaces || !s.ids.some(id => overhead.has(id))), { hideWallIds: allSolids.hideWallIds })
+  }, [allSolids, overhead, overheadShown])
   const hidden = useMemo(() => new Set(decorSolids.hideWallIds ?? []), [decorSolids])
   const pieces = useMemo(() => buildPieces(plan, id => hidden.has(id) ? 'hidden' : cut.has(id) ? 'cut' : compare ? (diff!.added.has(id) ? 'added' : 'muted') : 'base'), [plan, cut, compare, diff, hidden])
   useEffect(() => () => pieces.forEach(p => p.geo.dispose()), [pieces])
@@ -224,33 +250,53 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
   const styleId = preview ?? decor?.style ?? 'cream', keep = preview ? keepOv : true
   const faces = useMemo(() => flat ? wallFaceTable(plan, decor!, styleId, keep) : null, [flat, plan, decor, styleId, keep])
   const decorPieces = useMemo(() => {
-    if (!decorSolids.length) return { rep: [] as Piece[], items: [] as { key: string; kind: string; material?: string; geo: THREE.BufferGeometry }[] }
+    if (!decorSolids.length) return { rep: [] as Piece[], items: [] as { key: string; kind: string; material?: string; ui: boolean; geo: THREE.BufferGeometry }[] }
     // 替换墙跟原墙同一个显示分组（平视剖切的那几面照样剖）
     const repSolids = decorSolids.filter(s => s.replaces).map(s => ({ ...s, kind: s.replaces! }) as Solid)
     const rep = [...mergedPieces(repSolids.filter(s => !s.ids.some(id => cut.has(id))), 'base'), ...mergedPieces(repSolids.filter(s => s.ids.some(id => cut.has(id))), 'cut')].map(p => ({ ...p, key: 'rep:' + p.key }))
     const tv = new Set((decor?.furniture ?? []).filter(f => f.type === 'tv').map(f => f.id))
     const rug = new Set((decor?.furniture ?? []).filter(f => f.type === 'rug').map(f => f.id))
+    const custom = new Set((decor?.furniture ?? []).filter(f => isCustomType(f.type)).map(f => f.id))
     // 平涂下按材料分组（柜体、造型各用自己的材料色）；白模下只按类型
     const keyed = decorSolids.filter(s => !s.replaces).map(s => {
+      if (s.ids.some(id => pendingIds.has(id))) return { s, k: 'decor-pending' }
+      // Agent 画的构件：平涂下每个部件用自己的颜色 / 材料（白模下保持白模）
+      if (flat && s.kind === 'decor-furniture' && s.ids.some(id => custom.has(id)) && (s.color || s.material)) return { s, k: `${s.ids.some(id => overhead.has(id)) ? 'decor-custom-top' : 'decor-custom'}|${s.color ? `c${s.color}` : `m${s.material}`}` }
       const k = s.kind === 'decor-furniture' ? (s.ids.some(id => tv.has(id)) ? 'decor-tv' : s.ids.some(id => rug.has(id)) ? 'decor-rug' : 'decor-furniture') : s.kind
       return { s, k: flat && !['decor-tv', 'decor-furniture', 'decor-rug'].includes(k) ? `${k}|${s.material ?? ''}` : k }
-    })
-    const items: { key: string; kind: string; material?: string; geo: THREE.BufferGeometry }[] = []
+    }).map(x => overheadUiOnly && x.s.ids.some(id => overhead.has(id)) ? { ...x, k: `${x.k.split('|')[0]}|${x.k.split('|')[1] ?? ''}|ui` } : x)
+    const items: { key: string; kind: string; material?: string; ui: boolean; geo: THREE.BufferGeometry }[] = []
     for (const key of [...new Set(keyed.map(x => x.k))]) {
       const list = keyed.filter(x => x.k === key).map(x => ({ ...x.s, kind: 'decor' }) as unknown as Solid)
       const geo = mergeByKind(list)['decor' as never] as THREE.BufferGeometry | undefined
-      if (geo) items.push({ key: 'dx-' + key, kind: key.split('|')[0], material: key.split('|')[1] || undefined, geo })
+      if (geo) items.push({ key: 'dx-' + key, kind: key.split('|')[0], material: key.split('|')[1] || undefined, ui: key.endsWith('|ui'), geo })
     }
     return { rep, items }
-  }, [decorSolids, decor, flat, cut])
+  }, [decorSolids, decor, flat, cut, pendingIds, overhead, overheadUiOnly])
   useEffect(() => () => { decorPieces.rep.forEach(p => p.geo.dispose()); decorPieces.items.forEach(p => p.geo.dispose()) }, [decorPieces])
+  // 平涂：墙体去掉段与段之间的内部面（只跟几何走，换风格、悬停预览不重算）
+  const bodies = useMemo(() => {
+    const out = new Map<string, THREE.BufferGeometry>()
+    if (!flat) return out
+    const walls = [...pieces, ...decorPieces.rep].filter(p => (p.kind === 'wall' || p.kind === 'sill' || p.kind === 'lintel' || p.kind === 'column' || p.kind === 'shaft') && p.group !== 'hidden')
+    const mass = walls.filter(p => p.group !== 'cut').flatMap(p => p.solids ?? [])
+    for (const p of walls) out.set(p.key, wallBodyGeometry(p.geo, mass))
+    return out
+  }, [flat, pieces, decorPieces])
+  useEffect(() => () => bodies.forEach(g => g.dispose()), [bodies])
+  const creases = useMemo(() => {
+    if (!flat) return null
+    const walls = [...pieces, ...decorPieces.rep].filter(p => (p.kind === 'wall' || p.kind === 'sill' || p.kind === 'lintel' || p.kind === 'column' || p.kind === 'shaft') && p.group !== 'hidden' && p.group !== 'cut')
+    return wallCreases(walls.filter(p => isWallBody(p.kind)).map(p => p.geo), walls.flatMap(p => p.solids ?? []))
+  }, [flat, pieces, decorPieces])
+  useEffect(() => () => creases?.dispose(), [creases])
   // 平涂：墙体几何加顶点色（每个三角形查它在哪面墙面上）
   const painted = useMemo(() => {
     const out = new Map<string, THREE.BufferGeometry>()
     if (!faces) return out
-    for (const p of [...pieces, ...decorPieces.rep]) if ((p.kind === 'wall' || p.kind === 'sill' || p.kind === 'lintel' || p.kind === 'column' || p.kind === 'shaft') && p.group !== 'hidden') out.set(p.key, paintWalls(p.geo, faces, FLAT_TOP[p.wallKind ?? 'partition']))
+    for (const p of [...pieces, ...decorPieces.rep]) { const body = bodies.get(p.key); if (body) out.set(p.key, paintWalls(body, faces, FLAT_TOP[p.wallKind ?? 'partition'])) }
     return out
-  }, [faces, pieces, decorPieces])
+  }, [faces, pieces, decorPieces, bodies])
   useEffect(() => () => painted.forEach(g => g.dispose()), [painted])
   // e2e：装修 3D 的实体、藏了哪几面墙、平涂 / 白模（只读）
   // e2e：某件装修构件在 3D 里的中心（世界坐标，米）
@@ -265,7 +311,15 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
     } })
   }, [decorSolids, mini])
   useEffect(() => { if (!mini) Object.assign(window, { __fixtures3d: pieces.filter(p => p.group === 'fixture').map(p => ({ kind: p.kind, ids: p.ids, key: p.key })) }) }, [pieces, mini])
-  useEffect(() => { if (!mini) Object.assign(window, { __decorSolids: decorSolids.map(s => ({ kind: s.kind, ids: s.ids, z0: s.z0, z1: s.z1, replaces: s.replaces })), __decor3d: { hide: [...hidden], hiddenPieces: pieces.filter(p => p.group === 'hidden').length, wallPieces: pieces.filter(p => p.kind === 'wall' && p.group !== 'hidden').length, flat, painted: painted.size, look: clay ? 'clay' : flat ? 'flat' : 'struct', preview: !useStore.getState().base?.decor && !!decor } }) }, [decorSolids, mini, hidden, pieces, flat, painted, clay, decor])
+  useEffect(() => { if (!mini) Object.assign(window, { __decorSolids: decorSolids.map(s => ({ kind: s.kind, ids: s.ids, z0: s.z0, z1: s.z1, replaces: s.replaces })), __decor3d: { hide: [...hidden], hiddenPieces: pieces.filter(p => p.group === 'hidden').length, wallPieces: pieces.filter(p => p.kind === 'wall' && p.group !== 'hidden').length, flat, painted: painted.size, look: clay ? 'clay' : flat ? 'flat' : 'struct', preview: !useStore.getState().base?.decor && !!decor, overhead: { ids: [...overhead], shown: overheadShown, uiOnly: overheadUiOnly } } }) }, [decorSolids, mini, hidden, pieces, flat, painted, clay, decor, overhead, overheadShown, overheadUiOnly])
+  // 门的外观：门扇用外观颜色（平涂），待确认的淡紫（白模下也提醒；导出时没有待确认的说法，白模不变）
+  const doorLeaf = (opening: string): { pending: boolean; color?: string } | null => {
+    const d = doorOfOpening(decor, opening)
+    if (!d) return null
+    const hex = finishColor(decor, d)
+    return { pending: pendingIds.has(d.id), ...(hex ? { color: hex } : {}) }
+  }
+  useEffect(() => { if (!mini) Object.assign(window, { __doorLeaves3d: pieces.filter(p => p.group === 'fixture' && (p.kind === 'leaf' || p.kind === 'pane') && doorOfOpening(decor, p.ids[0])).map(p => ({ opening: p.ids[0], ...doorLeaf(p.ids[0]), mat: (matFor(p) as THREE.MeshStandardMaterial).color?.getHexString?.() })) }) }, [pieces, decor, pendingIds, flat, mini])
   // 平涂墙面：core wallSkins 一整张连续的面（D6），不再按墙段一段段铺
   const skins = useMemo(() => flat ? wallSkinMeshes(plan, decor!, styleId, keep) : [], [flat, plan, decor, styleId, keep])
   useEffect(() => () => skins.forEach(s => s.geo.dispose()), [skins])
@@ -276,11 +330,36 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
     for (const r of plan.rooms) try { mm.set(r.id, floorMat(resolveFinish({ ...plan, decor: decor! }, { floor: r.id }, { styleId, keep, room: r }).material)) } catch { /* */ }
     return mm
   }, [flat, plan, decor, styleId, keep])
+  // 门洞、缝、拆墙占地的地面（core floorFills，按几何内容缓存）。略高 3 mm，避开上层楼板的共面闪烁
+  const floorPatches = useMemo(() => {
+    if (!flat) return []
+    const out: { key: string; room: string; geo: THREE.BufferGeometry }[] = []
+    for (const level of levelsOf(plan)) {
+      const view = onLevel(plan, level.id), rooms = new Map(view.rooms.map(r => [r.id, r]))
+      // 二层起地面是统一的楼板（不分房间）：整间铺上这间房的材料，不然门槛有色、房间没色
+      const holes = (view.voids ?? []).map(v => [v.poly])
+      const upper = level.elevation > levelsOf(plan)[0].elevation ? view.rooms.filter(r => r.poly.length >= 3).map(r => ({ room: r.id, polygons: difference([[r.poly]], holes) })) : []
+      ;[...upper, ...floorFillPieces(floorFills(view, base ? onLevel(base, level.id) : undefined))].forEach((f, i) => {
+        const r = rooms.get(f.room)
+        if (!r) return
+        const z = level.elevation + Math.min(0, r.floorOffset ?? 0) + 0.003
+        try { out.push({ key: `${level.id}:${f.room}:${i}`, room: f.room, geo: solidToGeometry({ kind: 'floor', polygons: f.polygons, z0: z - 0.08, z1: z, ids: [f.room] } as Solid) }) } catch { /* 这一块不铺 */ }
+      })
+    }
+    return out
+  }, [flat, plan, base])
+  useEffect(() => () => floorPatches.forEach(f => f.geo.dispose()), [floorPatches])
+  useEffect(() => { if (!mini) Object.assign(window, { __floorPatches3d: floorPatches.map(f => f.room) }) }, [floorPatches, mini])
   // e2e：探针实体的件数（只读）
 
 
   const matFor = (p: Piece): THREE.Material | THREE.Material[] => {
     const wk = p.wallKind ?? 'partition', muted = p.group === 'muted', added = p.group === 'added'
+    if ((p.kind === 'leaf' || p.kind === 'pane') && p.group === 'fixture' && mode === 'decor') {
+      const leaf = doorLeaf(p.ids[0])
+      if (leaf?.pending) return PENDING_MAT
+      if (leaf?.color && flat) return flatMat(customTone(leaf.color), { key: 'door' })
+    }
     if (clay) {
       switch (p.kind) {
         case 'wall': case 'sill': case 'lintel': return [m.clay3.top, m.clay3.wall]
@@ -336,7 +415,15 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
     const d = decor ?? tempDecor()
     const it = pickDecorItem(plan, d, decorSolids, e.point, n)
     if (it) return it
+    // 点到门扇（开着的那一片不在洞口里，看网格自己记的是哪扇门）；有外观的门出门的卡片，没外观的照旧
+    const leafOf = e.object.userData.leaf as string | undefined
+    const leafDoor = leafOf ? doorOfOpening(d, leafOf) : undefined
+    if (leafDoor) return { k: 'door', id: leafDoor.id }
     const ref = pickAt(e.point, types)
+    if (ref?.type === 'opening') {
+      const o = plan.openings.find(x => x.id === ref.id), door = doorOfOpening(d, ref.id), base = o ? elev(plan, o) : 0
+      if (o && door && e.point.y <= base + o.head) return { k: 'door', id: door.id }
+    }
     const wallId = ref?.type === 'wall' ? ref.id : ref?.type === 'opening' ? plan.openings.find(o => o.id === ref.id)?.wall : undefined
     if (wallId) return faceOfWallHit(plan, wallId, e.point, n)
     if (ref?.type === 'room') return { k: 'floor', id: ref.id }
@@ -348,13 +435,23 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
     if (dmode3d) { select(null); useDecor.getState().select(decorPick(e, types)); return }
     select(pickAt(e.point, types), e.nativeEvent.shiftKey)
   }
+  const n3 = (e: ThreeEvent<MouseEvent>) => e.face ? e.face.normal.clone().transformDirection(e.object.matrixWorld) : null
   const onDouble = (types: Ref['type'][]) => (e: ThreeEvent<MouseEvent>) => {
     if (!dmode3d) return
     e.stopPropagation()
     const hit = decorPick(e, types), d = decor ?? tempDecor()
     if (hit?.k === 'face') { useStore.getState().setMain('2d'); openElevAt(hit.face, { s: hit.s }) }
     else if (hit?.k === 'cabinet') { const c = d.cabinets.find(x => x.id === hit.id); if (c && 'face' in c.place) { useStore.getState().setMain('2d'); openCabinetAt(c.id, c.place.face) } }
-    else if (hit?.k === 'panel') { const pn = d.panels.find(x => x.id === hit.id); if (pn?.span) { useStore.getState().setMain('2d'); openElevAt(pn.span.face, { item: pn.id }); useDecor.getState().select(hit) } }
+    else if (hit?.k === 'panel') {
+      const pn = d.panels.find(x => x.id === hit.id)
+      let face
+      try { face = pn && panelSpan(plan, pn).face } catch { /* 门洞不在了 */ }
+      if (pn && face) { useStore.getState().setMain('2d'); openElevAt(face, { item: pn.id }); useDecor.getState().select(hit) }
+    } else if (hit?.k === 'door') {
+      const o = plan.openings.find(x => x.id === d.doors?.find(q => q.id === hit.id)?.opening)
+      const side = o && faceOfWallHit(plan, o.wall, e.point, n3(e))
+      if (side?.k === 'face') { useStore.getState().setMain('2d'); openElevAt(side.face, { s: side.s }); useDecor.getState().select(hit) }
+    }
   }
   const onMove = (types: Ref['type'][]) => (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
@@ -388,32 +485,35 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
       {/* 底板落在桌面上的影子：在底板下面再取一次，模型像放在桌上而不是飘着 */}
       {plinth && <PlinthShadow plan={plan} clay={clay} />}
       {clayFloor && <mesh geometry={clayFloor} material={m.clay3.floor} receiveShadow userData={{ fit: true }} onClick={onClick(['room'])} />}
+      {floorPatches.map(f => floorOf.has(f.room) && <mesh key={f.key} geometry={f.geo} material={floorOf.get(f.room)!} receiveShadow raycast={() => null} />)}
       {shown.map(p => (
         <group key={p.key}>
           {/* 梁不投影：俯视时梁的影子在地面上是一道道灰带，和墙影混在一起读不清；梁本身看得见 */}
-          <mesh geometry={painted.get(p.key) ?? p.geo} material={matFor(p)} castShadow={p.kind !== 'glass' && p.kind !== 'pane' && p.kind !== 'beam'} receiveShadow userData={{ fit: true }}
+          <mesh geometry={painted.get(p.key) ?? p.geo} material={matFor(p)} castShadow={p.kind !== 'glass' && p.kind !== 'pane' && p.kind !== 'beam'} receiveShadow userData={{ fit: true, ...((p.kind === 'leaf' || p.kind === 'pane') && p.group === 'fixture' ? { leaf: p.ids[0] } : {}) }}
             onClick={onClick(PICK[p.kind] ?? ['wall'])} onDoubleClick={onDouble(PICK[p.kind] ?? ['wall'])} onPointerMove={onMove(PICK[p.kind] ?? ['wall'])} onPointerOut={onOut}
             renderOrder={p.kind === 'glass' || p.kind === 'pane' ? 2 : 0} />
-          {!clay && (p.kind === 'wall' || p.kind === 'lintel' || p.kind === 'sill' || p.kind === 'beam' || p.kind === 'platform' || p.kind === 'glass' || p.kind === 'pane' || p.kind === 'stair' || p.kind === 'column' || p.kind === 'shaft' || p.kind === 'slab') && <Edges geo={p.geo} mat={edgeMat(p)} />}
+          {!clay && !(flat && isWallBody(p.kind)) && (p.kind === 'wall' || p.kind === 'lintel' || p.kind === 'sill' || p.kind === 'beam' || p.kind === 'platform' || p.kind === 'glass' || p.kind === 'pane' || p.kind === 'stair' || p.kind === 'column' || p.kind === 'shaft' || p.kind === 'slab') && <Edges geo={p.geo} mat={edgeMat(p)} />}
         </group>
       ))}
       {decorPieces.rep.filter(p => !((clay || flat) && p.group === 'cut')).map(p => (
         <group key={p.key}>
           <mesh geometry={painted.get(p.key) ?? p.geo} material={matFor(p)} castShadow receiveShadow userData={{ fit: true }} onClick={onClick(PICK[p.kind] ?? ['wall'])} onDoubleClick={onDouble(PICK[p.kind] ?? ['wall'])} onPointerMove={onMove(PICK[p.kind] ?? ['wall'])} onPointerOut={onOut} />
-          {!clay && <Edges geo={p.geo} mat={edgeMat(p)} />}
+          {!clay && !(flat && isWallBody(p.kind)) && <Edges geo={p.geo} mat={edgeMat(p)} />}
         </group>
       ))}
+      {creases && <lineSegments geometry={creases} material={m.edge} raycast={() => null} />}
       {decorPieces.items.map(p => (
-        <group key={p.key} userData={{ decor: p.kind }}>
-          <mesh geometry={p.geo} material={p.kind === 'decor-tv' ? TV_MAT : p.kind === 'decor-rug' ? (flat ? flatMat(tone3d(materialOf({ ...plan, decor }, styleRoles(decor, styleId)?.rug).color)) : clay ? m.clay3.platform : m.platform) : p.kind === 'decor-furniture' ? (clay ? m.clay3.platform : m.platform) : clay ? m.clay3.wall : flat ? flatMat(tone3d(materialOf({ ...plan, decor }, p.material).color)) : m.clay} castShadow={p.kind !== 'decor-furniture' && p.kind !== 'decor-rug'} receiveShadow userData={{ fit: true }}
+        <group key={p.key} userData={{ decor: p.kind, ui: p.ui }}>
+          <mesh geometry={p.geo} material={p.kind === 'decor-pending' ? PENDING_MAT : p.kind === 'decor-custom-top' ? overheadMat(p.material!.startsWith('c') ? customTone(p.material!.slice(1)) : tone3d(materialOf({ ...plan, decor }, p.material!.slice(1)).color)) : p.kind === 'decor-custom' ? flatMat(p.material!.startsWith('c') ? customTone(p.material!.slice(1)) : tone3d(materialOf({ ...plan, decor }, p.material!.slice(1)).color), { key: 'custom' }) : p.kind === 'decor-tv' ? TV_MAT : p.kind === 'decor-rug' ? (flat ? flatMat(tone3d(materialOf({ ...plan, decor }, styleRoles(decor, styleId)?.rug).color)) : clay ? m.clay3.platform : m.platform) : p.kind === 'decor-furniture' ? (clay ? m.clay3.platform : m.platform) : clay ? m.clay3.wall : flat ? flatMat(tone3d(materialOf({ ...plan, decor }, p.material).color)) : m.clay} castShadow={p.kind !== 'decor-furniture' && p.kind !== 'decor-rug' && !p.kind.startsWith('decor-custom') && p.kind !== 'decor-pending'} receiveShadow userData={{ fit: !p.ui }}
             {...(dmode3d ? { onClick: onClick(['wall', 'room']), onDoubleClick: onDouble(['wall', 'room']), onPointerMove: onMove(['wall', 'room']), onPointerOut: onOut } : { raycast: () => null })} />
           {/* 平涂下柜门之间的缝、造型的边靠一层很淡的棱线读出来（D4 P3 坑 4）；白模下不画线 */}
-          {!clay && <Edges geo={p.geo} mat={flat && p.kind.startsWith('decor-cabinet') ? m.edgeCab : m.edge} />}
+          {p.kind === 'decor-pending' ? <Edges geo={p.geo} mat={m.edgeLav} /> : !clay && <Edges geo={p.geo} mat={flat && p.kind.startsWith('decor-cabinet') ? m.edgeCab : m.edge} />}
         </group>
       ))}
       {skins.filter(s => !s.wallIds.some(id => cut.has(id))).map(s => <mesh key={s.key} geometry={s.geo} material={flatMat(s.color, { key: 'skin' })} receiveShadow raycast={() => null} />)}
       {mode === 'decor' && !mini && <SectionCaps plan={plan} decorSolids={decorSolids} />}
       {dmode3d && <DecorHighlight3D plan={plan} decor={decor} solids={decorSolids} />}
+      {dmode3d && !exportView && decor && <PendingSurfaces3D plan={plan} decor={decor} />}
       {ghosts.map(g => (
         <group key={g.key}>
           <mesh geometry={g.geo} material={m.ghostCoral} renderOrder={3} onClick={onClick(['wall', 'opening'])} />
@@ -436,7 +536,7 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
           </group>
         ))}
         {hoverGeo.map((g, i) => <mesh key={i} geometry={g} material={hover?.type === 'opening' ? m.openGlow : m.hoverO} raycast={() => null} renderOrder={4} />)}
-        {layers.ceilings && !clay && plan.rooms.filter(r => !r.floorOffset && (sel.some(s => s.id === r.id) || Math.abs(roomCeiling(plan, r) - levelCeiling(plan, levelOf(plan, r).id)) > 0.005)).map(r => <Ceiling key={r.id} plan={plan} r={r} selected={sel.some(s => s.id === r.id)} />)}
+        {layers.ceilings && !clay && plan.rooms.filter(r => !r.floorOffset && (sel.some(s => s.id === r.id) || (!flat && Math.abs(roomCeiling(plan, r) - levelCeiling(plan, levelOf(plan, r).id)) > 0.005))).map(r => <Ceiling key={r.id} plan={plan} r={r} selected={sel.some(s => s.id === r.id)} />)}
       </group>
     </group>
   )
@@ -623,6 +723,9 @@ function cutawayWalls(plan: Plan, cam: Cam, azDeg?: number): Set<string> {
   return out
 }
 
+/** 平涂下这几类不按段画棱线，统一走 wallCreases（只留真正的凸棱） */
+const isWallBody = (kind: string) => kind === 'wall' || kind === 'lintel' || kind === 'sill'
+
 function Edges({ geo, mat }: { geo: THREE.BufferGeometry; mat: THREE.LineBasicMaterial }) {
   const e = useMemo(() => new THREE.EdgesGeometry(geo, 28), [geo])
   return <lineSegments geometry={e} material={mat} raycast={() => null} />
@@ -715,6 +818,13 @@ function CameraRig({ plan, mini }: { plan: Plan; mini?: boolean }) {
     w.__cam3d = () => {
       const t = controls.current?.target ?? new THREE.Vector3(), d = camera.position.clone().sub(t)
       return { el: THREE.MathUtils.radToDeg(Math.asin(d.y / Math.max(1e-6, d.length()))), goal: !!goal.current }
+    }
+    // e2e / 截图：把相机直接放到指定机位（世界坐标，米），同机位前后对比用
+    w.__setCam3d = (pos: [number, number, number], target: [number, number, number]) => {
+      goal.current = null
+      camera.position.set(...pos)
+      controls.current?.target.set(...target)
+      controls.current?.update()
     }
   }, [camera, size.width, size.height, mini])
 

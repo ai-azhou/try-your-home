@@ -399,3 +399,114 @@ node scripts/plan.ts cameras fixtures/example-v2.json --all --level L1
 `diagnoseShape(value)` 接受 JSON.parse 后原始对象，返回 `{wrong:boolean,reasons:string[]}`；不替代字段或几何校验。识别为简版时直接不判 wrong，简版自己的错误走转换器。完整 v2/v3 标记正确、walls/openings/beams/rooms/questions/changes 六数组齐全且不是「rooms 非空、walls 为空」，不判 wrong。`fromLegacy` 能转换出至少一面墙（包括自由墙、洞口宿主）的旧格式也不误判。
 
 其余对象按条件逐条返回短中文原因：顶层非对象；缺 format/version；把 floorplan-structure 写成键（带实际键值）；无顶层 walls/rooms 但子对象含它们（带实际外层键名）；rooms 非空却没有墙；顶层或外层含 doors 数组，或 openings 只有 from/to 关系而无 wall/offset/width。`simpleFormatChatText` 用这些原因、六条规则和模板拼成重试提示；没有原因时省略错误段，直接请求用简版重新输出。
+
+## Agent 构件（C8）
+
+`decor.version` 仍为 1。可选 `decor.components: CustomComponent[]` 保存定义，实例仍是 `Furniture`，以 `type: "custom:<定义 id>"` 引用。定义没有 `by/status`；`id/name/category/size/height/parts` 必填，`category` 为 furniture/appliance/sanitary/lighting/ceiling/plant/soft/storage/other，other 还须写 `label`。`basis` 可记录尺寸依据，`seg` 可指定现有分割类别。实例 size 和 height 与定义一致，容差 1 mm。定义更新会同步同类型实例和其 prev 快照的尺寸。
+
+每张图都是一张 SVG 画布，左上角 `(0,0)`，x 向右，y 向下，单位 mm。**定义里的所有长度在文件和内存中都保持 mm，不进入 METRE_PATHS。**
+
+| 图 / 字段 | 画布与含义 |
+| --- | --- |
+| plan、extrude.outline | 宽 `size[0]` × 深 `size[1]`；y=0 是背面，y=深是正面 |
+| front | 宽 × height；从正面看，y=0 是顶，y=height 是底 |
+| side.profile，along=width | 深 × height；沿宽从 span[0] 拉到 span[1] |
+| side.profile，along=depth | 宽 × height；沿深从 span[0] 拉到 span[1] |
+| revolve.profile | x 是离竖轴的半径（非负），y=0 是顶；center 缺省为俯视画布中心 |
+
+部件共用可选 name/color/material。缺省 kind=extrude，outline 是填充轮廓，`z:[z0,z1]` 从构件底向上量 mm，要求 `0 ≤ z0 < z1 ≤ height`。side/revolve 使用 profile；side 另写 along/span。路径只存 SVG `d`，支持 M/L/H/V/C/S/Q/T/A/Z 大小写、隐式重复及曲线控制点反射，不接受整段 SVG。每条 d 最多 8 KB；曲线默认按 3 mm 容差离散，每子路径至多 256 点（超量均匀降采样）。多子路径以 evenodd/xor 合成孔。边界检查使用更细的离散结果，不使用降采样结果，画布容差 1 mm。
+
+`componentPrisms(def)` 把定义展开成局部棱柱；side/revolve 扫描水平带，斜面/曲面最多 24 带，圆环用 32 边，总计最多 400 棱柱。`componentPlanPaths(def)` 返回显式 plan，否则返回实体俯视投影并集；`componentFrontPaths(def)` 返回显式 front，否则返回棱柱正投影外接矩形并集。plan/front 每条路径带可选 style=outline/detail/dashed、fill/stroke（十六进制色或 none）。front 只供显示，不参与 3D。
+
+`buildDecorSolids` 将画布坐标减去半宽/半深后，依次做 `flip` 的 x 反射、rot 旋转和 at 平移。高度为楼层标高 + 实例底高 + 局部 z/1000，全部实体仍是 `decor-furniture`，多个部件共用实例 id。`DecorSolid.color?:string` 和 material 一并交给界面；白模仍遵循统一白模着色。缺定义时不造占位实体，由校验报 component-missing。镜像翻转 flip，`mirrorPlan` 保留可选字段及精度缓存，两次同轴镜像深相等。
+
+碰撞仍按实例外接矩形粗算，凹形没有精确碰撞。内置 rug、定义 height ≤30 mm 的扁平构件均不参与碰撞。分割按 def.seg（现有类别）或 category 映射：furniture→table、sanitary→toilet、soft→rug、storage→cabinet；现有调色板没有 television/lamp/plant，appliance/lighting/plant 和 other 暂用 box。不存在的 seg 退回类别映射。camera.decor.visible 多部件按实例 id 合并，名称优先实例名，其次定义名。
+
+虚构示例：`fixtures/agent-decor.json`，含挂墙电视、圆地毯、L 形沙发、四腿餐桌和待确认台灯。尺寸仅作测试，不代表具体产品。
+
+## 写入命令（C8）
+
+```sh
+node scripts/plan.ts decor-list 方案.json
+node scripts/plan.ts decor-edit 方案.json 补丁.json
+cat 补丁.json | node scripts/plan.ts decor-edit 方案.json -
+node scripts/plan.ts decor 方案.json
+node scripts/plan.ts render 方案.json 输出目录 --include-pending
+```
+
+`decor-list` 输出家具库（尺寸和高度均 mm）、内置及自定义 styles/materials、componentCategories、components、现有 items，以及按房间划分的 faces。face 带 room/roomName/dir/wall/side/s/length/wallLength/wallKind/openings；length 是该可见区间长度，wallLength 是墙中心线总长，s 与 opening.s 都从墙 a 端量 mm，sill/head 也是 mm。dir 有 north 时按北东南西，无 north 时用上右下左，复用材料位置描述的方位算法。查询针对已确认结构改造后的格局。
+
+`decor-edit` 只接受 v3；补丁为 `{"ops":[...]}`，全部成功才原地原子写入。直接操作文件的 mm 形状，校验通过 parsePlanText 的统一边界。仅替换顶层 decor 值的原文区段，其他字段、键序、空白、数字写法、BOM、底图和未知字段逐字节保留；新增 decor 只在根对象闭括号前插入。装修编辑/查询允许保留 decor 外的未知字段，其他入口仍保持严格格式校验。原文件若在处理期间变化则拒绝覆盖；错误退出 1 并给出 op 序号及字段问题。
+
+| op | 参数与行为 |
+| --- | --- |
+| init | style 可省略（cream）；已有 decor 报错 |
+| style | style 必须为内置风格或 presets 中 id |
+| add | kind=furniture/cabinet/panel/recess/surface/door，item，status?，wall?，ceiling?；省略 id 自动按 newId 规则生成 |
+| update | id、set、unset? 字段名数组、status?；浅合并，不可改 id。柜体只给 set.width（不给 columns）时走 `resizeCabinet`：末列承担，放不下才按比例，和界面同一条规则 |
+| remove | id；仍被 in 或 hole.host 引用时报错，先处理子项 |
+| confirm / reject | ids；确认清 prev；否掉恢复 prev，无 prev 的提议删除；可一起否掉父子提议 |
+| component | component；同 id 替换定义并同步实例 size/height；custom 实例 add 可省略 size/height |
+| preset | preset；新增或同 id 替换，by 固定 agent，不自动切换 style |
+| material | material；新增或同 id 替换 |
+| rehost | 采纳 decor 查询的 rehosted，维护最后位置缓存 |
+
+add/update 的 by 固定 agent，status 不写就是 pending，用户已明确要求的应显式传 `status:"confirmed"`。item/set 不允许带 ack/by/prev/cache，unset 也不能移除受保护字段。ack 只由用户在工具中记录。用到的内置材料自动复制入 materials。成功输出 `{ok:true,applied:n,issues:[warn…],items:[{id,status,kind}]}`，不改结构 changes。
+
+挂墙便捷写法仅用于 add furniture：
+
+```json
+{"ops":[{"op":"add","kind":"furniture","status":"confirmed","item":{"type":"sofa-3","size":[2400,900],"height":850},"wall":{"face":{"wall":"north","side":1},"s":3500,"gap":0,"z":0}}]}
+```
+
+s 为家具中心沿墙中心线离 a 端 mm，gap 是背面离墙面的距离，z 是底离本层地面的高度（缺省 0）。命令复用 faceAxis 计算 at/rot/against，正面朝指定侧房间；wall 与 in 不能同时使用，墙不存在、s 越界或负 gap/z 都报错。未知 type 发 unknown-type 警告并列三个相近 id；小于 3 mm / 大于 10 m 的家具高度、小于 10 mm 的 size、柜体/造型/壁龛小于 10 mm 的高度段报 unit-suspect。柜列宽度继续由 layoutCabinet 校验。任何校验 error 均不写入。
+
+confirmed 项被 update 为 pending 时，其改前完整内容进入 `prev?:Record<string,unknown>`；后续 pending 更新继续保留最初快照，确认清除、否掉恢复。prev 必须是同 id 的 confirmed 项且不能再嵌套 prev。快照的嵌套高度（含柜格、台面、家电位、层板、surface.target.z）与当前项一起做文件 mm / 内存 m 换算。
+
+`confirmedDecor(decor)` 返回副本：pending 有 prev 用旧内容，无 prev 去掉，挂在被去掉宿主上的子项也递归去掉。`restoreDecorItem(item)` 返回拒绝后的项（新提议返回 undefined），供界面复用。默认 render 和材料粗估均使用此确认视图；`--include-pending` 显式画当前提议。白模、深度、线稿、分割与洞口遮罩共用同一实体过滤。camera.decor 记录 pendingHidden 和 includePending，stderr 提示隐藏数量。decor 命令在顶层输出 pendingCount；materials 是确认视图的粗估。
+
+
+## 门的外观、吊顶（C9）
+
+`DecorBase.look?: string` 和 `CustomComponent.look?: string` 保存一句外观描述，不改变几何。按 Unicode 码点计数，最多 300 字；超长或类型不对报 `invalid`。`decor-edit` 的 add/update 可以写 look，定义通过 component 写。家具外观取 `f.look ?? componentOf(decor, f.type)?.look`，摆放项优先（空字符串也覆盖定义）；其他构件取自身 look。`camera.decor.visible[]` 只在该项实际可见且有描述时带 look。
+
+### 吊顶与顶上灯具
+
+`ComponentCategory` 新增 `ceiling`，中文“吊顶”。分割沿用 raster 的 `ceiling` 类（ADE20K RGB `[120,120,80]`）；已有的有效 `def.seg` 覆盖规则保持。灯具仍属于 lighting，分割缺省 box。
+
+`isOverhead(plan, f): boolean` 位于 `decor/furniture.ts`，从 core decor 索引导出：定义类别为 ceiling 时直接成立；lighting 则要求构件顶 `pose.z + f.height` 与所在房间顶面相差不超过 50 mm（包含边界，向上越过 50 mm 也不算）。用摆放点所在楼层的房间层高；找不到房间时用靠墙宿主高度，否则本层最高有效墙高，再无墙用本层默认层高。房间和实例高度均是相对本层楼面的内存 m，楼层标高不参与这个差值。普通落地灯、台灯不满足贴顶条件。
+
+render 先应用 confirmedDecor（或 includePending 当前提议），再按机位过滤：room:* 和自定义相机显示顶上物件；iso-*、top 和任何显式 section 隐藏。所有通道共用过滤，包含白模、深度、线稿、分割和洞口遮罩；白模形状仍由 parts 产生。`camera.decor.overheadHidden` 是因当前机位隐藏的摆放项数量，多部件只计一次，只计所选楼层；它在状态过滤之后统计，不与 pendingHidden 重复。关闭装修或原始状态跳过装修时为 0。家具碰撞/净距和房间机位避障都排除顶上物件。
+
+add furniture 可用下面的便捷定位，与 wall 互斥，也不能同时给 item.in/against：
+
+```json
+{"ops":[{"op":"add","kind":"furniture","status":"confirmed","item":{"id":"ceiling-1","type":"custom:ceiling-living","look":"暖白石膏，四周隐藏灯带"},"ceiling":{"room":"r-living"}}]}
+```
+
+前提是已存在该 custom 定义。命令保存普通 Furniture：`z = roomCeiling × 1000 − item.height`，顶贴房间顶面；at 缺省房间外接框中心，rot 缺省 0，保留显式 at/rot，level 跟房间走。房间不存在时列出可选房间 id，构件高超过层高时拒绝，所有失败均保持文件不变。这里所有文件长度仍是 mm。
+
+### 门外观 DoorFinish
+
+可选数组 `decor.doors?: DoorFinish[]`，每项继承 DecorBase；没有此数组的旧文件行为不变。字段如下：
+
+| 字段 | 规则 |
+| --- | --- |
+| opening | 唯一引用一个现存、洞底贴地且有门扇的 Opening；当前种类为 door、sliding |
+| color / material | 门扇 color 为 #RRGGBB 或材料 id；material 是材料 id |
+| frame | 可选 `{color?,material?}`，颜色和材料规则同上 |
+| front | ComponentPath[]；画布为洞口宽 × 洞口高 mm，y=0 为顶；共享构件路径语法、样式、色值与 1 mm 画布容差校验 |
+| flip | 正面图 x 反射，显示坐标为“洞口宽 − x”；mirrorPlan 翻转它及 prev，双次同轴镜像精确往返 |
+| look | 一句外观描述，最多 300 字 |
+
+门的位置、宽高、开法和白模几何仍由 Opening 决定，front 不参与 3D。同一 opening 只能有一条外观，无论 pending/confirmed。doorway 拒绝并提示“门洞没有门扇，要做门套用造型 arch”；未知 opening 拒绝。已确认改造拆掉宿主时保留外观数据，报 host-missing，不阻断 validate、写入或出图。
+
+`decor-edit` 使用 `kind:"door"`，支持 add/update/remove/confirm/reject，含完整 prev 恢复；confirmedDecor、pendingCount 和 core 的确认/否掉辅助函数均包含 doors。color、material 和 frame 引用的内置材料会自动复制到 decor.materials。
+
+```json
+{"ops":[{"op":"add","kind":"door","status":"confirmed","item":{"id":"door-look-1","opening":"o-entry","look":"胡桃木竖纹门扇，黑色细门框","color":"#705040","frame":{"color":"#111111"},"front":[{"d":"M20 20H880V2080H20Z","style":"outline"}]}}]}
+```
+
+`camera.openings[]` 及 openingMasks 的对应条目附带存在的 look/color，默认采用已确认外观（pending 带 prev 时采用旧内容），includePending 采用当前提议。关闭装修或原始状态跳过装修时不附外观。不可见洞口不进入 camera.openings。
+
+`decor-list` 顶层 doors 返回现有 DoorFinish 数组（包括状态及 prev）；`faces[].openings[].door` 为该洞口已有外观的 id，无外观时省略；items 中 kind 为 door。`decorHandoff` 使用“门的外观”标签。front 路径、flip 和 look 在文件与内存中不换算单位。

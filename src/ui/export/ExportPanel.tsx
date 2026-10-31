@@ -58,7 +58,7 @@ function expose(r: Rendered | null) {
     paginateOpts: r ? r.doc.paginateOpts : null,
     opts: r ? r.doc.opts : null,
     items: r ? r.doc.items.map(i => ({ n: i.number, view: i.view, page: i.page, changeIds: i.focus.changeIds })) : [],
-    decor: r?.doc.decor ? { style: r.doc.decor.style, items: r.doc.decor.items.map(i => ({ n: i.number, id: i.id, kind: i.kind, room: i.roomName, page: i.page, protect: i.protect ?? null, orphan: !!i.orphan, title: i.title, lines: i.lines })), pro: r.doc.decor.pro.map(i => i.id) } : null,
+    decor: r?.doc.decor ? { style: r.doc.decor.style, items: r.doc.decor.items.map(i => ({ n: i.number, id: i.id, kind: i.kind, room: i.roomName, page: i.page, protect: i.protect ?? null, orphan: !!i.orphan, status: i.status, title: i.title, lines: i.lines })), pro: r.doc.decor.pro.map(i => i.id) } : null,
     png: (i: number) => r?.sheets[i]?.canvas.toDataURL('image/png') ?? null,
     file: r ? fileName(r.doc) : null,
   }

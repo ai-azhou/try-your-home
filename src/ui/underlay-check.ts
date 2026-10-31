@@ -59,7 +59,7 @@ export function relinkUnderlay() {
     r.onload = () => {
       const s = useStore.getState()
       if (!s.base?.underlay) return
-      s.setUnderlay({ src: String(r.result), visible: true }, { history: true })
+      s.setUnderlay({ src: String(r.result), visible: true }, { history: true, main: true })
       useStore.setState(x => ({ underlayMissing: null, layers: { ...x.layers, underlay: true }, underlayNames: { ...x.underlayNames, main: f.name } }))
       s.showToast(dicts[s.lang].imageImported)
     }

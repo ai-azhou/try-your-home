@@ -69,6 +69,29 @@ export function layoutCabinet(cab: Cabinet): CabinetLayout {
   return { width: cab.width, depth: cab.depth, z: [...cab.z], columns, cells, parts, cuts, footprint: [[0, 0], [cab.width, 0], [cab.width, cab.depth], [0, cab.depth]], issues }
 }
 export const cabinetLayout = layoutCabinet
+/** 一列至少这么宽（mm）；和立面上拖分列线的下限同一个数 */
+export const MIN_COLUMN_WIDTH = 150
+/**
+ * 改柜宽：末列承担变化，前面各列不动；末列被压到放不下（< 150 mm）时才按比例分摊到所有列。
+ * 界面（检查器、立面拖边）和 decor-edit 的 set.width 都走这里。只看 width 和 columns，文件形状、内存形状都能用；不改入参。
+ * 末列原来省略宽度就继续省略，原来写了就写新值。
+ */
+export function resizeCabinet<T extends Pick<Cabinet, 'width' | 'columns'>>(c: T, width: number): T {
+  const next = { ...c, width, columns: c.columns.map(col => ({ ...col })) }
+  const cols = next.columns, last = cols.at(-1)
+  if (!last || !(width > 0) || !Number.isFinite(width)) return next
+  const before = cols.slice(0, -1).reduce((a, col) => a + (col.width ?? 0), 0)
+  const rest = width - before
+  if (rest >= MIN_COLUMN_WIDTH) {
+    if (last.width !== undefined) last.width = rest
+    return next
+  }
+  const f = width / c.width
+  let used = 0
+  cols.slice(0, -1).forEach(col => { col.width = Math.round((col.width ?? 0) * f); used += col.width })
+  if (last.width !== undefined) last.width = width - used
+  return next
+}
 /** Returns a local-to-world transform; independent cabinets' at is their center. */
 export function cabinetTransform(plan: Plan, cab: Cabinet) {
   if ('face' in cab.place) {

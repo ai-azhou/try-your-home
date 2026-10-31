@@ -3,10 +3,13 @@
 // 用真实鼠标键盘走一遍：切装修 → 换风格；换地面、换墙面；进立面画背景墙、挖电视洞；外墙上嵌柜子（事实卡、俯视图剩余厚度）；
 // 挖到墙厚被引导去改造；放沙发并拖动（净距）；改造态拆一面挂着柜子的墙 → 装修态标「没地方挂了」；3D 白模三个探针；
 // 撤销 / 重做、自动保存、导出 JSON 带装修层；全程零报错、零外部请求。截图在 .shots/D4/。只用公开示例数据。
+// 最后一组（A*）例外：起 scripts/serve.mjs（记 PID，结束时只 kill 这个 PID）打开虚构示例 fixtures/agent-decor.json，走 Agent 写装修的流程。
 import puppeteer from 'puppeteer-core'
 import { chromePath } from './browser-path.mjs'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
+import { spawn, spawnSync } from 'node:child_process'
 
 const root = path.resolve(import.meta.dirname, '..')
 const out = path.join(root, process.env.E2E_OUT ?? '.shots/D6/e2e-decor')
@@ -38,6 +41,9 @@ async function newPage(dsf = 1) {
   const cdp = await page.createCDPSession()
   await cdp.send('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads, eventsEnabled: true })
   watch(page, `dsf${dsf}`)
+  // 右侧卡片切换时旧卡片会被整张换掉：刚取到的按钮可能已经从页面上摘下（puppeteer 报 not clickable）。重新取一次再点，断言不放宽
+  const click0 = page.click.bind(page)
+  page.click = async (sel, o) => { for (let i = 0; ; i++) { try { return await click0(sel, o) } catch (e) { if (i >= 4 || !/not clickable/.test(e.message)) throw e; await sleep(250) } } }
   return page
 }
 async function step(name, page, fn) {
@@ -240,6 +246,97 @@ try {
     const r3 = (await decor(page)).furniture.find(x => x.id === f.id)?.rot
     assert(r1 === (f.rot + 90) % 360 && r2 === f.rot && r3 === r1, `rot ${f.rot} → ${r1} → 撤销 ${r2} → 重做 ${r3}`)
     return `rot ${f.rot} → ${r1} → 撤销 ${r2} → 重做 ${r3}`
+  })
+
+  // ── 地面缺口：门洞的墙厚范围归房间地面（预览、已应用都一样），开敞处不画纸白线 ──
+  const floorGaps = () => S(page, () => {
+    const c = document.querySelector('[data-canvas=main]'), v = window.__fss.getView().plan
+    const fill = id => c.querySelector(`[data-floor="${id}"]`)?.getAttribute('fill')
+    const low = v.openings.filter(o => o.sill <= 0.01), high = v.openings.filter(o => o.sill > 0.01)
+    const parts = [...c.querySelectorAll('[data-threshold-room]')]
+    return {
+      low: low.length,
+      missing: low.filter(o => !c.querySelector(`[data-threshold="${o.id}"]`)).map(o => o.id),
+      overWindow: high.filter(o => c.querySelector(`[data-threshold="${o.id}"]`)).map(o => o.id),
+      wrongFill: parts.filter(e => !fill(e.dataset.thresholdRoom) || e.getAttribute('fill') !== fill(e.dataset.thresholdRoom)).map(e => e.dataset.thresholdRoom),
+      paperGap: low.filter(o => { const g = c.querySelector(`[data-type=opening][data-id="${o.id}"] path`); return g && g.getAttribute('fill') !== 'none' }).map(o => o.id),
+      closedEdge: [...new Set(parts.map(e => e.dataset.thresholdRoom))].filter(id => /Z$/.test(c.querySelector(`[data-floor-edge="${id}"]`)?.getAttribute('d') ?? 'Z')),
+    }
+  })
+  const assertFloor = (r, tag) => {
+    assert(r.low > 0, `${tag}：示例里应该有贴地的洞口`)
+    assert(!r.missing.length, `${tag}：门洞没铺地面 ${r.missing}`)
+    assert(!r.overWindow.length, `${tag}：窗下不该铺 ${r.overWindow}`)
+    assert(!r.wrongFill.length, `${tag}：门槛和房间地面不是同一种材料 ${r.wrongFill}`)
+    assert(!r.paperGap.length, `${tag}：门洞还垫着纸白底 ${r.paperGap}`)
+    assert(!r.closedEdge.length, `${tag}：纸白线跨过了门口 ${r.closedEdge}`)
+  }
+  await step('7a 门洞的地面：已应用、风格预览、3D 都铺上了；窗下不铺', page, async () => {
+    await S(page, () => { window.__decorUI().select(null); window.__decorUI().backToPlan() }); await sleep(400)
+    const applied = await floorGaps(); assertFloor(applied, '已应用')
+    await S(page, () => window.__decorUI().set({ preview: 'mid' })); await sleep(500)
+    const preview = await floorGaps(); assertFloor(preview, '预览')
+    // 中古：干区胡桃木、湿区小方砖，卫生间门从墙中线分开，两半是两种材料
+    const twoTone = await S(page, () => [...document.querySelectorAll('[data-canvas=main] [data-threshold]')].filter(g => new Set([...g.querySelectorAll('[data-threshold-room]')].map(e => e.getAttribute('fill'))).size === 2).length)
+    assert(twoTone >= 1, '干湿两边地面不同的门洞应该分两半')
+    await shot(page, '07a-floor-preview.png')
+    await S(page, () => window.__decorUI().set({ preview: null })); await sleep(300)
+    await S(page, () => window.__fss.store.getState().setMain('3d')); await sleep(2200)
+    const n3d = await S(page, () => (window.__floorPatches3d ?? []).length)
+    await S(page, () => window.__fss.store.getState().setMain('2d')); await sleep(800)
+    assert(n3d >= applied.low, `3D 门洞地面块数 ${n3d} < 洞口 ${applied.low}`)
+    return `贴地洞口 ${applied.low} 个，3D 补丁 ${n3d} 块`
+  })
+
+  const pressShift = async k => { await page.keyboard.down('Shift'); await page.keyboard.press(k); await page.keyboard.up('Shift') }
+  await step('7b 方向键挪家具：10 / 100 mm，方向按屏幕，连按合成一步撤销，输入框有焦点时不抢键，净距跟着显示', page, async () => {
+    const d0 = await decor(page), f = d0.furniture.filter(x => x.at).at(-1)
+    await S(page, id => window.__decorUI().select({ k: 'furniture', id }), f.id); await sleep(350)
+    assert((await nextText(page)).includes('方向键'), `提示条没提方向键：${await nextText(page)}`)
+    const at = async () => (await decor(page)).furniture.find(x => x.id === f.id).at
+    await page.keyboard.press('ArrowRight'); await sleep(60)
+    let p = await at()
+    assert(p[0] === f.at[0] + 10 && p[1] === f.at[1], `→ 应挪 10：${f.at} → ${p}`)
+    assert(await page.$('[data-testid=drag-clearance]'), '方向键挪动时没显示净距')
+    await pressShift('ArrowDown'); await sleep(60)
+    p = await at()
+    assert(p[0] === f.at[0] + 10 && p[1] === f.at[1] + 100, `⇧↓ 应挪 100：${p}`)
+    await page.keyboard.press('ArrowLeft'); await page.keyboard.press('ArrowUp'); await sleep(60)
+    p = await at()
+    assert(p[0] === f.at[0] && p[1] === f.at[1] + 90, `←↑：${p}`)
+    await shot(page, '07b-nudge.png')
+    await page.keyboard.down('Meta'); await page.keyboard.press('z'); await page.keyboard.up('Meta'); await sleep(250)
+    p = await at()
+    assert(p[0] === f.at[0] && p[1] === f.at[1], `一次撤销应回到起点：${p} vs ${f.at}`)
+    await S(page, id => window.__decorUI().select({ k: 'furniture', id }), f.id); await sleep(1700)
+    assert(!(await page.$('[data-testid=drag-clearance]')), '停手后净距应该收起来')
+    const input = await page.$('[data-testid=furn-w]')
+    assert(input, '卡片上没有宽度输入框')
+    await input.focus(); await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowUp'); await sleep(100)
+    p = await at()
+    assert(p[0] === f.at[0] && p[1] === f.at[1], `输入框有焦点时不该挪：${p}`)
+    await S(page, () => document.activeElement?.blur()); await sleep(100)
+    return `${f.id}：(${f.at}) → +10 → +100 → 撤销一步回到起点`
+  })
+
+  await step('7c ⌥ 测距：选中家具，按住 ⌥ 悬停另一件家具或墙出净距，松开消失', page, async () => {
+    const d0 = await decor(page), f = d0.furniture.filter(x => x.at && x.type !== 'rug' && !x.in).at(-1), g = d0.furniture.find(x => x.id !== f.id && x.at && x.type !== 'rug' && !x.in)
+    assert(g, '示例里要有第二件家具')
+    await S(page, id => window.__decorUI().select({ k: 'furniture', id }), f.id); await sleep(300)
+    const hover = async q => { const [x, y] = await P(page, q); await page.mouse.move(x - 6, y); await sleep(60); await page.mouse.move(x, y); await sleep(250) }
+    const values = () => S(page, () => [...document.querySelectorAll('[data-canvas=main] [data-measure-value]')].map(e => +e.dataset.measureValue))
+    await page.keyboard.down('Alt'); await sleep(60)
+    await hover(g.at)
+    const toItem = await values()
+    assert(await page.$('[data-canvas=main] [data-measure]'), '悬停另一件家具没出测距')
+    await shot(page, '07c-alt-measure.png')
+    const wall = await S(page, () => { const w = window.__fss.getView().plan.walls.find(x => !x.bulge && Math.hypot(x.b[0] - x.a[0], x.b[1] - x.a[1]) > 2000), o = window.__fss.getView().plan.openings.filter(z => z.wall === w.id), L = Math.hypot(w.b[0] - w.a[0], w.b[1] - w.a[1]); let t = .5; for (const c of [.5, .2, .8, .1, .9]) if (!o.some(z => z.offset < c * L && z.offset + z.width > c * L)) { t = c; break } return [w.a[0] + (w.b[0] - w.a[0]) * t, w.a[1] + (w.b[1] - w.a[1]) * t] })
+    await hover(wall)
+    const toWall = await values()
+    await page.keyboard.up('Alt'); await sleep(200)
+    assert(!(await page.$('[data-canvas=main] [data-measure]')), '松开 ⌥ 测距应消失')
+    assert(toWall.length >= 1, '悬停墙没出净距')
+    return `到另一件家具 ${toItem.join('/')} mm，到墙 ${toWall.join('/')} mm`
   })
 
   await step('8 回改造态拆一面挂着柜子的墙，再回装修态：柜子标「没地方挂了」', page, async () => {
@@ -694,6 +791,47 @@ try {
     return `墙面皮 ${sk.length} 张；主卧南墙立面 ${m.surf} 片材料、两端剖块 ${m.ends}`
   })
 
+  await step('D6-C7 刷漆后门窗两侧连续的墙面没有接缝：洞口边线的延长线上、墙顶分段处，像素没有细线', page, async () => {
+    await freshDecor()
+    await page.keyboard.press('Tab'); await sleep(2400)
+    const list = await S(page, () => {
+      const plan = window.__fss.getView().plan, skins = window.__wallSkins
+      return plan.openings.flatMap(o => {
+        const w = plan.walls.find(x => x.id === o.wall), skin = skins.find(k => k.wall === o.wall && k.room)
+        return w && !w.bulge && skin && w.kind !== 'glass' && w.kind !== 'half-glass' && o.head < plan.ceiling - 0.2 ? [{ id: o.id, a: w.a, b: w.b, t: w.thickness, side: skin.side, offset: o.offset, width: o.width, head: o.head, H: plan.ceiling }] : []
+      })
+    })
+    assert(list.length > 0, '示例里没有可查的门窗')
+    const seen = []
+    for (const o of list) {
+      const L = Math.hypot(o.b[0] - o.a[0], o.b[1] - o.a[1]), d = [(o.b[0] - o.a[0]) / L, (o.b[1] - o.a[1]) / L], n = [-d[1] * o.side, d[0] * o.side]
+      const at = (s, off, z) => [(o.a[0] + d[0] * s + n[0] * off) / 1000, z, (o.a[1] + d[1] * s + n[1] * off) / 1000]
+      const mid = o.offset + o.width / 2
+      await S(page, (p, t) => window.__setCam3d(p, t), at(mid, 5000, 7), at(mid, 0, 1.4)); await sleep(900)
+      // 两道洞口边线：过梁区几个高度沿墙取一排，墙顶沿中线取一排；细线 = 比左右两边都暗一截的一个像素
+      // 只取边线两侧 60 mm：门离丁字墙可能只有 200 mm，取宽了会跨到真的墙角，那是棱不是缝
+      const rows = [o.offset, o.offset + o.width].flatMap(s => [
+        ...[0.2, 0.4, 0.6, 0.8].map(f => [at(s - 60, o.t / 2 + 2, o.head + (o.H - o.head) * f), at(s + 60, o.t / 2 + 2, o.head + (o.H - o.head) * f)]),
+        [at(s - 60, 0, o.H), at(s + 60, 0, o.H)],
+      ])
+      const worst = await S(page, rows => {
+        const cv = document.querySelector('[data-canvas3d=main] canvas'), k = cv.width / cv.getBoundingClientRect().width, r0 = cv.getBoundingClientRect()
+        const c2 = document.createElement('canvas'); c2.width = cv.width; c2.height = cv.height
+        const g = c2.getContext('2d', { willReadFrequently: true }); g.drawImage(cv, 0, 0)
+        let max = 0
+        for (const [p, q] of rows) {
+          const [x0, y0] = window.__world2screen(p), [x1, y1] = window.__world2screen(q), n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) * k), lum = []
+          for (let i = 0; i <= n; i++) { const d = g.getImageData((x0 + (x1 - x0) * i / n - r0.left) * k, (y0 + (y1 - y0) * i / n - r0.top) * k, 1, 1).data; lum.push(d[0] + d[1] + d[2]) }
+          for (let i = 2; i < lum.length - 2; i++) { const side = (lum[i - 2] + lum[i + 2]) / 2; max = Math.max(max, side - Math.min(lum[i - 1], lum[i], lum[i + 1])) }
+        }
+        return max
+      }, rows)
+      seen.push(`${o.id} ${worst.toFixed(0)}`)
+      assert(worst < 12, `${o.id} 两侧的墙面有接缝（暗 ${worst.toFixed(0)}，RGB 三通道之和，门限 12）；各洞口：${seen.join('、')}`)
+    }
+    return `查了 ${list.length} 个门窗：${seen.join('、')}`
+  })
+
   await step('9 3D 白模里三个探针都看得到（网址参数 ?probe=p1|p2|p3；工具栏上不再有 P1–P3。D6 起放在最后：另开一页会改写本地自动保存）', page, async () => {
     const notes = []
     const pp = await newPage(1)
@@ -739,6 +877,763 @@ try {
     await cmp.mouse.click(cx, cy); await sleep(600); await cmp.mouse.move(700, 880); await sleep(300); await shot(cmp, 'cmp-04-cabinet.png')
   })
   await step('C5 对照样张 05 墙面材质（床头墙）', cmp, async () => { await fresh(); await clickPlan(cmp, [7600, 3575]); await cmp.mouse.move(700, 880); await sleep(400); await shot(cmp, 'cmp-05-face.png') })
+
+  // ── Agent 写的装修（D8）：连着服务模式打开虚构示例 fixtures/agent-decor.json，方案用真实的 decor-edit 命令改 ──
+  const A = await (async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'd8-agent-')), file = path.join(dir, 'plan.json'), PORT = 5298
+    fs.copyFileSync(path.join(root, 'fixtures/agent-decor.json'), file)
+    const srv = spawn(process.execPath, [path.join(root, 'scripts/serve.mjs'), dir, String(PORT)], { stdio: 'ignore' }) // 只 kill 这个 PID
+    await sleep(800)
+    return { dir, file, srv, url: `http://127.0.0.1:${PORT}/?plan=plan.json&mode=decor` }
+  })()
+  const agentEdit = (...ops) => { const r = spawnSync(process.execPath, ['--experimental-strip-types', path.join(root, 'scripts/plan.ts'), 'decor-edit', A.file, '-'], { input: JSON.stringify({ ops }), encoding: 'utf8', cwd: root }); if (r.status !== 0) throw new Error(`decor-edit：${r.stderr}`); return JSON.parse(r.stdout) }
+  const onDisk = () => JSON.parse(fs.readFileSync(A.file, 'utf8')).decor
+  const box = { id: 'ext-box', name: '外部小柜', category: 'storage', basis: '照片估算，未核实', size: [600, 400], height: 900, parts: [{ outline: 'M0 0H600V400H0Z', z: [0, 900], color: '#8a6' }], front: [{ d: 'M300 0V900', style: 'detail' }] }
+  try {
+    const before = errors.length
+    // 有 prev 的两条（沙发、餐桌改成待确认）+ 没 prev 的一条（示例里的台灯）；另外一件侧着靠墙、一台挂在门上
+    agentEdit(
+      { op: 'update', id: 'example-l-sofa', set: { at: [2200, 4600] }, status: 'pending' },
+      { op: 'update', id: 'example-four-leg-table', set: { at: [5100, 4300] }, status: 'pending' },
+      { op: 'add', kind: 'furniture', status: 'confirmed', item: { id: 'side-tv', type: 'custom:tv65', at: [1000, 900], rot: 90 } },
+      { op: 'add', kind: 'furniture', status: 'confirmed', wall: { face: { wall: 'south', side: 1 }, s: 1450, z: 1000 }, item: { id: 'door-tv', type: 'custom:tv65' } },
+    )
+    const ap = await newPage(1)
+    const X_ = fn => S(ap, fn)
+    const plan2 = p => P(ap, p)
+    await ap.goto(A.url, { waitUntil: 'load' }); await ap.waitForFunction(() => !!window.__fss?.store.getState().base?.decor, { timeout: 20000 }); await sleep(1800)
+    const pendingNow = () => X_(() => { const d = window.__fss.store.getState().base.decor; return ['furniture', 'cabinets', 'panels', 'recesses', 'surfaces'].flatMap(k => d[k]).filter(i => i.status === 'pending').map(i => i.id).sort() })
+    const item = id => X_(`window.__fss.store.getState().base.decor.furniture.find(f => f.id === ${JSON.stringify(id)})`)
+    const cardText = () => X_(() => [...document.querySelectorAll('.glass, .glass-strong')].map(e => e.textContent).filter(t => t.includes('交给 Agent') || t.includes('这套房的装修')).join(' '))
+    const unselect = async () => { await X_(() => window.__decorUI().select(null)); await sleep(600) }
+    // 右侧卡片换的时候有一小段进出场动画：等它在了再点
+    const tap = async sel => { await ap.waitForSelector(sel, { visible: true, timeout: 4000 }); await sleep(250); await ap.click(sel) }
+
+    await step('A1 打开方案：5 种构件都画出来（路径，不是盒子），待确认的是淡紫斜纹', ap, async () => {
+      const drawn = await X_(() => [...new Set([...document.querySelectorAll('[data-custom]')].map(e => e.dataset.custom))].sort())
+      assert(JSON.stringify(drawn) === JSON.stringify(['four-leg-table', 'l-sofa', 'lamp', 'round-rug', 'tv65']), `画出来的构件：${drawn}`)
+      const paths = await X_(() => document.querySelector('[data-custom=l-sofa] path')?.getAttribute('d') ?? '')
+      assert(/L/.test(paths), `L 形沙发应是路径：${paths}`)
+      const marks = await X_(() => [...document.querySelectorAll('[data-pending]')].map(e => e.dataset.pending).sort())
+      assert(JSON.stringify(marks) === JSON.stringify(['example-four-leg-table', 'example-l-sofa', 'example-lamp']), `淡紫标记：${marks}`)
+      const fill = await X_(() => document.querySelector('[data-pending=example-lamp] path')?.getAttribute('fill') ?? '')
+      assert(/-lav\)/.test(fill), `待确认应是淡紫斜纹：${fill}`)
+      const zoomW = await X_(() => +document.querySelector('[data-custom=l-sofa] path').getAttribute('stroke-width'))
+      // 线宽按屏幕 px 算：放大后 mm 单位的线宽变小
+      await X_(() => window.dispatchEvent(new CustomEvent('plan-zoom', { detail: 1.5625 }))); await sleep(300)
+      const zoomW2 = await X_(() => +document.querySelector('[data-custom=l-sofa] path').getAttribute('stroke-width'))
+      assert(zoomW2 < zoomW * 0.8, `线宽应随缩放换算：${zoomW} → ${zoomW2}`)
+      await X_(() => window.dispatchEvent(new CustomEvent('plan-zoom', { detail: 0.64 }))); await sleep(300)
+      const text = await cardText()
+      assert(text.includes('有 3 条 Agent 提议待你看') && !/pending|status|custom/i.test(text), `总览卡：${text.slice(0, 200)}`)
+      await ap.mouse.move(700, 880); await sleep(200); await shot(ap, 'A1-plan.png')
+      return `构件 ${drawn.length} 种；待确认 ${marks.length} 条`
+    })
+
+    await step('A2 构件卡片：名称、类别、尺寸、依据、标签、交给 Agent；挂在门上有事实提示', ap, async () => {
+      await clickPlan(ap, await X_(() => window.__fss.store.getState().base.decor.furniture.find(f => f.id === 'example-tv65').at))
+      assert((await X_(() => window.__decorUI().sel?.id)) === 'example-tv65', '点电视没选中')
+      let t = await cardText()
+      for (const want of ['65 寸电视示例', '家电', '1450 × 80 × 830 mm', '尺寸依据：虚构测试尺寸', 'Agent 加的', '贴着虚构客厅北墙', '交给 Agent']) assert(t.includes(want), `卡片缺「${want}」：${t}`)
+      assert(!/Agent 提议/.test(t), '确认过的不该再写 Agent 提议')
+      assert(!(await ap.$('[data-testid=furn-w]')), '构件的形状不能在工具里改')
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'door-tv' })); await sleep(300)
+      const iss = await X_(() => [...document.querySelectorAll('[data-testid=item-issue]')].map(e => e.dataset.code + ':' + e.textContent))
+      assert(iss.some(x => x.startsWith('over-opening:') && x.includes('压在') && x.includes('门')), `挂门上的提示：${iss}`)
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'example-lamp' })); await sleep(300)
+      t = await cardText()
+      assert(t.includes('Agent 提议') && t.includes('我确认') && t.includes('不要这条') && t.includes('这是新加的'), `待确认的卡片：${t}`)
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'example-l-sofa' })); await sleep(300)
+      t = await cardText()
+      assert(t.includes('改了位置'), `有改动的要说改了什么：${t}`)
+      await ap.mouse.move(700, 880); await sleep(200); await shot(ap, 'A2-card-pending.png')
+      await unselect()
+    })
+
+    await step('A3 立面：正对着看画构件正面（线宽不随缩放），侧着的画外形矩形；待确认的淡紫', ap, async () => {
+      await X_(() => window.__decorUI().openElevation({ wall: 'north', side: 1 })); await sleep(1200)
+      const q = await X_(() => ({ front: [...document.querySelectorAll('[data-elev=furniture][data-front]')].map(e => e.dataset.id), outline: [...document.querySelectorAll('[data-elev-outline]')].map(e => e.dataset.elevOutline), screen: document.querySelector('[data-id=example-tv65] path')?.getAttribute('d'), effect: document.querySelector('[data-id=example-tv65] path')?.getAttribute('vector-effect') }))
+      assert(q.front.includes('example-tv65'), `电视应画正面：${JSON.stringify(q)}`)
+      assert(q.outline.includes('side-tv'), `侧着的应画外形矩形：${JSON.stringify(q)}`)
+      assert(q.screen === 'M20 20H1430V810H20Z' && q.effect === 'non-scaling-stroke', `屏幕线：${JSON.stringify(q)}`)
+      // 立面里点电视选中，上下拖改离地高度（构件字段都在）
+      const c = await X_(() => { const m = window.__elevModel, f = m.furniture.find(x => x.f.id === 'example-tv65'); return { pt: window.__elev2screen((f.u[0] + f.u[1]) / 2, (f.z[0] + f.z[1]) / 2), k: f.z[0] } })
+      await ap.mouse.click(c.pt[0], c.pt[1]); await sleep(300)
+      assert((await X_(() => window.__decorUI().sel?.id)) === 'example-tv65', '立面里点电视没选中')
+      await drag(ap, c.pt, [c.pt[0], c.pt[1] - 30])
+      const tv = await item('example-tv65')
+      assert(tv.z > 0.95 && tv.type === 'custom:tv65' && tv.against?.face.wall === 'north', `立面拖动后：${JSON.stringify(tv)}`)
+      await ap.mouse.move(700, 880); await sleep(200); await shot(ap, 'A3-elev.png')
+      await X_(() => window.__fss.store.getState().undo()); await sleep(300)
+      await X_(() => window.__decorUI().backToPlan()); await sleep(600)
+    })
+
+    await step('A4 3D：多个部件的构件整件选中，平涂用定义的颜色，白模保持白模，待确认淡紫', ap, async () => {
+      await X_(() => window.__fss.store.getState().setMain('3d')); await sleep(2600)
+      const solids = await X_(() => window.__decorSolids.filter(s => s.ids.includes('example-four-leg-table')).length)
+      assert(solids === 5, `餐桌应是 5 个实体：${solids}`)
+      const groups = await X_(() => ({ look: window.__decor3d.look }))
+      assert(groups.look === 'flat', JSON.stringify(groups))
+      const c = await X_(() => window.__itemCenter3d('example-tv65'))
+      const pt = await X_(`window.__world2screen(${JSON.stringify(c)})`)
+      await ap.mouse.click(pt[0], pt[1]); await sleep(400)
+      assert((await X_(() => window.__decorUI().sel?.id)) === 'example-tv65', '3D 里点电视没选中')
+      await ap.mouse.move(700, 880); await sleep(300); await shot(ap, 'A4-3d-flat.png')
+      await unselect()
+      await X_(() => window.__decorUI().set({ look3d: 'clay' })); await sleep(1000); await shot(ap, 'A4-3d-clay.png')
+      await X_(() => { window.__decorUI().set({ look3d: 'flat' }); window.__fss.store.getState().setMain('2d') }); await sleep(800)
+    })
+
+    await step('A5 拖动、旋转照常，构件字段不丢', ap, async () => {
+      const f0 = await item('side-tv')
+      const a = await plan2(f0.at), b = [a[0] + 60, a[1] + 40]
+      await drag(ap, a, b)
+      const f1 = await item('side-tv')
+      assert(f1.at[0] !== f0.at[0] && f1.type === f0.type && f1.rot === f0.rot && JSON.stringify(f1.size) === JSON.stringify(f0.size) && f1.height === f0.height && f1.by === 'agent', `拖动后：${JSON.stringify(f1)}`)
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'side-tv' })); await ap.keyboard.press('r'); await sleep(250)
+      assert((await item('side-tv')).type === f0.type, '旋转后 type 丢了')
+      await X_(() => { const s = window.__fss.store.getState(); s.undo(); s.undo() }); await sleep(300)
+      assert((await item('side-tv')).at[0] === f0.at[0], '撤销没回去')
+      await unselect()
+    })
+
+    await step('A6 确认一条、否掉两条（有 prev、没 prev），能撤销，保存后文件正确，刷新后还在', ap, async () => {
+      await tap('[data-testid=look-pending-toggle]'); await sleep(250)
+      await tap('[data-testid=pending-item-example-l-sofa]'); await sleep(300)
+      assert((await X_(() => window.__decorUI().sel?.id)) === 'example-l-sofa', '逐条跳到没选中')
+      await tap('[data-testid=pending-reject]'); await sleep(350)
+      let f = await item('example-l-sofa')
+      assert(f.status === 'confirmed' && !f.prev && f.at[1] === 4900, `否掉有 prev 的应恢复：${JSON.stringify(f)}`)
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'example-lamp' })); await sleep(300)
+      await tap('[data-testid=pending-reject]'); await sleep(350)
+      assert(!(await item('example-lamp')), '否掉没 prev 的应删除')
+      assert((await X_(() => window.__decorUI().sel)) === null, '删掉以后选中应清掉')
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'example-four-leg-table' })); await sleep(300)
+      await tap('[data-testid=pending-confirm]'); await sleep(350)
+      f = await item('example-four-leg-table')
+      assert(f.status === 'confirmed' && !f.prev && f.at[1] === 4300, `确认后：${JSON.stringify(f)}`)
+      assert(!(await pendingNow()).length, `还有待确认：${await pendingNow()}`)
+      let t = await cardText()
+      assert(t.includes('Agent 加的'), `确认后标签：${t}`)
+      await X_(() => window.__fss.store.getState().undo()); await sleep(300)
+      f = await item('example-four-leg-table')
+      assert(f.status === 'pending' && f.prev?.at[1] === 4500, `撤销确认：${JSON.stringify(f)}`)
+      await X_(() => window.__fss.store.getState().redo()); await sleep(300)
+      await unselect()
+      await tap('[data-testid=save]'); await ap.waitForFunction(() => !window.__fss.store.getState().dirty, { timeout: 5000 }); await sleep(300)
+      const d = onDisk(), by = id => d.furniture.find(x => x.id === id)
+      assert(!by('example-lamp'), '文件里台灯应删掉')
+      assert(by('example-l-sofa').status === 'confirmed' && !('prev' in by('example-l-sofa')) && by('example-l-sofa').at[1] === 4900, `文件里沙发：${JSON.stringify(by('example-l-sofa'))}`)
+      assert(by('example-four-leg-table').status === 'confirmed' && !('prev' in by('example-four-leg-table')) && by('example-four-leg-table').at[1] === 4300, '文件里餐桌')
+      assert(by('example-tv65').height === 830 && by('example-tv65').type === 'custom:tv65' && d.components.length === 5, `文件里单位或定义不对：${JSON.stringify(by('example-tv65'))}`)
+      await ap.reload({ waitUntil: 'load' }); await ap.waitForFunction(() => !!window.__fss?.store.getState().base?.decor, { timeout: 20000 }); await sleep(1500)
+      assert(!(await pendingNow()).length && !(await item('example-lamp')) && (await item('example-four-leg-table')).status === 'confirmed', '刷新后状态不对')
+      return '文件 prev 已清，单位仍是 mm，刷新后一致'
+    })
+
+    await step('A7 Agent 改文件：页面出现新构件；选中的被删了就清掉，不报错', ap, async () => {
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'example-four-leg-table' })); await sleep(250)
+      const t0 = Date.now()
+      agentEdit({ op: 'component', component: box }, { op: 'add', kind: 'furniture', item: { id: 'ext-1', type: 'custom:ext-box', at: [1500, 2500], rot: 0 } }, { op: 'remove', id: 'example-four-leg-table' })
+      await ap.waitForSelector('[data-custom=ext-box]', { timeout: 4500 })
+      const ms = Date.now() - t0
+      await sleep(300)
+      assert((await X_(() => window.__decorUI().sel)) === null, `选中的已不存在应清掉：${JSON.stringify(await X_(() => window.__decorUI().sel))}`)
+      assert(await ap.$('[data-pending=ext-1]'), '新构件没 status 应是待确认')
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'ext-1' })); await sleep(300)
+      const t = await cardText()
+      assert(t.includes('收纳') && t.includes('尺寸依据：照片估算，未核实'), `外部构件卡片：${t}`)
+      await unselect()
+      return `${ms} ms 内出现`
+    })
+
+    await step('A8 本地有没保存的改动：Agent 再改文件不会盖掉，先问', ap, async () => {
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'ext-1' })); await sleep(250)
+      await tap('[data-testid=pending-confirm]'); await sleep(300)
+      assert(await X_(() => window.__fss.store.getState().dirty), '确认后应算未保存')
+      agentEdit({ op: 'add', kind: 'furniture', item: { id: 'ext-2', type: 'custom:ext-box', at: [3000, 2500], rot: 0 } })
+      await ap.waitForSelector('[data-testid=notice]', { timeout: 4500 })
+      assert(!(await item('ext-2')) && (await item('ext-1')).status === 'confirmed', '本地改动被盖掉了')
+      await tap('[data-testid=notice-primary]'); await sleep(500)
+      assert(await item('ext-2'), '点载入后应出现 ext-2')
+      await unselect()
+    })
+
+    await step('A9 导出：PNG 默认不画待确认；粗估写「未计入」；改造清单标待确认', ap, async () => {
+      agentEdit({ op: 'add', kind: 'panel', item: { id: 'ext-panel', type: 'feature', span: { face: { wall: 'west', side: 1 }, s: [1000, 3000], z: [0, 2400] }, thickness: 150, material: 'micro' } })
+      await ap.waitForSelector('[data-pending=ext-panel]', { timeout: 4500 }); await sleep(300)
+      const waiting = (await pendingNow()).length
+      const note = await X_(() => document.querySelector('[data-testid=material-not-counted]')?.textContent ?? '')
+      assert(note.includes(`另有 ${waiting} 条待确认未计入`), `粗估提示：${note}`)
+      await tap('[data-testid=global-export]'); await sleep(350)
+      assert(await ap.$('[data-testid=gexp-pending]'), '有待确认时应能选把它们也画进去')
+      await tap('[data-testid=gexp-png-flat]'); await sleep(5000)
+      const last = await X_(() => window.__lastShot)
+      assert(last?.ok && last.exportView === 'confirmed' && last.pendingHidden === waiting, `PNG：${JSON.stringify(last)}`)
+      assert((await X_(() => window.__decorUI().exportView)) === null, '导出完要换回来')
+      assert((await X_(() => window.__decorSolids.some(s => s.ids.includes('ext-panel')))), '导出完界面上待确认的要回来')
+      await X_(() => window.__fss.store.getState().setMain('2d')); await sleep(500)
+      await tap('[data-testid=global-export]'); await sleep(350)
+      await tap('[data-testid=gexp-pdf]'); await sleep(500)
+      await ap.waitForFunction(() => window.__fssExport?.pages?.length > 1, { timeout: 30000 }); await sleep(600)
+      const ex = await X_(() => window.__fssExport.decor)
+      assert(ex.items.find(i => i.id === 'ext-panel')?.status === 'pending', `清单里的状态：${JSON.stringify(ex.items.map(i => [i.id, i.status]))}`)
+      const page = await X_(() => window.__fssExport.pages.findIndex(p => p.kind === 'decor-room'))
+      const png = await X_(`window.__fssExport.png(${page})`)
+      fs.writeFileSync(path.join(out, 'A9-export-room.png'), Buffer.from(png.split(',')[1], 'base64'))
+      await ap.keyboard.press('Escape'); await sleep(400)
+      return `PNG 藏了 ${waiting} 条；清单页 ${ex.items.length} 项`
+    })
+
+    await step('A10 家具库：方案里的构件可以再摆一个；风格列表带「Agent 配的」角标，点应用才生效', ap, async () => {
+      await X_(() => window.__decorUI().setTool('furniture')); await sleep(400)
+      await tap('[data-testid=furn-cat-own]'); await sleep(300)
+      const groups = await X_(() => [...document.querySelectorAll('[data-testid=furn-own-group] > div:first-child')].map(e => e.textContent))
+      assert(groups.includes('家电') && groups.includes('收纳'), `分组：${groups}`)
+      assert(await ap.$('[data-testid=furn-own-tv65] svg path'), '缩略图没出来')
+      await shot(ap, 'A10-lib.png')
+      await tap('[data-testid=furn-own-ext-box]'); await sleep(200)
+      await clickPlan(ap, [1500, 1500])
+      const n = await X_(() => { const d = window.__fss.store.getState().base.decor; return d.furniture.filter(f => f.type === 'custom:ext-box').map(f => ({ size: f.size, height: f.height, by: f.by, status: f.status })) })
+      const placed = n.find(f => f.by === 'user')
+      assert(placed && placed.status === 'confirmed' && placed.height === 0.9 && placed.size[0] === 600, `再摆一个：${JSON.stringify(n)}`)
+      await unselect()
+      await tap('[data-testid=save]'); await ap.waitForFunction(() => !window.__fss.store.getState().dirty, { timeout: 5000 }); await sleep(400)
+      agentEdit({ op: 'preset', preset: { id: 'agent-warm', name: '暖一点', roles: { 'floor.main': 'walnut', 'wall.main': 'mist', 'wood.main': 'walnut' } } })
+      await ap.waitForFunction(() => window.__fss.store.getState().base.decor.presets?.some(p => p.id === 'agent-warm'), { timeout: 4500 }); await sleep(300)
+      assert((await X_(() => document.querySelector('[data-testid=agent-style-hint]')?.textContent ?? '')).includes('暖一点'), '总览卡上应提一句')
+      await tap('[data-testid=change-style]'); await sleep(700)
+      const tile = await X_(() => document.querySelector('[data-testid=style-agent-warm]')?.textContent ?? '')
+      assert(tile.includes('Agent 配的'), `风格卡：${tile}`)
+      await shot(ap, 'A10-style.png')
+      assert((await X_(() => window.__fss.store.getState().base.decor.style)) === 'cream', '点应用之前不该生效')
+      // 第 7 张在吸底的「应用」后面：和用户一样先滚到能看见
+      await X_(() => document.querySelector('[data-testid=style-agent-warm]').scrollIntoView({ block: 'start' })); await sleep(300)
+      await tap('[data-testid=style-agent-warm]'); await sleep(200); await tap('[data-testid=style-apply]'); await sleep(400)
+      assert((await X_(() => window.__fss.store.getState().base.decor.style)) === 'agent-warm', '点应用没生效')
+      await X_(() => window.__fss.store.getState().undo()); await sleep(300)
+    })
+
+    await step('A10b 柜体、壁龛、面覆盖：一样画淡紫、卡片上能确认或不要，总览能全部确认', ap, async () => {
+      await tap('[data-testid=save]'); await ap.waitForFunction(() => !window.__fss.store.getState().dirty, { timeout: 5000 }); await sleep(400)
+      await X_(() => window.__decorUI().set({ styleCard: false, preview: null })); await sleep(300)
+      agentEdit(
+        { op: 'add', kind: 'cabinet', item: { id: 'p-cab', family: 'tall', place: { face: { wall: 'south', side: 1 }, s: 3000 }, width: 1200, depth: 400, z: [0, 2400], columns: [{ width: 600, cells: [{ type: 'door' }] }, { cells: [{ type: 'door' }] }], materials: { carcass: 'creamDoor', front: 'creamDoor' } } },
+        { op: 'add', kind: 'recess', item: { id: 'p-niche', kind: 'niche', host: { face: { wall: 'east', side: 1 } }, rect: { s: [4000, 4800], z: [1000, 1500] }, depth: 60 } },
+        { op: 'add', kind: 'surface', item: { id: 'p-wall', target: { face: { wall: 'north', side: 1 } }, material: 'mist' } },
+        { op: 'add', kind: 'surface', item: { id: 'p-floor', target: { floor: 'living' }, material: 'walnut' } },
+      )
+      await ap.waitForSelector('[data-pending=p-cab]', { timeout: 4500 }); await sleep(400)
+      const marks = await X_(() => [...document.querySelectorAll('[data-pending]')].map(e => e.dataset.pending))
+      for (const id of ['p-cab', 'p-niche', 'p-wall', 'p-floor']) assert(marks.includes(id), `平面上没有 ${id} 的淡紫标记：${marks}`)
+      const shown = async sel => { await X_(`window.__decorUI().select(${JSON.stringify(sel)})`); await sleep(500); return X_(() => [...document.querySelectorAll('[data-testid=pending-callout]')].map(e => e.dataset.id)) }
+      for (const [sel, id] of [[{ k: 'cabinet', id: 'p-cab' }, 'p-cab'], [{ k: 'recess', id: 'p-niche' }, 'p-niche'], [{ k: 'face', face: { wall: 'north', side: 1 } }, 'p-wall'], [{ k: 'floor', id: 'living' }, 'p-floor']]) {
+        const ids = await shown(sel)
+        assert(ids.includes(id), `${id} 的卡片上没有确认入口：${ids}`)
+      }
+      await tap('[data-testid=pending-reject]'); await sleep(350) // 现在选中的是地面：不要这条
+      assert(!(await X_(() => window.__fss.store.getState().base.decor.surfaces.some(x => x.id === 'p-floor'))), '地面覆盖否掉后应删除')
+      await X_(() => window.__decorUI().openElevation({ wall: 'south', side: 1 })); await sleep(1000)
+      assert(await ap.$('[data-canvas=elev] [data-pending=p-cab]'), '立面上柜子没有淡紫标记')
+      await X_(() => window.__decorUI().openElevation({ wall: 'north', side: 1 })); await sleep(1000)
+      assert(await ap.$('[data-canvas=elev] [data-pending=p-wall]'), '立面上墙面覆盖没有淡紫标记')
+      await X_(() => window.__decorUI().backToPlan()); await sleep(600)
+      await tap('[data-testid=look-pending-toggle]'); await sleep(250)
+      await tap('[data-testid=pending-confirm-all]'); await sleep(400)
+      assert(!(await pendingNow()).length, `全部确认后还有：${await pendingNow()}`)
+      assert(!(await ap.$('[data-testid=look-pending]')), '都确认了，那一行应该消失')
+      assert(!(await ap.$('[data-pending]')), '都确认了，淡紫标记应该消失')
+    })
+
+    await step('A10c 立面里选中挂墙电视：←→ 沿墙挪、↑↓ 调离地高度、⇧ 大步，一步撤销；保存后写进文件', ap, async () => {
+      await X_(() => window.__decorUI().openElevation({ wall: 'north', side: 1 })); await sleep(1000)
+      const tv = () => X_(() => { const m = window.__elevModel, f = m.furniture.find(x => x.f.id === 'example-tv65'); return { u: f.u, z: f.z, at: f.f.at } })
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'example-tv65' })); await sleep(300)
+      assert((await X_(() => document.querySelector('[data-testid=next-step]')?.textContent ?? '')).includes('沿墙挪'), '立面提示条没提方向键')
+      const t0 = await tv()
+      await ap.keyboard.press('ArrowRight'); await sleep(120)
+      let t = await tv()
+      assert(Math.abs(t.u[0] - t0.u[0] - 10) < 1.01 && Math.abs(t.z[0] - t0.z[0]) < 1e-6, `→ 沿墙 10：${JSON.stringify([t0, t])}`)
+      await ap.keyboard.press('ArrowUp'); await sleep(120)
+      t = await tv()
+      assert(Math.abs(t.z[0] - t0.z[0] - 0.01) < 1e-6, `↑ 高 10 mm：${t0.z[0]} → ${t.z[0]}`)
+      await ap.keyboard.down('Shift'); await ap.keyboard.press('ArrowUp'); await ap.keyboard.press('ArrowLeft'); await ap.keyboard.up('Shift'); await sleep(120)
+      t = await tv()
+      assert(Math.abs(t.z[0] - t0.z[0] - 0.11) < 1e-6 && Math.abs(t.u[0] - t0.u[0] + 90) < 2.01, `⇧：${JSON.stringify([t0, t])}`)
+      await ap.keyboard.down('Meta'); await ap.keyboard.press('z'); await ap.keyboard.up('Meta'); await sleep(400)
+      t = await tv()
+      assert(Math.abs(t.u[0] - t0.u[0]) < 1e-6 && Math.abs(t.z[0] - t0.z[0]) < 1e-6, `一次撤销应回到起点：${JSON.stringify([t0, t])}`)
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'example-tv65' })); await sleep(200)
+      await ap.keyboard.press('ArrowRight'); await ap.keyboard.press('ArrowUp'); await sleep(150)
+      const moved = await tv()
+      await tap('[data-testid=save]'); await ap.waitForFunction(() => !window.__fss.store.getState().dirty, { timeout: 5000 })
+      const disk = onDisk().furniture.find(f => f.id === 'example-tv65')
+      assert(JSON.stringify(disk.at) === JSON.stringify(moved.at), `文件里的位置 ${disk.at} vs ${moved.at}`)
+      await X_(() => window.__decorUI().backToPlan()); await sleep(600)
+      await X_(() => window.__decorUI().select({ k: 'furniture', id: 'example-tv65' })); await sleep(300)
+      await ap.keyboard.down('Alt'); await sleep(60)
+      const wid = await X_(() => { const w = window.__fss.getView().plan.walls.find(x => x.id === 'south'); return [(w.a[0] + w.b[0]) / 2, (w.a[1] + w.b[1]) / 2] })
+      const [wx, wy] = await plan2(wid); await ap.mouse.move(wx - 6, wy); await sleep(60); await ap.mouse.move(wx, wy); await sleep(250)
+      const v = await X_(() => [...document.querySelectorAll('[data-canvas=main] [data-measure-value]')].map(e => +e.dataset.measureValue))
+      await ap.keyboard.up('Alt'); await sleep(150)
+      assert(v.length && v[0] > 0, `custom 构件 ⌥ 量到墙：${v}`)
+      await unselect()
+      return `电视沿墙 / 离地都按 10 mm 走，文件 at=${disk.at}，到南墙 ${v.join('/')} mm`
+    })
+
+    await step('A11 这一组全程零报错', ap, async () => {
+      const errs = errors.slice(before).filter(e => !/WebGL|GPU stall|GL_|swiftshader/i.test(e))
+      assert(!errs.length, errs.slice(0, 4).join(' | '))
+    })
+    await ap.close()
+    // ── D9：门的外观、吊顶和灯、外观描述、拱形门套（虚构示例的副本，方案用真实的 decor-edit 写）──
+    const d9File = path.join(A.dir, 'd9.json')
+    {
+      const base = JSON.parse(fs.readFileSync(path.join(root, 'fixtures/agent-decor.json'), 'utf8'))
+      base.openings.push(
+        { id: 'master-door', wall: 'west', offset: 2400, width: 900, kind: 'door', sill: 0, head: 2100, swing: { hinge: 'start', side: 1 }, name: '主卧门' },
+        { id: 'plain-door', wall: 'north', offset: 800, width: 800, kind: 'door', sill: 0, head: 2100, swing: { hinge: 'start', side: 1 } },
+        { id: 'study-slide', wall: 'east', offset: 4000, width: 1600, kind: 'sliding', sill: 0, head: 2200 },
+      )
+      fs.writeFileSync(d9File, JSON.stringify(base))
+    }
+    const d9Edit = (...ops) => { const r = spawnSync(process.execPath, ['--experimental-strip-types', path.join(root, 'scripts/plan.ts'), 'decor-edit', d9File, '-'], { input: JSON.stringify({ ops }), encoding: 'utf8', cwd: root }); if (r.status !== 0) throw new Error(`decor-edit：${r.stderr}`); return JSON.parse(r.stdout) }
+    const D9_FRONT = 'M120 120H780V1980H120ZM680 980h40v160h-40Z', D9_GRAIN = 'M300 120V1980M450 120V1980M600 120V1980'
+    d9Edit(
+      { op: 'component', component: { id: 'ceil-a', name: '客厅石膏吊顶', category: 'ceiling', look: '暖白石膏，四周隐藏灯带', size: [5000, 4000], height: 350, parts: [{ outline: 'M0 0H5000V4000H0Z', z: [0, 200], color: '#d9c9a8' }, { outline: 'M0 0H5000V300H0Z', z: [200, 350], color: '#d9c9a8' }] } },
+      { op: 'component', component: { id: 'pendant', name: '餐桌吊灯', category: 'lighting', size: [600, 600], height: 700, parts: [{ outline: 'M0 0H600V600H0Z', z: [0, 200], color: '#b08a4a' }, { outline: 'M280 280H320V320H280Z', z: [200, 700], color: '#333333' }] } },
+      { op: 'component', component: { id: 'flush', name: '吸顶灯', category: 'lighting', size: [500, 500], height: 30, parts: [{ outline: 'M0 0H500V500H0Z', z: [0, 30], color: '#f4f0dc' }] } },
+      { op: 'add', kind: 'furniture', status: 'confirmed', item: { id: 'ceil-1', type: 'custom:ceil-a', at: [3500, 3250] }, ceiling: { room: 'living' } },
+      { op: 'add', kind: 'furniture', status: 'pending', item: { id: 'pend-1', type: 'custom:pendant', at: [5100, 4500] }, ceiling: { room: 'living' } },
+      { op: 'add', kind: 'furniture', status: 'confirmed', item: { id: 'flush-1', type: 'custom:flush', at: [1800, 2000] }, ceiling: { room: 'living' } },
+      { op: 'update', id: 'example-l-sofa', set: { look: '奶白布艺，低靠背' } },
+      { op: 'add', kind: 'door', status: 'pending', item: { id: 'door-master', opening: 'master-door', color: '#705040', frame: { color: '#222222' }, look: '胡桃木竖纹门扇，黑色细门框', front: [{ d: D9_FRONT, style: 'outline' }, { d: D9_GRAIN, style: 'detail' }] } },
+      { op: 'add', kind: 'door', status: 'confirmed', item: { id: 'door-slide', opening: 'study-slide', material: 'walnut', frame: { material: 'gunmetal' }, name: '书房推拉门' } },
+      { op: 'add', kind: 'panel', status: 'confirmed', item: { id: 'arch-1', type: 'arch', opening: 'entry', thickness: 80, material: 'walnutV', name: '入口拱形门套', look: '胡桃木饰面，半圆拱' } },
+      { op: 'add', kind: 'cabinet', status: 'confirmed', item: { id: 'look-cab', family: 'tall', place: { face: { wall: 'south', side: 1 }, s: 3000 }, width: 1200, depth: 400, z: [0, 2400], columns: [{ width: 600, cells: [{ type: 'door' }] }, { cells: [{ type: 'door' }] }], materials: { carcass: 'creamDoor', front: 'creamDoor' }, look: '奶白平板门，无拉手' } },
+    )
+    const dp = await newPage(1)
+    {
+      const before = errors.length
+      const Q = (fn, ...a) => dp.evaluate(fn, ...a)
+      const sel = () => Q(() => window.__decorUI().sel)
+      const fur = id => Q(i => window.__fss.store.getState().base.decor.furniture.find(f => f.id === i), id)
+      const door = id => Q(i => window.__fss.store.getState().base.decor.doors?.find(f => f.id === i) ?? null, id)
+      const card = () => Q(() => [...document.querySelectorAll('.glass, .glass-strong')].map(e => e.textContent).filter(t => t.includes('交给 Agent') || t.includes('这套房的装修')).join(' '))
+      const noJargon = t => assert(!/pending|custom|overhead|look\b|status|confirmed/i.test(t), `卡片有开发用词：${t.slice(0, 200)}`)
+      const tapD = async s => { await dp.waitForSelector(s, { visible: true, timeout: 4000 }); await sleep(250); await dp.click(s) }
+      const pick = async d => { await Q(x => window.__decorUI().select(x), d); await sleep(350) }
+      const away = async () => { await dp.mouse.move(700, 880); await sleep(250) }
+      const solidsOf = id => Q(i => window.__decorSolids.filter(s => s.ids.includes(i)).length, id)
+      const to3d = async () => { await Q(() => { window.__decorUI().set({ hover: null }); window.__fss.store.getState().setMain('3d') }); await sleep(2200) }
+      const to2d = async () => { await Q(() => { window.__decorUI().set({ look3d: 'flat', overhead3d: false }); const s = window.__fss.store.getState(); s.setCam('iso'); s.setMain('2d') }); await sleep(800) }
+      const undo = async () => { await Q(() => window.__fss.store.getState().undo()); await sleep(300) }
+      await dp.goto(`http://127.0.0.1:5298/?plan=d9.json&mode=decor`, { waitUntil: 'load' }); await dp.waitForFunction(() => !!window.__fss?.store.getState().base?.decor?.doors, { timeout: 20000 }); await sleep(1800)
+
+      await step('D9-1 平面：吊顶和灯只有虚线轮廓，不盖地面和家具；点中间选地面、家具，点虚线、名字选吊顶；卡片有外观，确认、否掉照常', dp, async () => {
+        const q = await Q(() => [...document.querySelectorAll('[data-overhead]')].map(g => ({ id: g.dataset.id, fills: [...g.querySelectorAll(':scope > g path')].map(p => p.getAttribute('fill')), dash: [...g.querySelectorAll(':scope > g path')].every(p => !!p.getAttribute('stroke-dasharray')), filter: g.getAttribute('filter') })))
+        assert(q.map(x => x.id).sort().join() === 'ceil-1,flush-1,pend-1', `顶上的东西：${JSON.stringify(q)}`)
+        assert(q.every(x => x.fills.length && x.fills.every(f => f === 'none') && x.dash && !x.filter), `应只有虚线：${JSON.stringify(q)}`)
+        assert(!(await Q(() => !!document.querySelector('[data-pending=pend-1] [fill*=lav]'))), '待确认的顶灯也不铺斜纹')
+        // 吊顶中间：地面、地毯、家具照常选得到
+        await clickPlan(dp, [2500, 3000]); assert((await sel())?.k === 'floor', `吊顶中间应选地面：${JSON.stringify(await sel())}`)
+        await clickPlan(dp, [3500, 3100]); assert((await sel())?.id === 'example-round-rug', `吊顶中间的地毯：${JSON.stringify(await sel())}`)
+        await clickPlan(dp, [4500, 4500]); assert((await sel())?.id === 'example-four-leg-table', `吊灯旁边的桌子：${JSON.stringify(await sel())}`)
+        await clickPlan(dp, [5100, 4500]); assert((await sel())?.id === 'pend-1', `桌上的吊灯：${JSON.stringify(await sel())}`)
+        let t = await card()
+        assert(t.includes('Agent 提议') && t.includes('我确认') && t.includes('不要这条') && t.includes('在顶上') && t.includes('平视'), `吊灯卡片：${t}`)
+        await clickPlan(dp, [2000, 1250]); assert((await sel())?.id === 'ceil-1', `点虚线应选吊顶：${JSON.stringify(await sel())}`)
+        t = await card()
+        assert(t.includes('外观：暖白石膏，四周隐藏灯带') && t.includes('吊顶') && !t.includes('Agent 提议'), `吊顶卡片：${t}`); noJargon(t)
+        assert(!(await dp.$('[data-testid=item-look] input, [data-testid=item-look] button')), '外观是只读的')
+        await away(); await shot(dp, 'D9-plan-ceiling.png')
+        await Q(() => window.__decorUI().select(null)); await sleep(300)
+        const lb = await Q(() => { const r = document.querySelector('[data-overhead-label=ceil-1] rect').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2] })
+        await dp.mouse.click(lb[0], lb[1]); await sleep(320); assert((await sel())?.id === 'ceil-1', '点名字也能选吊顶')
+        await pick({ k: 'furniture', id: 'example-l-sofa' })
+        t = await card(); assert(t.includes('外观：奶白布艺，低靠背'), `摆放项优先：${t}`)
+        await pick({ k: 'cabinet', id: 'look-cab' }); assert((await card()).includes('外观：奶白平板门，无拉手'), '柜体外观')
+        await pick({ k: 'furniture', id: 'example-tv65' }); assert(!(await dp.$('[data-testid=item-look]')), '没写外观就不该有这行')
+        await pick(null)
+        return `${q.length} 件都是虚线`
+      })
+
+      await step('D9-2 拖动、方向键挪顶上的东西：平面位置变，离地高度不变，不贴墙', dp, async () => {
+        const f0 = await fur('ceil-1')
+        assert(Math.abs(f0.z - 2.45) < 1e-6, `吊顶贴顶：${f0.z}`)
+        const a = await P(dp, [2000, 1250]), b = await P(dp, [1400, 1000])
+        await drag(dp, a, b)
+        const f1 = await fur('ceil-1')
+        assert(f1.at[0] < f0.at[0] && f1.at[1] < f0.at[1] && f1.z === f0.z && !f1.against, `拖动后：${JSON.stringify(f1)}`)
+        await undo(); await sleep(1700) // 1.6 秒内同一件的连续拖动算一步，等过这个窗口
+        // 拖到贴墙也不吸附、不记靠墙
+        const near = await P(dp, [1000, 3000]), wall = await P(dp, [170, 3000])
+        await drag(dp, near, wall)
+        const f2 = await fur('ceil-1')
+        assert(!f2.against && f2.z === f0.z && f2.at[1] === f0.at[1], `贴墙也不吸附：${JSON.stringify(f2)}`)
+        await undo(); await sleep(1700)
+        await pick({ k: 'furniture', id: 'ceil-1' })
+        await dp.keyboard.press('ArrowRight'); await dp.keyboard.press('ArrowDown'); await sleep(200)
+        const f3 = await fur('ceil-1')
+        assert(f3.at[0] === f0.at[0] + 10 && f3.at[1] === f0.at[1] + 10 && f3.z === f0.z && !f3.against, `方向键：${JSON.stringify(f3)}`)
+        await undo(); await pick(null)
+      })
+
+      await step('D9-3 3D：斜视、俯视不画吊顶和顶灯，落地灯还在；平视才画；「3D 顶面和梁」打开时也画但不进导出；白模同样', dp, async () => {
+        await to3d(); await pick(null)
+        assert((await solidsOf('ceil-1')) === 0 && (await solidsOf('flush-1')) === 0 && (await solidsOf('pend-1')) === 0, '斜视不该画顶上的东西')
+        assert((await solidsOf('example-lamp')) > 0 && (await solidsOf('example-l-sofa')) > 0, '落地灯、家具要在')
+        await away(); await shot(dp, 'D9-3d-iso.png')
+        await tapD('[data-testid=cam-top]'); await sleep(1500)
+        assert((await solidsOf('ceil-1')) === 0, '俯视不该画')
+        await shot(dp, 'D9-3d-top.png')
+        const png = async name => { const r = await dp.evaluate(n => new Promise(res => window.dispatchEvent(new CustomEvent('export-3d', { detail: { bg: 'white', aspect: '16:9', name: n, done: (ok, w, h) => res([ok, w, h]) } }))), name); assert(r[0], '导出失败'); await sleep(900); return fs.readFileSync(path.join(downloads, name)) }
+        await tapD('[data-testid=cam-iso]'); await sleep(1600)
+        // 比像素：同一机位重画一次阴影、抗锯齿会有细微差别，吊顶进了图则有一大片变色
+        const diff = (a, b) => dp.evaluate(async (x, y) => {
+          const load = async u => { const im = new Image(); im.src = u; await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0); return g.getImageData(0, 0, im.width, im.height).data }
+          const A = await load(x), B = await load(y); let n = 0
+          for (let i = 0; i < A.length; i += 4) if (Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]) > 48) n++
+          return n / (A.length / 4)
+        }, `data:image/png;base64,${a.toString('base64')}`, `data:image/png;base64,${b.toString('base64')}`)
+        const off = await png('d9-off.png')
+        await Q(() => window.__decorUI().set({ overhead3d: true })); await sleep(800)
+        assert((await solidsOf('ceil-1')) > 0 && (await Q(() => window.__decor3d.overhead.uiOnly)), '图层打开时斜视也画')
+        await away(); await shot(dp, 'D9-3d-iso-layer.png')
+        const on = await png('d9-on.png')
+        const layerDiff = await diff(off, on)
+        assert(layerDiff < 0.002, `图层打开时导出不该带吊顶：差 ${(layerDiff * 100).toFixed(2)}% 像素`)
+        await Q(() => window.__decorUI().set({ overhead3d: false })); await sleep(500)
+        await tapD('[data-testid=cam-eye]'); await sleep(1800)
+        assert((await solidsOf('ceil-1')) > 0 && (await solidsOf('flush-1')) > 0 && (await solidsOf('pend-1')) > 0, '平视要画')
+        assert(!(await Q(() => window.__decor3d.overhead.uiOnly)), '平视进导出')
+        await away(); await shot(dp, 'D9-3d-eye.png')
+        const eye = await png('d9-eye.png')
+        await tapD('[data-testid=cam-iso]'); await sleep(1500)
+        const iso2 = await png('d9-iso2.png')
+        assert((await diff(eye, iso2)) > 0.05, '平视导出和斜视不该一样')
+        await Q(() => window.__decorUI().set({ look3d: 'clay' })); await sleep(900)
+        assert((await solidsOf('ceil-1')) === 0, '白模斜视不画')
+        await away(); await shot(dp, 'D9-3d-iso-clay.png')
+        await tapD('[data-testid=cam-eye]'); await sleep(1500)
+        assert((await solidsOf('ceil-1')) > 0, '白模平视画')
+        await away(); await shot(dp, 'D9-3d-eye-clay.png')
+        await Q(() => { window.__decorUI().set({ look3d: 'flat' }) }); await sleep(600)
+        // 室内机位看吊顶吊灯
+        await Q(() => { window.__decorUI().set({ hover: null }); window.__setCam3d([0.6, 1.3, 6.1], [5.1, 2.2, 4.5]) }); await sleep(600); await away(); await shot(dp, 'D9-3d-eye-inside.png')
+        await to2d()
+        return `图层开关前后导出差 ${(layerDiff * 100).toFixed(3)}% 像素`
+      })
+
+      await step('D9-4 门的外观：点门出卡片，没外观的门还是墙面；提议列表能跳到；确认、否掉、恢复 prev', dp, async () => {
+        await to2d(); await pick(null)
+        await clickPlan(dp, [1200, 0])
+        let s = await sel(); assert(s?.k === 'face' && s.face.wall === 'north', `没外观的门应保持原样：${JSON.stringify(s)}`)
+        await pick(null)
+        await tapD('[data-testid=look-pending-toggle]'); await sleep(250)
+        const label = await Q(() => document.querySelector('[data-testid=pending-item-door-master]')?.textContent ?? '')
+        assert(label.includes('主卧门的外观'), `列表里的名字：${label}`)
+        await tapD('[data-testid=pending-item-door-master]'); await sleep(300)
+        s = await sel(); assert(s?.k === 'door' && s.id === 'door-master', `逐条跳到门：${JSON.stringify(s)}`)
+        let t = await card()
+        for (const want of ['主卧门', '门的外观', '平开门', '外观：胡桃木竖纹门扇，黑色细门框', '门扇', '门框', '我确认', '不要这条', '这是新加的']) assert(t.includes(want), `门的卡片缺「${want}」：${t}`)
+        noJargon(t)
+        await away(); await shot(dp, 'D9-door-card-pending.png')
+        await pick(null)
+        await clickPlan(dp, [0, 3650])
+        s = await sel(); assert(s?.k === 'door' && s.id === 'door-master', `点门应选门：${JSON.stringify(s)}`)
+        assert(await Q(() => !!document.querySelector('[data-door-highlight=door-master]')), '平面上选中的门要有高亮')
+        await away(); await shot(dp, 'D9-plan-door.png')
+        await tapD('[data-testid=pending-confirm]'); await sleep(350)
+        let d = await door('door-master')
+        assert(d.status === 'confirmed', `确认后：${JSON.stringify(d)}`)
+        t = await card(); assert(t.includes('Agent 加的') && !t.includes('我确认'), `确认后的卡片：${t}`)
+        await undo(); assert((await door('door-master')).status === 'pending', '撤销确认')
+        await tapD('[data-testid=pending-reject]'); await sleep(350)
+        assert(!(await door('door-master')) && !(await sel()), '否掉新加的门外观应删除')
+        await undo(); assert(await door('door-master'), '撤销否掉')
+        // 有改动的：卡片写改了什么，否掉回到改之前（保存后 Agent 再改文件）
+        await tapD('[data-testid=save]'); await dp.waitForFunction(() => !window.__fss.store.getState().dirty, { timeout: 5000 }); await sleep(300)
+        d9Edit({ op: 'update', id: 'door-slide', set: { material: 'teak', look: '柚木推拉门' }, status: 'pending' })
+        await dp.waitForFunction(() => window.__fss.store.getState().base.decor.doors.find(x => x.id === 'door-slide')?.status === 'pending', { timeout: 6000 }); await sleep(300)
+        await pick({ k: 'door', id: 'door-slide' })
+        t = await card(); assert(t.includes('书房推拉门') && t.includes('推拉门') && t.includes('改了') && t.includes('材料') && t.includes('柚木') && t.includes('外观：柚木推拉门'), `有改动的门：${t}`); noJargon(t)
+        await tapD('[data-testid=pending-reject]'); await sleep(350)
+        d = await door('door-slide'); assert(d.status === 'confirmed' && d.material === 'walnut' && !d.look && !d.prev, `否掉恢复：${JSON.stringify(d)}`)
+        await pick(null)
+        // 交给 Agent 带门的 ref，写明门的外观
+        await pick({ k: 'door', id: 'door-master' })
+        await tapD('[data-testid=inspector-agent]'); await sleep(500)
+        const ag = await Q(() => document.querySelector('[data-testid=agent-decor-refs]')?.textContent ?? '')
+        assert(ag.includes('主卧门的外观'), `交给 Agent：${ag}`)
+        await Q(() => window.__fss.store.getState().openAgent(false)); await sleep(300); await pick(null)
+      })
+
+      await step('D9-5 门在 3D：平涂用外观颜色（材料也取得到），待确认淡紫，白模不变；点门扇出卡片', dp, async () => {
+        await to2d(); await pick(null)
+        await to3d()
+        let L = await Q(() => window.__doorLeaves3d)
+        const m = L.find(x => x.opening === 'master-door'), sl = L.filter(x => x.opening === 'study-slide')
+        assert(m?.pending && m.mat === 'b7a8f7', `待确认应淡紫：${JSON.stringify(m)}`)
+        assert(sl.length && sl.every(x => x.color && x.color.startsWith('#') && !x.pending), `推拉门取材料颜色：${JSON.stringify(sl)}`)
+        const walnut = await Q(() => window.__fss.store.getState().base.decor.materials.find(x => x.id === 'walnut').color)
+        assert(sl[0].color === walnut, `材料颜色 ${sl[0].color} vs ${walnut}`)
+        await away(); await shot(dp, 'D9-3d-door-pending.png')
+        // 门在西墙内侧：从房间里看
+        await Q(() => window.__setCam3d([4.2, 1.7, 3.65], [0, 1.1, 3.65])); await sleep(700); await away(); await shot(dp, 'D9-3d-door-pending-inside.png')
+        await Q(() => window.__decorUI().select({ k: 'door', id: 'door-master' })); await sleep(250)
+        await tapD('[data-testid=pending-confirm]'); await sleep(900)
+        L = await Q(() => window.__doorLeaves3d)
+        const m2 = L.find(x => x.opening === 'master-door')
+        assert(!m2.pending && m2.mat !== 'b7a8f7', `确认后用外观颜色：${JSON.stringify(m2)}`)
+        await Q(() => window.__decorUI().select(null)); await sleep(300); await away(); await shot(dp, 'D9-3d-door-confirmed-inside.png')
+        const hit = await Q(() => { const leaf = window.__fixtures3d.find(x => x.ids.includes('master-door') && x.kind === 'leaf'); return !!leaf })
+        assert(hit, '门扇网格')
+        const clayBefore = await Q(() => { window.__decorUI().set({ look3d: 'clay' }); return true }); await sleep(900)
+        const c = (await Q(() => window.__doorLeaves3d)).find(x => x.opening === 'master-door')
+        const plainClay = await Q(() => window.__decor3d.look)
+        assert(clayBefore && plainClay === 'clay' && c.mat !== m2.mat, `白模不用外观颜色：${JSON.stringify(c)}`)
+        await Q(() => window.__decorUI().set({ look3d: 'flat' })); await sleep(700)
+        // 3D 里点门扇（门开 68°，命中点不在洞口里）
+        const pt = await Q(() => { const v = [0.417, 1.05, 3.932]; return window.__world2screen(v) })
+        await dp.mouse.click(pt[0], pt[1]); await sleep(450)
+        const s = await sel()
+        assert(s?.k === 'door' && s.id === 'door-master', `3D 点门扇：${JSON.stringify(s)}`)
+        await away(); await shot(dp, 'D9-3d-door-selected.png')
+        await pick(null); await to2d()
+        return `推拉门 ${sl[0].color}；主卧门 ${m2.mat}`
+      })
+
+      await step('D9-6 门在立面：门板颜色 + 正面路径（d 属性、线宽不缩放），从另一侧看左右翻；能选中，不能拖；窗和没外观的门不变', dp, async () => {
+        await Q(() => window.__decorUI().openElevation({ wall: 'west', side: 1 })); await sleep(1200)
+        const q = () => Q(() => { const g = document.querySelector('[data-elev=door][data-id=door-master]'); if (!g) return null; const ps = [...g.querySelectorAll(':scope > g path')]; return { fill: g.querySelector('[data-door-fill]')?.getAttribute('fill'), frame: g.querySelector('[data-door-frame]')?.getAttribute('stroke'), d: ps.map(p => p.getAttribute('d')), effect: ps.map(p => p.getAttribute('vector-effect')), sw: ps.map(p => p.getAttribute('stroke-width')), mirror: g.dataset.mirror ?? '', tr: g.querySelector('g').getAttribute('transform') } })
+        const a = await q()
+        assert(a && a.fill && a.frame, `门板：${JSON.stringify(a)}`)
+        assert(a.d[0] === D9_FRONT && a.d[1] === D9_GRAIN && a.effect.every(e => e === 'non-scaling-stroke'), `正面路径：${JSON.stringify(a)}`)
+        assert(!a.mirror, `从房间里看不翻：${JSON.stringify(a)}`)
+        const hasHtml = await Q(() => [...document.querySelectorAll('[data-elev=door] *')].some(e => e.tagName.toLowerCase() === 'foreignobject'))
+        assert(!hasHtml, '不该有 HTML')
+        await away(); await shot(dp, 'D9-elev-door.png')
+        await Q(() => window.dispatchEvent(new CustomEvent('plan-zoom', { detail: 1.5 }))); await sleep(300)
+        const z = await q(); assert(z.sw.join() === a.sw.join() && z.tr !== a.tr, `放大后线宽不变：${a.sw} → ${z.sw}`)
+        await Q(() => window.dispatchEvent(new CustomEvent('plan-zoom', { detail: 1 / 1.5 }))); await sleep(300)
+        const c = await Q(() => { const m = window.__elevModel, o = m.openings.find(x => x.o.id === 'master-door'); return window.__elev2screen((o.u[0] + o.u[1]) / 2, 1) })
+        await dp.mouse.click(c[0], c[1]); await sleep(300)
+        const s = await sel(); assert(s?.k === 'door' && s.id === 'door-master', `立面点门板：${JSON.stringify(s)}`)
+        const u0 = await Q(() => window.__fss.store.getState().base.openings.find(o => o.id === 'master-door').offset)
+        await drag(dp, c, [c[0] + 60, c[1] - 30])
+        await dp.keyboard.press('ArrowRight'); await sleep(200)
+        const d0 = await door('door-master')
+        assert((await Q(() => window.__fss.store.getState().base.openings.find(o => o.id === 'master-door').offset)) === u0 && d0.opening === 'master-door', '门不能在这里挪')
+        await away(); await shot(dp, 'D9-elev-door-selected.png')
+        await Q(() => window.__decorUI().openElevation({ wall: 'west', side: -1 })); await sleep(1000)
+        const b = await q(); assert(b?.mirror === '1' && b.d[0] === D9_FRONT, `从另一侧看应翻：${JSON.stringify(b)}`)
+        await Q(() => window.__decorUI().openElevation({ wall: 'north', side: 1 })); await sleep(1000)
+        assert(!(await Q(() => !!document.querySelector('[data-elev=door]'))), '没外观的门不该画门板')
+        await Q(() => window.__decorUI().backToPlan()); await sleep(600)
+      })
+
+      await step('D9-7 拱形门套：平面虚线能选中，立面画拱，3D 有实体能点到，卡片不报错；不能拖', dp, async () => {
+        await to2d(); await Q(() => window.__decorUI().backToPlan()); await sleep(500)
+        const g = await Q(() => { const e = document.querySelector('[data-decor=panel][data-id=arch-1]'); return e && { fill: e.getAttribute('fill'), dash: e.getAttribute('stroke-dasharray') } })
+        assert(g && g.dash, `平面：${JSON.stringify(g)}`)
+        await clickPlan(dp, [5550, 6365])
+        let s = await sel(); assert(s?.k === 'panel' && s.id === 'arch-1', `平面选中：${JSON.stringify(s)}`)
+        let t = await card()
+        for (const want of ['入口拱形门套', '拱形门套', '外观：胡桃木饰面，半圆拱', '跟着门洞走']) assert(t.includes(want), `卡片缺「${want}」：${t}`)
+        assert(!t.includes('贴在') && !(await dp.$('[data-testid=panel-w]')), `不该有墙面造型的字段：${t}`); noJargon(t)
+        await away(); await shot(dp, 'D9-plan-arch.png')
+        await Q(() => window.__decorUI().openElevation({ wall: 'south', side: 1 })); await sleep(1100)
+        await pick({ k: 'panel', id: 'arch-1' })
+        const e = await Q(() => { const p = document.querySelector('[data-elev=panel][data-id=arch-1] path'); return { n: (p?.getAttribute('d') ?? '').split('L').length, handles: !!document.querySelector('[data-testid=elev-sel] rect[rx="2.5"]') } })
+        assert(e.n > 40 && !e.handles, `立面应画弧、没有改尺寸的抓手：${JSON.stringify(e)}`)
+        await away(); await shot(dp, 'D9-elev-arch.png')
+        const c = await Q(() => { const m = window.__elevModel, o = m.openings.find(x => x.o.id === 'entry'); return window.__elev2screen((o.u[0] + o.u[1]) / 2, 2.05) })
+        const before3 = JSON.stringify(await Q(() => window.__fss.store.getState().base.decor.panels.find(p => p.id === 'arch-1')))
+        await dp.mouse.move(c[0], c[1]); await drag(dp, c, [c[0] + 50, c[1]])
+        await dp.keyboard.press('ArrowLeft'); await sleep(200)
+        assert(JSON.stringify(await Q(() => window.__fss.store.getState().base.decor.panels.find(p => p.id === 'arch-1'))) === before3, '拱形门套不该被拖动改掉')
+        await Q(() => window.__decorUI().backToPlan()); await sleep(500)
+        await to3d()
+        assert((await solidsOf('arch-1')) > 20, `3D 实体数：${await solidsOf('arch-1')}`)
+        await Q(() => window.__setCam3d([5.55, 1.3, 0.9], [5.55, 1.2, 6.5])); await sleep(700)
+        await Q(() => window.__decorUI().select(null)); await away(); await shot(dp, 'D9-3d-arch.png')
+        // 点拱肩（洞口左上角）
+        const pt = await Q(() => window.__world2screen([5.14, 2.04, 6.32]))
+        await dp.mouse.click(pt[0], pt[1]); await sleep(400)
+        s = await sel(); assert(s?.k === 'panel' && s.id === 'arch-1', `3D 点到拱形门套：${JSON.stringify(s)}`)
+        await away(); await shot(dp, 'D9-3d-arch-selected.png')
+        await pick(null); await to2d()
+      })
+
+      await step('D9-8 家具库「方案里的构件」有「吊顶」组；再摆一个贴到顶上；门的外观拆了门不报错', dp, async () => {
+        await to2d(); await Q(() => window.__decorUI().backToPlan()); await sleep(500)
+        await Q(() => window.__decorUI().setTool('furniture')); await sleep(400)
+        await tapD('[data-testid=furn-cat-own]'); await sleep(300)
+        const groups = await Q(() => [...document.querySelectorAll('[data-testid=furn-own-group] > div:first-child')].map(e => e.textContent))
+        assert(groups.includes('吊顶'), `分组：${groups}`)
+        await away(); await shot(dp, 'D9-lib.png')
+        await tapD('[data-testid=furn-own-ceil-a]'); await sleep(200)
+        await clickPlan(dp, [2500, 3000])
+        const n = await Q(() => window.__fss.store.getState().base.decor.furniture.filter(f => f.type === 'custom:ceil-a').map(f => ({ by: f.by, z: f.z })))
+        const mine = n.find(x => x.by === 'user')
+        assert(mine && Math.abs(mine.z - 2.45) < 1e-6, `再摆一个：${JSON.stringify(n)}`)
+        await undo(); await pick(null)
+        // 洞口被拆：卡片说明白，总览不崩
+        await Q(() => { const s = window.__fss.store.getState(); s.setMode('renovation'); s.edit([{ id: 'c-rm-door', op: 'remove', type: 'opening', target: 'master-door', by: 'user', status: 'confirmed' }], { silent: true }); s.setMode('decor') }); await sleep(900)
+        await pick({ k: 'door', id: 'door-master' })
+        const t = await card()
+        assert((await dp.$('[data-testid=door-missing]')) && t.includes('拆掉'), `门被拆：${t}`)
+        await pick(null)
+        assert((await card()).includes('这套房的装修'), '总览应正常')
+        await undo(); await sleep(300)
+      })
+
+      await step('D9-9 这一组全程零报错', dp, async () => {
+        const errs = errors.slice(before).filter(e => !/WebGL|GPU stall|GL_|swiftshader/i.test(e))
+        assert(!errs.length, errs.slice(0, 4).join(' | '))
+      })
+    }
+    await dp.close()
+    // ── 底图的不透明度、显隐：连着文件松手就写回；有别的未保存改动就等下一次保存；不盖 Agent 刚写的；每层各管各的 ──
+    const PNG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+    const uPlan = JSON.parse(fs.readFileSync(path.join(root, 'fixtures/skill-two-bed/plan.json'), 'utf8'))
+    uPlan.underlay = { src: PNG, mmPerPx: 10, origin: [0, 0], opacity: 50, visible: true }
+    const uFile = path.join(A.dir, 'under.json'), lFile = path.join(A.dir, 'levels.json')
+    fs.writeFileSync(uFile, JSON.stringify(uPlan))
+    fs.writeFileSync(lFile, JSON.stringify({ ...uPlan, levels: [{ id: 'L1', name: '1F', elevation: 0 }, { id: 'L2', name: '2F', elevation: 3 }], levelUnderlays: { L2: { ...uPlan.underlay, opacity: 30 } } }))
+    const readU = f => JSON.parse(fs.readFileSync(f, 'utf8'))
+    const up = await newPage(1)
+    const uState = () => up.evaluate(() => { const s = window.__fss.store.getState(); return { opacity: s.base.underlay.opacity, visible: s.base.underlay.visible, dirty: s.dirty, title: s.base.title, past: s.hist.original.past.length } })
+    const openU = async name => { await up.goto(`http://127.0.0.1:5298/?plan=${name}`, { waitUntil: 'load' }); await up.waitForFunction(() => !!window.__fss?.store.getState().base, { timeout: 20000 }); await sleep(600); await up.evaluate(() => window.__fss.store.getState().setNotice(null)) }
+    const openLayers = async () => { await up.click('[aria-label="图层"]'); await up.waitForSelector('[data-testid=underlay-opacity] input', { visible: true, timeout: 3000 }); await sleep(250) }
+    const closeLayers = async () => { await up.evaluate(() => window.__fss.store.getState().setPanel(null)); await sleep(250) }
+    const dragSlider = async pct => {
+      const b = await (await up.$('[data-testid=underlay-opacity] input')).boundingBox(), y = b.y + b.height / 2
+      await up.mouse.move(b.x + b.width * .5, y); await up.mouse.down()
+      for (let i = 1; i <= 6; i++) { await up.mouse.move(b.x + b.width * (.5 + (pct - .5) * i / 6), y); await sleep(20) }
+      await up.mouse.up(); await sleep(60)
+    }
+    const clean = () => up.waitForFunction(() => !window.__fss.store.getState().dirty, { timeout: 6000 })
+    await step('U1 连着文件：拖一次滑块，松手就写回，不进撤销历史，重开还是这个值；显隐开关同样', up, async () => {
+      await openU('under.json'); await openLayers()
+      await dragSlider(.82); await clean()
+      const s = await uState(), disk = readU(uFile)
+      assert(s.opacity !== 50 && disk.underlay.opacity === s.opacity, `文件 ${disk.underlay.opacity} vs 工具 ${s.opacity}`)
+      assert(s.past === 0, `不透明度不该进撤销历史：${s.past}`)
+      await closeLayers(); await openU('under.json')
+      assert((await uState()).opacity === s.opacity, `重开后 ${(await uState()).opacity}，应该是 ${s.opacity}`)
+      await openLayers()
+      await up.click('[role=switch][aria-label="底图"]'); await clean()
+      assert(readU(uFile).underlay.visible === false, '关底图没写回文件')
+      await up.click('[role=switch][aria-label="底图"]'); await clean()
+      assert(readU(uFile).underlay.visible === true, '开底图没写回文件')
+      await closeLayers()
+      return `不透明度 ${s.opacity} 写进文件、重开还在；显隐也写回`
+    })
+    await step('U2 有别的未保存改动：松手不写文件，⌘S 时一起写；撤销别的改动不动这个值', up, async () => {
+      const before = readU(uFile), o0 = before.underlay.opacity
+      await up.evaluate(() => { const s = window.__fss.store.getState(); s.replaceBase({ ...s.base, title: '本地改动' }) }); await sleep(100)
+      await openLayers(); await dragSlider(.3); await sleep(900)
+      const s = await uState()
+      assert(s.dirty && s.opacity !== o0, `应该还没保存：${JSON.stringify(s)}`)
+      const mid = readU(uFile)
+      assert(mid.title === before.title && mid.underlay.opacity === o0, '有别的改动时不该自动写文件')
+      await closeLayers()
+      await up.keyboard.down('Meta'); await up.keyboard.press('s'); await up.keyboard.up('Meta'); await clean()
+      const disk = readU(uFile)
+      assert(disk.title === '本地改动' && disk.underlay.opacity === s.opacity, `⌘S 没一起写：${disk.title} ${disk.underlay.opacity}`)
+      await up.evaluate(() => window.__fss.store.getState().undo()); await sleep(200)
+      const u = await uState()
+      assert(u.title !== '本地改动' && u.opacity === s.opacity, `撤销改标题不该带回旧不透明度：${JSON.stringify(u)}`)
+      await up.keyboard.down('Meta'); await up.keyboard.press('s'); await up.keyboard.up('Meta'); await clean()
+      return `⌘S 一起写；撤销后不透明度还是 ${u.opacity}`
+    })
+    await step('U3 Agent 刚写了文件：不盖掉，内容和这个值都留下', up, async () => {
+      const ext = readU(uFile); ext.title = 'Agent 刚写的'; fs.writeFileSync(uFile, JSON.stringify(ext)); const o0 = ext.underlay.opacity
+      await openLayers(); await dragSlider(.65)
+      const want = (await uState()).opacity
+      assert(want !== o0, '滑块没动')
+      await up.waitForFunction(t => { const s = window.__fss.store.getState(); return s.base.title === t && !s.dirty }, { timeout: 9000 }, 'Agent 刚写的')
+      await sleep(300); await closeLayers()
+      const disk = readU(uFile), s = await uState()
+      assert(disk.title === 'Agent 刚写的' && disk.underlay.opacity === want && s.opacity === want, `文件 ${disk.title} ${disk.underlay.opacity}，工具 ${s.title} ${s.opacity}，要 ${want}`)
+      return `标题没丢，不透明度 ${want}`
+    })
+    await step('U4 多层：每层的底图各管各的，写回文件、重开都对', up, async () => {
+      await openU('levels.json')
+      await up.evaluate(() => window.__fss.store.getState().setLevel('L2')); await sleep(300)
+      await openLayers()
+      const v0 = await up.$eval('[data-testid=underlay-opacity] input', e => +e.value)
+      assert(v0 === 30, `二层滑块应该是 30：${v0}`)
+      await dragSlider(.9); await clean()
+      const v1 = await up.$eval('[data-testid=underlay-opacity] input', e => +e.value), disk = readU(lFile)
+      assert(v1 !== 30 && disk.levelUnderlays.L2.opacity === v1 && disk.underlay.opacity === 50, `文件 L2=${disk.levelUnderlays.L2.opacity} 主=${disk.underlay.opacity} 滑块=${v1}`)
+      await up.evaluate(() => window.__fss.store.getState().setLevel('L1')); await sleep(300)
+      assert((await up.$eval('[data-testid=underlay-opacity] input', e => +e.value)) === 50, '一层应该还是 50')
+      await closeLayers()
+      return `二层 ${v1}，一层 50`
+    })
+    await step('U6 连接文件（Chrome / Edge 打开方案的默认方式）：松手写回原文件；Agent 刚写过也不盖；重开还在', up, async () => {
+      const lk = await newPage(1)
+      await lk.evaluateOnNewDocument(() => { window.showOpenFilePicker = async () => [await (await navigator.storage.getDirectory()).getFileHandle('link-u.json', { create: true })] })
+      const extWrite = text => lk.evaluate(async t => { const r = await navigator.storage.getDirectory(), tmp = await r.getFileHandle('link-u.tmp', { create: true }), w = await tmp.createWritable(); await w.write(t); await w.close(); await tmp.move(r, 'link-u.json') }, text)
+      const extRead = async () => JSON.parse(await lk.evaluate(async () => (await (await (await navigator.storage.getDirectory()).getFileHandle('link-u.json')).getFile()).text()))
+      await lk.goto('http://127.0.0.1:5298/', { waitUntil: 'load' }); await lk.waitForFunction(() => !!window.__fss); await sleep(600)
+      await extWrite(JSON.stringify({ ...uPlan, title: '连接-A' }))
+      await lk.click('[data-testid=file-menu]'); await lk.waitForSelector('[data-testid=menu-open]'); await lk.click('[data-testid=menu-open]')
+      await lk.waitForFunction(() => window.__fss.store.getState().base?.title === '连接-A' && window.__fss.store.getState().source.kind === 'linked', { timeout: 8000 }); await sleep(400)
+      const drag = async pct => {
+        await lk.click('[aria-label="图层"]'); await lk.waitForSelector('[data-testid=underlay-opacity] input', { visible: true }); await sleep(250)
+        const b = await (await lk.$('[data-testid=underlay-opacity] input')).boundingBox()
+        await lk.mouse.click(b.x + b.width * pct, b.y + b.height / 2); await sleep(150)
+        await lk.evaluate(() => window.__fss.store.getState().setPanel(null)); await sleep(200)
+        return lk.evaluate(() => window.__fss.store.getState().base.underlay.opacity)
+      }
+      const o1 = await drag(.8)
+      await lk.waitForFunction(() => !window.__fss.store.getState().dirty, { timeout: 6000 })
+      assert((await extRead()).underlay.opacity === o1 && o1 !== 50, `文件没写回：${(await extRead()).underlay.opacity} vs ${o1}`)
+      await extWrite(JSON.stringify({ ...(await extRead()), title: '连接-B' }))
+      const o2 = await drag(.25)
+      assert(o2 !== o1, '第二次滑块没动')
+      await lk.waitForFunction(() => { const s = window.__fss.store.getState(); return s.base.title === '连接-B' && !s.dirty }, { timeout: 9000 })
+      await sleep(300)
+      const disk = await extRead(), st2 = await lk.evaluate(() => window.__fss.store.getState().base.underlay.opacity)
+      assert(disk.title === '连接-B' && disk.underlay.opacity === o2 && st2 === o2, `文件 ${disk.title} ${disk.underlay.opacity}，工具 ${st2}，要 ${o2}`)
+      await lk.reload({ waitUntil: 'load' }); await lk.waitForFunction(() => window.__fss?.store.getState().base?.title === '连接-B', { timeout: 8000 })
+      assert((await lk.evaluate(() => window.__fss.store.getState().base.underlay.opacity)) === o2, '重开后值不对')
+      await lk.close()
+      return `写回 ${o1}；Agent 写过之后 ${o2} 也写回且标题没丢；重开还在`
+    })
+    await up.close()
+    await step('U5 没连文件：刷新靠自动保存恢复，导出的方案带上这个值', up, async () => {
+      const lp = await newPage(1)
+      const text = JSON.stringify(uPlan)
+      await lp.goto(URL0, { waitUntil: 'load' }); await lp.waitForFunction(() => window.__fss && !window.__fss.store.getState().booting); await sleep(300)
+      await lp.evaluate(t => { const dt = new DataTransfer(); dt.items.add(new File([t], 'under.json', { type: 'application/json' })); window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })) }, text)
+      await lp.waitForFunction(() => window.__fss.store.getState().base?.underlay?.opacity === 50, { timeout: 8000 }); await sleep(400)
+      await lp.evaluate(() => window.__fss.store.getState().setNotice(null))
+      await lp.click('[aria-label="图层"]'); await lp.waitForSelector('[data-testid=underlay-opacity] input', { visible: true }); await sleep(250)
+      const b = await (await lp.$('[data-testid=underlay-opacity] input')).boundingBox()
+      await lp.mouse.click(b.x + b.width * .75, b.y + b.height / 2); await sleep(900)
+      const o = await lp.evaluate(() => window.__fss.store.getState().base.underlay.opacity)
+      assert(o !== 50, '滑块没动')
+      await lp.evaluate(() => window.__fss.store.getState().setPanel(null)); await sleep(200)
+      // 同名文件会被覆盖（前面的步骤导出过同一个方案）：看修改时间，不看文件名
+      const t0 = Date.now() - 50
+      await lp.click('[data-testid=file-menu]'); await sleep(300); await lp.click('[data-testid=menu-export]'); await sleep(1500)
+      const dl = fs.readdirSync(downloads).find(x => x.endsWith('.json') && fs.statSync(path.join(downloads, x)).mtimeMs >= t0)
+      assert(dl && JSON.parse(fs.readFileSync(path.join(downloads, dl), 'utf8')).underlay.opacity === o, `导出没带上：${dl}`)
+      await lp.goto(URL0, { waitUntil: 'load' }); await lp.waitForFunction(() => !!window.__fss?.store.getState().base, { timeout: 10000 })
+      const back = await lp.evaluate(() => window.__fss.store.getState().base.underlay.opacity)
+      assert(back === o, `刷新后 ${back}，应该是 ${o}`)
+      await lp.close()
+      return `导出、刷新都是 ${o}`
+    })
+  } finally {
+    A.srv.kill()
+    fs.rmSync(A.dir, { recursive: true, force: true })
+  }
 } finally {
   await browser.close()
 }

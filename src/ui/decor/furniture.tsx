@@ -4,20 +4,15 @@
  * 局部坐标：宽沿 x、深沿 y，背面在 −y，正面朝 +y（数据格式 §7：rot 0 = 正面朝屏幕下方）。
  */
 import type { ReactNode } from 'react'
-import type { Decor, Furniture, MaterialRole } from '@/core/decor/types'
-import { FURNITURE_LIBRARY, furniturePose, type FurnitureEntry } from '@/core/decor/furniture'
-import type { Plan } from '@/core/types'
-import { planTone, D } from '../canvas2d/style'
+import type { ComponentPath, CustomComponent, Decor, Furniture, MaterialRole } from '@/core/decor/types'
+import { FURNITURE_LIBRARY, furniturePose, isFlatFurniture, type FurnitureEntry } from '@/core/decor/furniture'
+import { componentOf, componentPlanPaths } from '@/core/decor/components'
+import type { Plan, Vec2 } from '@/core/types'
+import { planLine, planTone, D, C } from '../canvas2d/style'
 import { roleMat, styleOf } from './model'
+import { isBigOverhead, overheadLabelAt, overheadLabelW } from './plan-ctl'
 
-/** core 的常用家具 + 界面补的几件（不认识的 type 在 core 里画成通用盒子，不报错） */
-const EXTRA: FurnitureEntry[] = [
-  { type: 'tv-stand', name: '电视柜', category: '客厅', size: [1800, 400], height: 0.45, symbol: 'tv-stand' },
-  { type: 'desk-chair', name: '书桌椅', category: '书房', size: [520, 520], height: 0.9, symbol: 'desk-chair' },
-  { type: 'shower', name: '淋浴区', category: '卫浴', size: [900, 900], height: 2.0, symbol: 'shower' },
-  { type: 'cushion', name: '飘窗垫', category: '软装', size: [2000, 520], height: 0.12, symbol: 'cushion' },
-]
-export const FURN_LIB: FurnitureEntry[] = [...FURNITURE_LIBRARY, ...EXTRA.filter(e => !FURNITURE_LIBRARY.some(f => f.type === e.type))]
+export const FURN_LIB: FurnitureEntry[] = FURNITURE_LIBRARY
 export const FURN_CATS = ['客厅', '卧室', '餐厨', '书房', '卫浴', '家电', '收纳', '软装']
 export const furnEntry = (type: string) => FURN_LIB.find(f => f.type === type)
 
@@ -28,8 +23,33 @@ export function furnTones(decor: Decor | undefined, styleId?: string) {
 }
 type Tones = ReturnType<typeof furnTones>
 
+/** 家具的名字：实例没写就用构件定义、家具库的 */
+export function furnitureName(decor: Decor | undefined, f: Furniture): string {
+  return f.name ?? componentOf(decor, f.type)?.name ?? furnEntry(f.type)?.name ?? '家具'
+}
+
+/**
+ * Agent 画的构件（路径来自方案文件，只当 <path d> 属性用，不拼 HTML）：
+ * 路径坐标是 size 画布、(0,0) 在左上，平移到以中心为原点的局部坐标；线宽按屏幕 px 换算，填色走 planTone。
+ */
+function pathAttrs(p: ComponentPath, px: (v: number) => number) {
+  const style = p.style ?? 'outline'
+  const fill = p.fill === 'none' ? 'none' : p.fill ? planTone(p.fill) : style === 'outline' ? D.clay : 'none'
+  const stroke = p.stroke === 'none' ? 'none' : p.stroke ? planLine(p.stroke) : style === 'outline' ? D.outline : style === 'detail' ? D.detail : D.upper
+  return { fill, stroke, strokeWidth: px(style === 'outline' ? 1.05 : style === 'detail' ? 0.7 : 0.9), fillRule: 'evenodd' as const, ...(style === 'dashed' ? { strokeDasharray: `${px(4)} ${px(3)}` } : {}) }
+}
+/** size 画布 → 家具局部坐标（实例尺寸和定义一致时比例就是 1；校验会提示不一致） */
+const canvasToLocal = (def: CustomComponent, w: number, d: number) => `translate(${-w / 2} ${-d / 2}) scale(${w / def.size[0]} ${d / def.size[1]})`
+function componentPaths(def: CustomComponent): ComponentPath[] {
+  try { return componentPlanPaths(def) } catch { return [{ d: `M0 0H${def.size[0]}V${def.size[1]}H0Z`, style: 'outline' }] }
+}
+export function componentBody(def: CustomComponent, w: number, d: number, px: (v: number) => number): ReactNode {
+  return <g transform={canvasToLocal(def, w, d)}>{componentPaths(def).map((p, i) => <path key={i} d={p.d} {...pathAttrs(p, px)} />)}</g>
+}
+
 /** 符号本体（局部坐标，mm）。px = 屏幕像素 → mm */
-export function symbolBody(type: string, w: number, d: number, px: (v: number) => number, T: Tones): ReactNode {
+export function symbolBody(type: string, w: number, d: number, px: (v: number) => number, T: Tones, def?: CustomComponent): ReactNode {
+  if (def) return componentBody(def, w, d, px)
   const hw = w / 2, hd = d / 2
   const OL = { stroke: D.outline, strokeWidth: px(1.05) }
   const DL = { stroke: D.detail, strokeWidth: px(0.7), fill: 'none' }
@@ -76,12 +96,73 @@ const FLAT = new Set(['rug', 'shower', 'tv'])
 /** 位置一律取 core furniturePose：放在宿主里的家电（电视在电视位里）跟着宿主走，自己不存 at */
 export function FurnitureSymbol({ f, plan, k, tones, filter, dim }: { f: Furniture; plan: Plan; k: number; tones: Tones; filter?: string; dim?: boolean }) {
   const px = (v: number) => v / k
+  const def = componentOf(plan.decor, f.type)
   let at = f.at ?? [0, 0], rot = f.rot ?? 0
   try { const pose = furniturePose(plan, f); at = pose.at; rot = pose.rot } catch { /* 宿主不在了：core 已按 cache 给位置 */ }
   return (
-    <g transform={`translate(${at[0]} ${at[1]}) rotate(${rot})`} filter={FLAT.has(f.type) || !filter ? undefined : filter} opacity={dim ? 0.45 : 1} data-decor="furniture" data-id={f.id}>
-      {symbolBody(f.type, f.size[0], f.size[1], px, tones)}
+    <g transform={`translate(${at[0]} ${at[1]}) rotate(${rot})${def && f.flip ? ' scale(-1 1)' : ''}`} filter={FLAT.has(f.type) || isFlatFurniture(plan.decor, f) || !filter ? undefined : filter} opacity={dim ? 0.45 : 1} data-decor="furniture" data-id={f.id} data-custom={def ? def.id : undefined}>
+      {symbolBody(f.type, f.size[0], f.size[1], px, tones, def)}
     </g>
+  )
+}
+
+/** 这件的外轮廓路径（画布坐标）；定义没给轮廓就用尺寸框 */
+const outlinePaths = (def: CustomComponent) => { const o = componentPaths(def).filter(p => (p.style ?? 'outline') === 'outline'); return o.length ? o : [{ d: `M0 0H${def.size[0]}V${def.size[1]}H0Z` }] }
+
+/**
+ * 顶上的东西（吊顶、吸顶灯、吊灯）：只画虚线轮廓，不填色、不投影，地面和家具从下面透出来。
+ * 大块吊顶中间不接点选（留给地面和家具），靠轮廓线和这个名字选中，所以把名字标出来。
+ */
+export function OverheadSymbol({ f, plan, k, mini, pending }: { f: Furniture; plan: Plan; k: number; mini?: boolean; pending?: boolean }) {
+  const px = (v: number) => v / k
+  const def = componentOf(plan.decor, f.type)
+  let at = f.at ?? [0, 0], rot = f.rot ?? 0, fp: Vec2[] = []
+  try { const pose = furniturePose(plan, f); at = pose.at; rot = pose.rot; fp = pose.footprint } catch { /* */ }
+  if (!def) return null
+  const [w, d] = f.size, name = f.name ?? def.name
+  const stroke = pending ? C.lav500 : D.upper
+  const label = !mini && isBigOverhead(f) && fp.length ? overheadLabelAt(fp, k) : null, lw = overheadLabelW(name)
+  return (
+    <g data-decor="furniture" data-id={f.id} data-custom={def.id} data-overhead="1" data-pending={pending ? f.id : undefined}>
+      <g transform={`translate(${at[0]} ${at[1]}) rotate(${rot})${f.flip ? ' scale(-1 1)' : ''}`}>
+        <g transform={canvasToLocal(def, w, d)}>{outlinePaths(def).map((p, i) => <path key={i} d={p.d} fill="none" stroke={stroke} strokeWidth={px(pending ? 1.4 : 1.1)} strokeDasharray={`${px(6)} ${px(4)}`} fillRule="evenodd" />)}</g>
+      </g>
+      {label && (
+        <g transform={`translate(${label[0]} ${label[1]})`} data-overhead-label={f.id}>
+          <rect x={px(-lw / 2)} y={px(-9)} width={px(lw)} height={px(18)} rx={px(9)} fill="rgb(255 255 255 / 0.86)" stroke={pending ? C.lav500 : 'rgb(22 27 36 / 0.1)'} strokeWidth={px(1)} />
+          <text y={px(3.8)} fontSize={px(11)} fontWeight={650} fill={pending ? C.lav500 : '#6c727c'} textAnchor="middle">{name}</text>
+        </g>
+      )}
+    </g>
+  )
+}
+
+/** 待确认：淡紫斜纹 + 紫色虚线。构件沿自己的外形，其余沿外接框；和结构提议同一套画法（pid-lav） */
+export function PendingFurnitureMark({ f, plan, k, pid }: { f: Furniture; plan: Plan; k: number; pid: string }) {
+  const px = (v: number) => v / k
+  const def = componentOf(plan.decor, f.type)
+  let at = f.at ?? [0, 0], rot = f.rot ?? 0
+  try { const pose = furniturePose(plan, f); at = pose.at; rot = pose.rot } catch { /* */ }
+  const mark = { fill: `url(#${pid}-lav)`, fillOpacity: 0.72, stroke: C.lav500, strokeWidth: px(1.4), strokeDasharray: `${px(5)} ${px(4)}`, fillRule: 'evenodd' as const }
+  const [w, d] = f.size
+  const outlines = def ? componentPaths(def).filter(p => (p.style ?? 'outline') === 'outline') : []
+  return (
+    <g transform={`translate(${at[0]} ${at[1]}) rotate(${rot})${def && f.flip ? ' scale(-1 1)' : ''}`} data-pending={f.id}>
+      {def && outlines.length
+        ? <g transform={canvasToLocal(def, w, d)}>{outlines.map((p, i) => <path key={i} d={p.d} {...mark} />)}</g>
+        : <rect x={-w / 2} y={-d / 2} width={w} height={d} {...mark} />}
+    </g>
+  )
+}
+
+/** 家具库里方案自带的构件：同一套画法，按格子大小缩放 */
+export function ComponentPreview({ def, size = 64 }: { def: CustomComponent; size?: number }) {
+  const [w, d] = def.size, pad = 0.14, s = Math.max(w, d / 0.72) * (1 + pad * 2)
+  const k = size / s
+  return (
+    <svg width={size} height={size * 0.72} viewBox={`${-s / 2} ${-s * 0.36} ${s} ${s * 0.72}`} className="block" data-preview={def.id}>
+      {componentBody(def, w, d, v => v / k)}
+    </svg>
   )
 }
 

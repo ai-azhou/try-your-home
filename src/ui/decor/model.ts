@@ -3,19 +3,20 @@
  * 几何和校验都用 core（src/core/decor/*）；core 还没给的放在 ./temp，到了就换掉。
  */
 import { useMemo } from 'react'
-import type { Plan, Room, Vec2, Wall } from '@/core/types'
-import type { Cabinet, Decor, DecorIssue, FaceRef, Furniture, Material, MaterialRole, Panel, Recess, StylePreset, Surface, SurfaceTarget } from '@/core/decor/types'
+import type { Opening, Plan, Room, Vec2, Wall } from '@/core/types'
+import type { Cabinet, Decor, DecorIssue, DoorFinish, FaceRef, Furniture, Material, MaterialRole, Panel, Recess, StylePreset, Surface, SurfaceTarget } from '@/core/decor/types'
 import { BUILTIN_MATERIALS, STYLE_PRESETS, createDecor } from '@/core/decor/presets'
 import { faceRoom as coreFaceRoom, materialTakeoff, resolveFinish } from '@/core/decor/surfaces'
 import { validateDecor } from '@/core/decor/validate'
-import { decorStatus, rehostDecor } from '@/core/decor/resolve'
+import { confirmDecorItems, decorStatus, rehostDecor, rejectDecorItems } from '@/core/decor/resolve'
+import { componentOf, isCustomType } from '@/core/decor/components'
 import { applyChanges } from '@/core/changes'
 import { faceAxis, faceExtent } from '@/core/decor/faces'
 import { cabinetFootprint } from '@/core/decor/cabinets'
-import { furnitureFootprint, furniturePose } from '@/core/decor/furniture'
+import { FURNITURE_LIBRARY, furnitureFootprint, furniturePose, isOverhead } from '@/core/decor/furniture'
 import { panelSpan, panelTransform } from '@/core/decor/panels'
 import { embedFootprint, embedsOf, wallEmbed } from '@/core/decor/embed'
-import { pointInPolygon, wallDir, wallLength, wallNormal } from '@/core/geometry'
+import { pointAt, pointInPolygon, polygonArea, wallDir, wallLength, wallNormal } from '@/core/geometry'
 import { useStore, useView, getView } from '../store'
 import { useDecor, type DSel } from './dstore'
 
@@ -261,7 +262,8 @@ export function decorIssues(plan: Plan, base: Plan): DecorIssues {
     for (const p of st.placed) {
       if (p.status !== 'missing') continue
       const it = p.item
-      if ('target' in it || ('size' in it && !it.in)) continue
+      // 门的外观没有挂墙的位置可挪：洞口拆了在门的卡片上说，不进「没地方挂了」
+      if ('target' in it || ('size' in it && !it.in) || plan.decor?.doors?.some(d => d.id === p.id)) continue
       const iss = st.issues.find(i => i.id === p.id && (i.code === 'host-missing' || i.code === 'host-cut'))
       missing.push(iss ?? { id: p.id, code: 'host-missing', level: 'warn', text: p.reasons.join('；') || p.text })
     }
@@ -294,6 +296,139 @@ export function rehostAfterStructure(prevBase: Plan, nextBase: Plan): Decor | nu
   } catch { return null }
 }
 
+/* ───────── Agent 提议（待确认项） ───────── */
+export type AnyItem = DecorItem | Surface | DoorFinish
+export type AnyKind = ItemKind | 'surface' | 'door'
+const allItems = (d: Decor): { k: AnyKind; it: AnyItem }[] => [...(['furniture', 'cabinet', 'panel', 'recess'] as ItemKind[]).flatMap(k => listOf(d, k).map(it => ({ k, it }))), ...d.surfaces.map(it => ({ k: 'surface' as const, it })), ...(d.doors ?? []).map(it => ({ k: 'door' as const, it }))]
+/** 待你看的那几条，按画面上的类别排 */
+export const pendingItems = (d: Decor | undefined) => d ? allItems(d).filter(x => x.it.status === 'pending') : []
+/** 这条选中时该出哪张卡：面覆盖选那面墙 / 那块地，其余选它自己 */
+export function selOfItem(x: { k: AnyKind; it: AnyItem }): DSel {
+  if (x.k !== 'surface') return { k: x.k, id: x.it.id } as DSel
+  const t = (x.it as Surface).target
+  return 'face' in t ? { k: 'face', face: t.face } : 'floor' in t ? { k: 'floor', id: t.floor } : { k: 'floor', id: t.ceiling }
+}
+/** 一条的白话名字 */
+export function itemTitle(plan: Plan, decor: Decor, x: { k: AnyKind; it: AnyItem }): string {
+  if (x.k === 'surface') {
+    const t = (x.it as Surface).target, m = matOf(decor, (x.it as Surface).material).name
+    if ('face' in t) { const l = faceLabel(plan, t.face); return `${l.room}${l.dir}墙换成${m}` }
+    const r = plan.rooms.find(q => q.id === ('floor' in t ? t.floor : t.ceiling))
+    return `${r?.name ?? ''}${'floor' in t ? '地面' : '顶面'}换成${m}`
+  }
+  if (x.k === 'door') return doorTitle(plan, x.it as DoorFinish)
+  const it = x.it as DecorItem
+  if (it.name) return it.name
+  if (x.k === 'furniture') return componentOf(decor, (it as Furniture).type)?.name ?? FURNITURE_LIBRARY.find(e => e.type === (it as Furniture).type)?.name ?? '家具'
+  return ({ cabinet: '柜子', panel: '造型', recess: '壁龛' } as Record<string, string>)[x.k]
+}
+/* ───────── 门的外观 ───────── */
+export const doorFinishOf = (decor: Decor | undefined, id: string) => decor?.doors?.find(d => d.id === id)
+export const doorOfOpening = (decor: Decor | undefined, opening: string) => decor?.doors?.find(d => d.opening === opening)
+/** 这扇门叫什么：结构里写了名字用名字；没写就按它通向的房间（面积小的那间，「主卧门」），入户门、推拉门照实说 */
+export function openingName(plan: Plan, o: Opening): string {
+  if (o.name) return o.name
+  if (o.entry) return '入户门'
+  const w = plan.walls.find(x => x.id === o.wall), tail = o.kind === 'sliding' ? '推拉门' : '门'
+  if (!w) return tail
+  const c = pointAt(w, o.offset + o.width / 2), n = wallNormal(w), off = w.thickness / 2 + 200
+  const rooms = ([1, -1] as const).map(k => plan.rooms.find(r => pointInPolygon([c[0] + n[0] * off * k, c[1] + n[1] * off * k], r.poly))).filter((r): r is Room => !!r)
+  const room = rooms.sort((a, b) => polygonArea(a.poly) - polygonArea(b.poly))[0]
+  return room ? room.name + tail : tail
+}
+/** 卡片上的名字：外观自己写了名字用它，否则用门的名字 */
+export function doorName(plan: Plan, d: DoorFinish): string {
+  if (d.name) return d.name
+  const o = plan.openings.find(x => x.id === d.opening)
+  return o ? openingName(plan, o) : '门'
+}
+/** 提议列表里的名字：「主卧门的外观」 */
+export function doorTitle(plan: Plan, d: DoorFinish): string {
+  const n = doorName(plan, d)
+  return /外观$/.test(n) ? n : `${n}的外观`
+}
+/** color / material 都可能是材料 id 或 #RRGGBB：取真实颜色；都没写、材料查不到时没有颜色 */
+export function finishColor(decor: Decor | undefined, f: { color?: string; material?: string } | undefined): string | undefined {
+  const v = f?.color ?? f?.material
+  if (!v) return undefined
+  if (v.startsWith('#')) return v
+  const m = matOf(decor, v)
+  return m.id === NEUTRAL.id ? undefined : m.color
+}
+/** 色块上的名字：写了材料说材料，只有颜色值说「自定义颜色」 */
+export function finishMaterialName(decor: Decor | undefined, f: { color?: string; material?: string } | undefined): string {
+  for (const v of [f?.material, f?.color]) if (v && !v.startsWith('#')) { const m = matOf(decor, v); if (m.id !== NEUTRAL.id) return m.name }
+  return '自定义颜色'
+}
+
+/* ───────── 顶上的东西（吊顶、吸顶灯、吊灯） ───────── */
+/** core isOverhead 的安全包装：宿主不在了算不上顶上的东西 */
+export function overheadOf(plan: Plan, f: Furniture): boolean {
+  try { return isOverhead(plan, f) } catch { return false }
+}
+export function overheadIds(plan: Plan, decor: Decor | undefined): Set<string> {
+  if (!decor) return new Set()
+  const p = plan.decor === decor ? plan : { ...plan, decor }
+  return new Set(decor.furniture.filter(f => overheadOf(p, f)).map(f => f.id))
+}
+
+/** 下一条待确认（看完一条接着看下一条） */
+export function nextPending(decor: Decor | undefined, after: string | undefined) {
+  const list = pendingItems(decor), i = list.findIndex(x => x.it.id === after)
+  return list.length ? list[(i + 1) % list.length] : null
+}
+/** 这条改了哪些字段（有 prev 时，给卡片说清楚改了什么） */
+export function changedFields(it: AnyItem): string[] {
+  const prev = it.prev as Record<string, unknown> | undefined
+  if (!prev) return []
+  const cur = it as unknown as Record<string, unknown>
+  return [...new Set([...Object.keys(prev), ...Object.keys(cur)])].filter(k => !['prev', 'status', 'by', 'ack', 'id'].includes(k) && JSON.stringify(cur[k]) !== JSON.stringify(prev[k]))
+}
+export function confirmPending(ids: string[]): string[] {
+  let done: string[] = []
+  commitDecor(d => { done = confirmDecorItems(d, ids) })
+  return done
+}
+export function rejectPending(ids: string[]) {
+  const dp = getDecorPlan()
+  let out = { removed: [] as string[], restored: [] as string[] }
+  commitDecor(d => { out = rejectDecorItems(d, ids, f => dp ? unhostFurniture(dp.plan, f) : f) })
+  return out
+}
+/**
+ * 选中、取景、悬停、交接引用指向的东西不在了（Agent 改了文件、撤销、改造里拆了墙）就清掉，不留着报错：
+ * 柜体编辑退回那面墙的立面，墙也没了退回平面；选中的格子没了退回选柜子。
+ */
+export function pruneDecorUI() {
+  const s = useStore.getState(), D = useDecor.getState(), decor = s.base?.decor
+  const inDecor = s.mode === 'decor', plan = inDecor ? getView()?.plan : undefined
+  const hasItem = (id: string) => !!findItem(decor, id)
+  const hasWall = (id: string) => !plan || plan.walls.some(w => w.id === id)
+  const hasRoom = (id: string) => !plan || plan.rooms.some(r => r.id === id)
+  const fix = (x: DSel | null): DSel | null => {
+    if (!x) return x
+    if (x.k === 'floor') return hasRoom(x.id) ? x : null
+    if (x.k === 'face') return hasWall(x.face.wall) ? x : null
+    if (x.k === 'door') return doorFinishOf(decor, x.id) ? x : null
+    if (!hasItem(x.id)) return null
+    if (x.k === 'cell') { const c = decor?.cabinets.find(q => q.id === x.id); return c?.columns[x.col]?.cells[x.row] ? x : { k: 'cabinet', id: x.id } }
+    return x
+  }
+  const patch: Partial<ReturnType<typeof useDecor.getState>> = {}
+  const sel = fix(D.sel), hover = fix(D.hover)
+  if (sel !== D.sel) patch.sel = sel
+  if (hover !== D.hover) patch.hover = hover
+  if (D.canvas.k === 'cabinet' && !hasItem(D.canvas.id)) patch.canvas = hasWall(D.canvas.face.wall) ? { k: 'elev', face: D.canvas.face, ...(D.canvas.room ? { room: D.canvas.room } : {}) } : { k: 'plan' }
+  else if (D.canvas.k !== 'plan' && !hasWall(D.canvas.face.wall)) patch.canvas = { k: 'plan' }
+  if (D.probe && !hasItem(D.probe.item) && decor) patch.probe = null
+  const hasRef = (id: string) => hasItem(id) || decor?.surfaces.some(x => x.id === id) || !!doorFinishOf(decor, id)
+  if (D.agentRefs.some(id => !hasRef(id))) patch.agentRefs = D.agentRefs.filter(hasRef)
+  if (D.placing && isCustomType(D.placing) && !componentOf(decor, D.placing)) { patch.placing = null; if (D.tool === 'furniture') patch.tool = 'select' }
+  if (D.throughHint && !hasItem(D.throughHint.id)) patch.throughHint = null
+  if (D.preview && decor && !allStyles(decor).some(x => x.id === D.preview)) patch.preview = null
+  if (Object.keys(patch).length) D.set(patch)
+}
+
 /** 找一个构件（四类里） */
 export function findItem(decor: Decor | undefined, id: string): { k: ItemKind; it: DecorItem } | null {
   if (!decor) return null
@@ -304,6 +439,7 @@ export function newDecorId(decor: Decor, plan: Plan, prefix: string) {
   const ids = new Set<string>([...plan.walls, ...plan.openings, ...plan.rooms, ...plan.beams].map(x => x.id))
   for (const k of ['furniture', 'cabinet', 'panel', 'recess'] as ItemKind[]) for (const x of listOf(decor, k)) ids.add(x.id)
   for (const s of decor.surfaces) ids.add(s.id)
+  for (const d of decor.doors ?? []) ids.add(d.id)
   let i = 1; while (ids.has(`${prefix}${i}`)) i++
   return `${prefix}${i}`
 }
@@ -317,6 +453,11 @@ export function unhostFurniture(plan: Plan, f: Furniture): Furniture {
 }
 export function removeItem(id: string) {
   const s = useStore.getState(), d = s.base?.decor, f = findItem(d, id)
+  if (doorFinishOf(d, id)) {
+    commitDecor(dd => { dd.doors = (dd.doors ?? []).filter(x => x.id !== id) })
+    useDecor.getState().select(null)
+    return true
+  }
   if (!f) return false
   const dp = getDecorPlan()
   commitDecor(dd => {

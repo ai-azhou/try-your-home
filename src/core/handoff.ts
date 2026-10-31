@@ -80,7 +80,7 @@ export function agentHandoff(plan: Plan, refs: (ElementRef | ExtraElementRef | D
     original: '读图纠错直接改原始结构并在 evidence.confirmed 记确认（读图 2.8），不要把纠错写成改造；用户要拆改时先按改造 3.1 明确进入改造流程。纠错后重新 validate 并重出原始模型和图。',
     renovation: '追加 changes，承重墙、外墙、承重柱的拆、挪、削、降、改类型、开洞先问用户并写 confirm（改造 3.4）；改完 validate、apply、export --state renovated 并重出图（改造 3.6）。',
     compare: '对比视图只读；要改先说明是纠错还是改造（改造 3.1）。',
-    decor: '装修写入 decor，Agent 新增或修改的装修项标 pending；不写入 changes。见装修篇（当前为占位，契约见 docs/format.md）。',
+    decor: '用 decor-edit 写入 decor，不写 changes：用户明确要求的 status 写 confirmed，你自己的提议写 pending。先用 decor-list 查墙面和家具库；家具库没有的自己画构件。见装修篇 7.2、7.3、7.7。',
   }
   lines.push('', '## 用户原话', userText, '', instructions[mode])
   return lines.join('\n')

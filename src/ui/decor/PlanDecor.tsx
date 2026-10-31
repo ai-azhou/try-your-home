@@ -6,16 +6,18 @@
  */
 import { memo, useMemo, type ReactNode } from 'react'
 import clipping from 'polygon-clipping'
-import type { Plan, Room, Vec2 } from '@/core/types'
-import type { Cabinet, Decor, FaceRef, Material, Panel } from '@/core/decor/types'
+import { openingFootprint } from '@/core/geometry'
+import type { Plan, Vec2 } from '@/core/types'
+import type { Cabinet, Decor, FaceRef, Furniture, Material, Panel } from '@/core/decor/types'
 import { layoutCabinet, cabinetTransform } from '@/core/decor/cabinets'
 import { panelSpan, panelTransform } from '@/core/decor/panels'
 import { faceAxis, faceExtent } from '@/core/decor/faces'
-import { pointInPolygon, wallFootprint, wallLength } from '@/core/geometry'
+import { floorFills } from '@/core/decor/floor-fill'
 import { polyPath } from '../geom'
 import { C, D, planTone } from '../canvas2d/style'
-import { embedFootprint, embedsOf, faceFinish, faceSideName, floorFinish, footprintOf, matOf, roleMat, styleOf, isWholeFace, findItem, type DecorIssues } from './model'
-import { FurnitureSymbol, FurnShadowDef, furnTones } from './furniture'
+import { doorFinishOf, embedFootprint, embedsOf, faceFinish, faceSideName, floorFinish, footprintOf, listOf, matOf, overheadIds, overheadOf, roleMat, styleOf, isWholeFace, findItem, type DecorIssues } from './model'
+import { FurnitureSymbol, FurnShadowDef, OverheadSymbol, PendingFurnitureMark, furnTones } from './furniture'
+import { isFlatFurniture } from '@/core/decor/furniture'
 import type { DSel } from './dstore'
 
 export interface DecorLayerProps {
@@ -148,6 +150,8 @@ function PanelPlan({ plan, p, decor, k, styleId, keep }: { plan: Plan; p: Panel;
     local = clipping.difference(local, [[[h.rect.u![0], th - dep], [h.rect.u![1], th - dep], [h.rect.u![1], th + 1], [h.rect.u![0], th + 1]]]) as [number, number][][][]
   }
   const d = local.map(rings => rings.map(r => polyPath(r.map(([u, dd]) => T(u, dd)))).join('')).join('')
+  // 拱形门套在门洞上方（高过 1.1 m 的剖切面）：和吊柜一样只画虚线，不把门洞盖住
+  if (p.type === 'arch') return <path d={d} fill="rgb(22 25 30 / 0.03)" stroke={D.upper} strokeWidth={px(1)} strokeDasharray={`${px(5)} ${px(4)}`} data-decor="panel" data-id={p.id} />
   // 风格预览且「不保留单独改过的」：造型按新风格的点缀墙材料画（和应用后的结果一致）
   const mat = keep ? p.material : styleOf(styleId, decor).roles['wall.accent'] ?? p.material
   return <path d={d} fill={planTone(matOf(decor, mat).color)} stroke={D.outline} strokeWidth={px(0.9)} fillRule="evenodd" data-decor="panel" data-id={p.id} />
@@ -162,31 +166,58 @@ function faceLine(plan: Plan, face: FaceRef, off: number, s?: [number, number]):
   } catch { return null }
 }
 
-export const DecorUnder = memo(function DecorUnder(p: DecorLayerProps) {
-  const { plan, base, decor, k, pid, styleId, keep } = p
-  const px = (v: number) => v / k
+const useFills = (plan: Plan, base?: Plan) => useMemo(() => floorFills(plan, base), [plan.walls, plan.openings, plan.rooms, plan.columns, plan.shafts, plan.voids, base?.walls])
+/** 每间房的地面材料和填色（地面和门槛同一套）。方案对象每帧可能换新，按房间、材料这些实际用到的数据记 */
+function useFloorPaint(plan: Plan, decor: Decor, pid: string, styleId: string, keep: boolean, k: number) {
   const floors = useMemo(() => plan.rooms.map(r => ({ r, f: floorFinish(plan, decor, r, styleId, keep) })), [plan, decor, styleId, keep])
   const textured = useMemo(() => new Set(floors.map(x => x.f.material).filter(m => m.texture && texPattern('x', m, k)).map(m => m.id)), [floors, k])
   const mats = useMemo(() => [...new Map(floors.map(x => [x.f.material.id, x.f.material])).values()], [floors])
-  const fillOf = (r: Room) => { const f = floors.find(x => x.r.id === r.id)!.f; return fillOfMat(pid, f.material, textured) }
-  // 拆掉的墙位：地面按两侧接上（压在纸白线上面，开敞处不出现「门槛」）
-  const gaps = useMemo(() => {
-    const ids = new Set(plan.walls.map(w => w.id))
-    return base.walls.filter(w => !ids.has(w.id) && !plan.walls.some(x => x.id.startsWith(w.id + '~'))).map(w => {
-      const fp = wallFootprint(w), L = wallLength(w), n: Vec2 = [-(w.b[1] - w.a[1]) / L, (w.b[0] - w.a[0]) / L]
-      const m: Vec2 = [(w.a[0] + w.b[0]) / 2, (w.a[1] + w.b[1]) / 2]
-      const r = [1, -1].map(sd => plan.rooms.find(rr => pointInPolygon([m[0] + n[0] * sd * (w.thickness / 2 + 30), m[1] + n[1] * sd * (w.thickness / 2 + 30)], rr.poly))).find(Boolean)
-      return r ? { id: w.id, fp, r } : null
-    }).filter(Boolean) as { id: string; fp: Vec2[]; r: Room }[]
-  }, [plan, base])
+  const fillOf = (id: string) => { const x = floors.find(y => y.r.id === id); return x ? fillOfMat(pid, x.f.material, textured) : 'none' }
+  return { floors, textured, mats, fillOf }
+}
+
+/**
+ * 门、门洞、推拉门的墙厚范围（画在墙上面、门扇下面）：先把整条按第一段的地面铺满盖住墙，
+ * 两边地面不同再把第二段从墙中线铺上。带一圈同色细描边，和房间地面之间不留抗锯齿的墙色线。
+ */
+export const DecorThresholds = memo(function DecorThresholds(p: DecorLayerProps) {
+  const { plan, base, decor, k, pid, styleId, keep } = p
+  const { fillOf } = useFloorPaint(plan, decor, pid, styleId, keep, k)
+  const fills = useFills(plan, base), hair = 0.8 / k
+  return (
+    <g pointerEvents="none" data-layer="decor-thresholds">
+      {fills.thresholds.map(t => {
+        const a = fillOf(t.parts[0].room), b = t.parts[1] && fillOf(t.parts[1].room)
+        return (
+          <g key={t.opening} data-threshold={t.opening}>
+            <path d={polyPath(t.whole)} fill={a} stroke={a} strokeWidth={hair} data-threshold-room={t.parts[0].room} />
+            {b && b !== a && <path d={polyPath(t.parts[1].polygon)} fill={b} data-threshold-room={t.parts[1].room} />}
+          </g>
+        )
+      })}
+    </g>
+  )
+})
+/** 这些洞口的地面由 DecorThresholds 铺，门窗符号不再画纸白底 */
+export const thresholdIds = (plan: Plan, base: Plan) => new Set(floorFills(plan, base).thresholds.map(t => t.opening))
+
+export const DecorUnder = memo(function DecorUnder(p: DecorLayerProps) {
+  const { plan, base, decor, k, pid, styleId, keep } = p
+  const px = (v: number) => v / k
+  const { floors, textured, mats, fillOf } = useFloorPaint(plan, decor, pid, styleId, keep, k)
+  // 拆墙留下的占地、两间房之间的缝：地面接上；纸白内沿只沿墙走，开敞处不出现「门槛」（core floorFills，按几何内容缓存）
+  const fills = useFills(plan, base)
   const tones = furnTones(decor, styleId)
+  const overhead = useMemo(() => overheadIds(plan, decor), [plan, decor])
   return (
     <g pointerEvents="none" data-layer="decor-under">
       <DecorDefs pid={pid} k={k} mats={mats} />
-      {floors.map(({ r }) => <path key={r.id} d={polyPath(r.poly)} fill={fillOf(r)} data-floor={r.id} />)}
-      {!p.mini && floors.map(({ r }) => <path key={`e${r.id}`} d={polyPath(r.poly)} fill="none" stroke="rgb(255 255 255 / .9)" strokeWidth={px(2)} />)}
-      {gaps.map(g => <path key={`g${g.id}`} d={polyPath(g.fp)} fill={fillOf(g.r)} />)}
-      {decor.furniture.filter(f => f.type === 'rug').map(f => <FurnitureSymbol key={f.id} f={f} plan={plan} k={k} tones={tones} />)}
+      {floors.map(({ r }) => <path key={r.id} d={polyPath(r.poly)} fill={fillOf(r.id)} data-floor={r.id} />)}
+      {!p.mini && floors.map(({ r }) => <path key={`e${r.id}`} d={(fills.edges[r.id] ?? [{ path: r.poly, closed: true }]).map(e => polyPath(e.path, e.closed)).join('')} fill="none" stroke="rgb(255 255 255 / .9)" strokeWidth={px(2)} data-floor-edge={r.id} />)}
+      {fills.seams.map((g, i) => { const f = fillOf(g.room); return <path key={`g${i}`} data-floor-seam={g.room} d={g.polygons.map(rings => rings.map(q => polyPath(q)).join('')).join('')} fill={f} fillRule="evenodd" stroke={f} strokeWidth={px(0.8)} /> })}
+      {/* 待确认的地面：斜纹铺在家具下面，不糊住家具 */}
+      {decor.surfaces.filter(s => s.status === 'pending' && 'floor' in s.target).map(s => { const r = plan.rooms.find(x => x.id === (s.target as { floor: string }).floor); return r ? <path key={`pf${s.id}`} data-pending={s.id} d={polyPath(r.poly)} fill={`url(#${pid}-lav)`} fillOpacity={0.5} stroke={C.lav500} strokeWidth={px(1.4)} strokeDasharray={`${px(5)} ${px(4)}`} /> : null })}
+      {decor.furniture.filter(f => isFlatFurniture(decor, f) && !overhead.has(f.id)).map(f => <FurnitureSymbol key={f.id} f={f} plan={plan} k={k} tones={tones} />)}
       {decor.cabinets.map(c => <CabinetPlan key={c.id} plan={plan} cab={c} decor={decor} k={k} styleId={styleId} />)}
       {decor.panels.map(pn => <PanelPlan key={pn.id} plan={plan} p={pn} decor={decor} k={k} styleId={styleId} keep={keep} />)}
     </g>
@@ -198,6 +229,7 @@ export const DecorOver = memo(function DecorOver(p: DecorLayerProps) {
   const px = (v: number) => v / k
   const tones = furnTones(decor, styleId)
   const embeds = useMemo(() => embedsOf(plan, decor), [plan, decor])
+  const overhead = useMemo(() => overheadIds(plan, decor), [plan, decor])
   const orphanIds = new Set(issues?.orphans.map(i => i.id) ?? [])
   const bands = keep ? decor.surfaces.filter(s => 'face' in s.target && isWholeFace(s)).map(s => {
     const face = (s.target as { face: FaceRef }).face
@@ -231,9 +263,13 @@ export const DecorOver = memo(function DecorOver(p: DecorLayerProps) {
             </g>
           )
         })}
-        {decor.furniture.filter(f => f.type !== 'rug').map(f => <FurnitureSymbol key={f.id} f={f} plan={plan} k={k} tones={tones} filter={p.mini ? undefined : `url(#${pid}-fsh)`} dim={p.drag !== undefined && sel?.k === 'furniture' && sel.id === f.id ? false : undefined} />)}
+        {decor.furniture.filter(f => !isFlatFurniture(decor, f) && !overhead.has(f.id)).map(f => <FurnitureSymbol key={f.id} f={f} plan={plan} k={k} tones={tones} filter={p.mini ? undefined : `url(#${pid}-fsh)`} dim={p.drag !== undefined && sel?.k === 'furniture' && sel.id === f.id ? false : undefined} />)}
         {/* 墙面色带画在家具上面：它说的是墙面，靠墙的床、柜子不能把它盖掉 */}
         {bands}
+        {/* Agent 提议还没确认的：淡紫斜纹 + 紫色虚线（和结构提议同一套）。有 prev 的也画当前提议 */}
+        {!p.mini && <PendingMarks plan={plan} decor={decor} k={k} pid={pid} overhead={overhead} />}
+        {/* 顶上的东西画在家具上面，但只有虚线，不盖住地面和家具；待确认的线是紫色 */}
+        {decor.furniture.filter(f => overhead.has(f.id)).map(f => <OverheadSymbol key={f.id} f={f} plan={plan} k={k} mini={p.mini} pending={!p.mini && f.status === 'pending'} />)}
         {/* 没地方挂了：画在原处，柠檬斜纹 + 柠檬虚线 */}
         {[...orphanIds].map(id => {
           const c = decor.cache?.[id]
@@ -249,6 +285,30 @@ export const DecorOver = memo(function DecorOver(p: DecorLayerProps) {
     </g>
   )
 })
+
+function PendingMarks({ plan, decor, k, pid, overhead }: { plan: Plan; decor: Decor; k: number; pid: string; overhead: Set<string> }) {
+  const px = (v: number) => v / k
+  const mark = { fill: `url(#${pid}-lav)`, fillOpacity: 0.72, stroke: C.lav500, strokeWidth: px(1.4), strokeDasharray: `${px(5)} ${px(4)}` }
+  return (
+    <>
+      {decor.furniture.filter(f => f.status === 'pending' && !overhead.has(f.id)).map(f => <PendingFurnitureMark key={f.id} f={f} plan={plan} k={k} pid={pid} />)}
+      {(['cabinet', 'panel', 'recess'] as const).flatMap(kind => listOf(decor, kind).filter(it => it.status === 'pending').map(it => {
+        const fp = footprintOf(plan, kind, it) ?? footprintOfHole(plan, decor, it)
+        return fp ? <path key={it.id} data-pending={it.id} d={polyPath(fp)} {...mark} /> : null
+      }))}
+      {decor.surfaces.filter(s => s.status === 'pending' && 'face' in s.target).map(s => {
+        const t = s.target as { face: FaceRef; s?: [number, number] }, d = faceLine(plan, t.face, px(2.5), t.s)
+        return d ? <path key={s.id} data-pending={s.id} d={d} stroke={C.lav500} strokeWidth={px(3.4)} strokeDasharray={`${px(7)} ${px(4)}`} fill="none" /> : null
+      })}
+    </>
+  )
+}
+/** 挖在造型、柜子上的洞没有自己的平面足迹：标在宿主上 */
+function footprintOfHole(plan: Plan, decor: Decor, it: object): Vec2[] | null {
+  const host = 'host' in it ? it.host as { panel?: string; cabinet?: string } : undefined
+  const owner = host?.panel ? findItem(decor, host.panel) : host?.cabinet ? findItem(decor, host.cabinet) : null
+  return owner ? footprintOf(plan, owner.k, owner.it) : null
+}
 
 /** 胶囊里文字的宽（px）：中文按一个字号，数字、字母、空格按 0.6 个字号（设计规范 §5.3） */
 const textW = (t: string, fs: number) => [...t].reduce((a, ch) => a + (/[\u2E80-\uFFFF]/.test(ch) ? fs : fs * 0.6), 0)
@@ -303,13 +363,20 @@ function Highlight({ plan, decor, s, k, hover }: { plan: Plan; decor: Decor; s: 
     } catch { return null }
   }
   if (s.k === 'cell') return null
+  if (s.k === 'door') {
+    const o = plan.openings.find(x => x.id === doorFinishOf(decor, s.id)?.opening)
+    if (!o) return null
+    try { return <path pointerEvents="none" data-door-highlight={s.id} d={polyPath(openingFootprint(plan, o))} fill={hover ? 'rgb(85 211 165 / 0.2)' : 'rgb(85 211 165 / 0.32)'} stroke={col} strokeWidth={px(hover ? 1.4 : 2)} /> } catch { return null }
+  }
   const it = findItem(decor, s.id)
   if (!it) return null
   const fp = footprintOf(plan, it.k, it.it) ?? (decor.cache?.[s.id] ? (() => { const [x0, y0, x1, y1] = decor.cache![s.id].box; return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] as Vec2[] })() : null)
   if (!fp) return null
+  // 顶上的东西选中也不铺色：一块吊顶能盖住大半间房，只描边
+  const noFill = it.k === 'furniture' && overheadOf(plan, it.it as Furniture)
   return (
     <g pointerEvents="none">
-      <path d={polyPath(fp)} fill={hover ? 'rgb(85 211 165 / 0.08)' : 'rgb(85 211 165 / 0.06)'} stroke={col} strokeWidth={px(hover ? 1.4 : 2)} />
+      <path d={polyPath(fp)} fill={noFill ? 'none' : hover ? 'rgb(85 211 165 / 0.08)' : 'rgb(85 211 165 / 0.06)'} stroke={col} strokeWidth={px(hover ? 1.4 : 2)} />
       {!hover && fp.map((q, i) => <rect key={i} x={q[0] - px(4)} y={q[1] - px(4)} width={px(8)} height={px(8)} rx={px(1.5)} fill="#fff" stroke={C.mint700} strokeWidth={px(1.5)} />)}
     </g>
   )

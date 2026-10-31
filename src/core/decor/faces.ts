@@ -76,7 +76,7 @@ export function faceFrame(plan: Plan, ref: FaceRef | FaceSpan) {
   if (axis.wall.bulge && 'face' in ref) throw new DecorGeometryError('arc-unsupported', '弧墙暂只支持整面材质，造型和嵌入暂不支持')
   const s = 's' in ref ? ref.s : faceExtent(plan, face), z: [number, number] = 'z' in ref ? ref.z : [0, effectiveWallHeight(plan, axis.wall)]
   const run = faceRun(plan, face)
-  if (s[0] < run[0].s[0] - 1e-5 || s[1] > run[run.length - 1].s[1] + 1e-5) throw new DecorGeometryError('host-cut', '超出连续墙面，跨墙的宿主链断了')
+  if (s[0] < run[0].s[0] - 1e-5 || s[1] > run[run.length - 1].s[1] + 1e-5) throw new DecorGeometryError('host-cut', `超出连续墙面：写的是 ${Math.round(s[0])}–${Math.round(s[1])} mm，这面墙连续的范围是 ${Math.round(run[0].s[0])}–${Math.round(run[run.length - 1].s[1])} mm`)
   return { ...axis, s, z, u: ordered(axis.toU(s[0]), axis.toU(s[1])), a: axis.at(s[0]), b: axis.at(s[1]), segment: [axis.at(s[0]), axis.at(s[1])] as [Vec2, Vec2], run }
 }
 /** Convert a member wall's s coordinate to the anchor wall's s coordinate. */

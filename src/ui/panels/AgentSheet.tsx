@@ -11,7 +11,7 @@ import { elementLabel, findEl } from '../model'
 import { agentHandoff } from '@/core/handoff'
 import { decorHandoff } from '@/core/decor/integration'
 import { useDecor } from '../decor/dstore'
-import { findItem } from '../decor/model'
+import { doorFinishOf, doorTitle, findItem } from '../decor/model'
 import { useIsMobile } from '../layout'
 import { openingIcon } from './Inspector'
 import type { Opening, Plan, Wall } from '@/core/types'
@@ -34,7 +34,7 @@ export function AgentSheet() {
   const pre = useRef<HTMLPreElement>(null)
   // 装修态：选中的装修构件用 core decorHandoff 展开（白话位置、FaceRef、数据、受保护墙的事实），接在结构交接文字后面
   const decor = useStore(s => s.base?.decor), decorRefs = useDecor(s => s.agentRefs)
-  const dRefs = mode === 'decor' && decor ? decorRefs.filter(id => findItem(decor, id) || decor.surfaces.some(x => x.id === id)) : []
+  const dRefs = mode === 'decor' && decor ? decorRefs.filter(id => findItem(decor, id) || decor.surfaces.some(x => x.id === id) || doorFinishOf(decor, id)) : []
   const waiting = view ? view.base.questions.filter(q => questionStatus(q) === 'answered').length : 0
   // 服务模式、连接文件复制前会先存回文件，所以按「已存进文件」写；其余模式答复原文在交接文字里
   const answers = answersOn && waiting ? (connected ? 'saved' as const : 'unsaved' as const) : undefined
@@ -44,7 +44,7 @@ export function AgentSheet() {
     const base = agentHandoff(view.plan, sel.filter(r => findEl(view.plan, r)), text.trim() || (lang === 'zh' ? '（没写）' : '(none)'), { mode, planFile: view.base.meta?.planFile, answers: a, otherUnsaved })
     if (!dRefs.length || !decor) return base
     const dp = { ...view.plan, decor }
-    const refs = dRefs.map(id => { const it = findItem(decor, id); return decorHandoff(dp, { type: it ? it.k : 'surface', id }) })
+    const refs = dRefs.map(id => { const it = findItem(decor, id); return decorHandoff(dp, { type: it ? it.k : doorFinishOf(decor, id) ? 'door' : 'surface', id }) })
     return `${base}\n\n## 装修构件（ref）\n${refs.join('\n')}`
   }
   const md = useMemo(() => build(answers), [view, sel, text, mode, lang, decor, dRefs.join(','), answers, otherUnsaved])
@@ -104,10 +104,10 @@ export function AgentSheet() {
               </div>
               {dRefs.length > 0 && decor && (
                 <div className="mb-1.5 flex flex-wrap gap-1.5" data-testid="agent-decor-refs">
-                  {dRefs.map(id => { const it = findItem(decor, id); return (
+                  {dRefs.map(id => { const it = findItem(decor, id), door = doorFinishOf(decor, id); return (
                     <span key={id} className="tile flex h-9 items-center gap-2 rounded-full pl-2 pr-1 text-[13px] font-semibold text-ink-800">
                       <span className="grid size-6 place-items-center rounded-full bg-sand-100 text-sand-700"><span className="size-2 rounded-sm bg-sand-700" /></span>
-                      {it?.it.name ?? (it ? ({ furniture: '家具', cabinet: '柜子', panel: '造型', recess: '挖洞' } as const)[it.k] : '墙面材料')}
+                      {door && view ? doorTitle(view.plan, door) : it?.it.name ?? (it ? ({ furniture: '家具', cabinet: '柜子', panel: '造型', recess: '挖洞' } as const)[it.k] : '墙面材料')}
                       <span className="num text-[11px] font-medium text-ink-400">{id}</span>
                       <button onClick={() => useDecor.getState().set({ agentRefs: decorRefs.filter(x => x !== id) })} className="grid size-6 place-items-center rounded-full text-ink-400 hover:bg-ink-100 hover:text-ink-800"><X size={12} /></button>
                     </span>) })}
