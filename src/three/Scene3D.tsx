@@ -32,7 +32,7 @@ import { CAP, FLAT_TOP, SECTION_Z, capGeometry, flatMat, floorMat, paintWalls, w
 import type { Solid } from '@/core/solids'
 import { mergeByKind } from './geometry'
 import { useDecor } from '@/ui/decor/dstore'
-import { doorOfOpening, finishColor, openCabinetAt, openElevAt, overheadIds, selKey as selKey3, tempDecor, useShownDecor } from '@/ui/decor/model'
+import { decorMoving, doorOfOpening, finishColor, openCabinetAt, openElevAt, overheadIds, selKey as selKey3, tempDecor, useShownDecor } from '@/ui/decor/model'
 import { panelSpan } from '@/core/decor/panels'
 import type { DSel } from '@/ui/decor/dstore'
 import { faceOfWallHit, pickDecorItem } from './decor-pick'
@@ -42,14 +42,29 @@ import { applyAOField } from './ao'
 import { solidToGeometry } from './geometry'
 import { unionPolygons } from '@/core/solids'
 import { questionStatus } from '@/core/questions'
+import { sameStructure } from '@/ui/model'
+import { useRoam } from '@/ui/roam'
+import { RoamCeilings, RoamRig } from './RoamRig'
 
 const M = (v: number) => v / 1000
+/** 模型视角（斜视、俯视、平视）的竖直视角：窄视角，模型感、不畸变。漫游用自己的（RoamRig），退出时缓回来 */
+const ORBIT_FOV = 26
 /** 构件所在楼层的楼面标高（m）；单层方案为 0 */
 const elev = (plan: Plan, e: { level?: string } | Opening) => levelOf(plan, e).elevation
 
 /** 3D 显示的方案：默认全部楼层上下叠放；「3D 只看这一层」时是当前层的只读视图（core onLevel，标高保留） */
 let plan3dCache: { plan: Plan | null; key: string; out: Plan | null } = { plan: null, key: '', out: null }
-function plan3dOf(plan: Plan, solo: boolean, level: string | null): Plan {
+/**
+ * 3D 用的结构：结构没变就一直是同一个对象（只改装修时不重建墙体几何，真实方案重建一次要两百多毫秒）。
+ * 这份的 decor 可能是旧的，3D 里读装修一律用 useShownDecor 单独拿，再 {...plan, decor} 拼。
+ */
+let stable3d: Plan | null = null
+function stableStructure(plan: Plan): Plan {
+  if (!stable3d || !sameStructure(stable3d, plan)) stable3d = plan
+  return stable3d
+}
+function plan3dOf(raw: Plan, solo: boolean, level: string | null): Plan {
+  const plan = stableStructure(raw)
   if (!solo || !isMultiLevel(plan)) return plan
   const id = curLevelId(plan, level)
   if (plan3dCache.plan !== plan || plan3dCache.key !== id) plan3dCache = { plan, key: id, out: onLevel(plan, id) }
@@ -70,6 +85,7 @@ export function Scene3D({ mini }: { mini?: boolean }) {
   const select = useStore(s => s.select)
   const clay = useClay()
   const down = useRef<[number, number] | null>(null)
+  const roaming = useRoam(s => s.on) && !mini
   if (!view) return null
   return (
     <div className="absolute inset-0" data-canvas3d={mini ? 'mini' : 'main'} onPointerDown={e => { down.current = [e.clientX, e.clientY] }}>
@@ -77,7 +93,7 @@ export function Scene3D({ mini }: { mini?: boolean }) {
         shadows="percentage"
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true, preserveDrawingBuffer: true, toneMapping: THREE.NeutralToneMapping, toneMappingExposure: 0.92 }}
-        camera={{ fov: 26, near: 0.1, far: 400, position: [8, 14, 18] }}
+        camera={{ fov: ORBIT_FOV, near: 0.1, far: 400, position: [8, 14, 18] }}
         onPointerMissed={e => {
           const d = down.current
           if (d && Math.hypot(e.clientX - d[0], e.clientY - d[1]) < 5) { select(null); if (useStore.getState().mode === 'decor' && !mini) useDecor.getState().select(null) }
@@ -89,14 +105,21 @@ export function Scene3D({ mini }: { mini?: boolean }) {
         <Model mini={mini} />
         <SectionClip mini={mini} />
         <CameraRig plan={view.plan} mini={mini} />
-        {!mini && <SpotProjector />}
-        {!mini && <DecorSpotProjector />}
+        {!mini && !roaming && <SpotProjector />}
+        {!mini && !roaming && <DecorSpotProjector />}
         {!mini && <ExportBridge />}
+        {roaming && <RoamLayer />}
       </Canvas>
-      {!mini && !clay && <SpotLayer />}
-      {!mini && <DecorSpotLayer />}
+      {!mini && !clay && !roaming && <SpotLayer />}
+      {!mini && !roaming && <DecorSpotLayer />}
     </div>
   )
+}
+/** 漫游：第一人称相机和头顶的顶面。走路撞的东西和画面同一份：装修态连家具、柜子一起算 */
+function RoamLayer() {
+  const plan = usePlan3d(), mode = useStore(s => s.mode), decor = useShownDecor()
+  if (!plan) return null
+  return <><RoamCeilings plan={plan} /><RoamRig plan={plan} decor={mode === 'decor' ? decor : undefined} /></>
 }
 /** 天光：three 自带的 RoomEnvironment（不联网）。只当柔和的环境光和玻璃反射用，强度压低，体积靠主光和 AO 出 */
 function Env({ clay }: { clay: boolean }) {
@@ -188,11 +211,17 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
   // 平视剖切：装修态对准某处（探针 / 对着这面墙看）时，按那个机位的方位剖掉朝相机的外墙
   // 对准期间相机不看 store.cam（视角按钮都不亮），按斜视处理：不剖墙
   const aiming = useDecor(s => !!s.probe) && mode === 'decor' && !mini
-  const cut = useMemo(() => cutawayWalls(plan, aiming ? 'iso' : cam), [plan, cam, aiming])
+  // 漫游：站在完整的房子里，一面墙都不剖；吊顶、顶灯和平视一样要画
+  const roaming = useRoam(s => s.on) && !mini
+  const cut = useMemo(() => cutawayWalls(plan, aiming || roaming ? 'iso' : cam), [plan, cam, aiming, roaming])
   // 装修态（docs/decor 探针 P1–P3 → D5 正式）：core buildDecorSolids——柜体板件、造型、挖洞、家具盒子；
   // 有嵌入的墙给替换实体（墙体真的变薄），只藏 core 列出的那几面（hideWallIds），其余墙照常按墙分组上色、剖切、点选
   // 没有装修层时悬停风格：画 core createDecor 临时生成的一份（不写进数据，D6 A1）
-  const shownDecor = useShownDecor(), exportView = useDecor(s => s.exportView)
+  const liveDecor = useShownDecor(), exportView = useDecor(s => s.exportView)
+  // 2D 里拖家具、拖柜子、方向键挪时，画中画的 3D 先不跟：每移动一下都重建装修实体太卡，松手一次更新到位
+  const heldDecor = useRef(liveDecor), holding = useDecor(decorMoving) && !!mini
+  if (!holding) heldDecor.current = liveDecor
+  const shownDecor = heldDecor.current
   // 导出 PNG：默认只画已确认的（有改动的画改之前，和 render 一致）；平时待确认的画当前提议，淡紫
   const decor = useMemo(() => exportView === 'confirmed' ? confirmedDecor(shownDecor) : shownDecor, [shownDecor, exportView])
   const pendingIds = useMemo(() => new Set(!exportView && decor ? decorItems(decor).filter(i => i.status === 'pending').map(i => i.id) : []), [decor, exportView])
@@ -204,7 +233,7 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
   // 「3D 顶面和梁」打开时斜视也画，但只是看看：算界面层，导出 PNG 不带。对准时看机位仰角；对准的就是它也画。1.1 m 剖切时不画。
   const overhead = useMemo(() => overheadIds(plan, decor), [plan, decor])
   const probe = useDecor(s => s.probe), section3d = useDecor(s => s.section3d), overheadLayer = useDecor(s => s.overhead3d)
-  const overheadInView = aiming ? !!probe && (probe.el < 30 || overhead.has(probe.item)) : cam === 'eye'
+  const overheadInView = roaming ? true : aiming ? !!probe && (probe.el < 30 || overhead.has(probe.item)) : cam === 'eye'
   const overheadShown = !section3d && (overheadInView || overheadLayer), overheadUiOnly = overheadShown && !overheadInView
   const decorSolids = useMemo((): (DecorSolid[] & { hideWallIds?: string[] }) => {
     if (overheadShown || !overhead.size) return allSolids
@@ -455,7 +484,8 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
   }
   const onMove = (types: Ref['type'][]) => (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
-    if (mini) return
+    // 按着键是在转视角：不算悬停，高亮不跟着闪，也省下每一下的拾取
+    if (mini || e.nativeEvent.buttons) return
     if (dmode3d) { const h = decorPick(e, types), cur = useDecor.getState().hover; if (selKey3(h) !== selKey3(cur)) useDecor.getState().set({ hover: h }); return }
     if (!clay) setHover(pickAt(e.point, types))
   }
@@ -536,7 +566,7 @@ const Model = memo(function Model({ mini }: { mini?: boolean }) {
           </group>
         ))}
         {hoverGeo.map((g, i) => <mesh key={i} geometry={g} material={hover?.type === 'opening' ? m.openGlow : m.hoverO} raycast={() => null} renderOrder={4} />)}
-        {layers.ceilings && !clay && plan.rooms.filter(r => !r.floorOffset && (sel.some(s => s.id === r.id) || (!flat && Math.abs(roomCeiling(plan, r) - levelCeiling(plan, levelOf(plan, r).id)) > 0.005))).map(r => <Ceiling key={r.id} plan={plan} r={r} selected={sel.some(s => s.id === r.id)} />)}
+        {!roaming && layers.ceilings && !clay && plan.rooms.filter(r => !r.floorOffset && (sel.some(s => s.id === r.id) || (!flat && Math.abs(roomCeiling(plan, r) - levelCeiling(plan, levelOf(plan, r).id)) > 0.005))).map(r => <Ceiling key={r.id} plan={plan} r={r} selected={sel.some(s => s.id === r.id)} />)}
       </group>
     </group>
   )
@@ -616,7 +646,9 @@ function ExportBridge() {
         if (view?.enabled) { cam.clearViewOffset(); cam.updateProjectionMatrix() }
         // 16:9（给生图模型，画幅不一致容易被重新构图）：取景框按 16:9 补，输出固定 16:9 像素（长边 ≥ 1920）
         const wide = aspect === '16:9', A = 16 / 9
-        const crop = wide ? frameModel(scene, cam, size.width, size.height, A, true) ?? centerFrame(size.width, size.height, A) : frameModel(scene, cam, size.width, size.height)
+        // 漫游：人站在屋里，画面就是取景，不再裁到模型
+        const roaming = useRoam.getState().on
+        const crop = wide ? (roaming ? null : frameModel(scene, cam, size.width, size.height, A, true)) ?? centerFrame(size.width, size.height, A) : roaming ? null : frameModel(scene, cam, size.width, size.height)
         if (crop) { cam.setViewOffset(size.width, size.height, crop[0], crop[1], crop[2], crop[3]); cam.updateProjectionMatrix() }
         if (wide) {
           const outW = Math.round(Math.min(3840, Math.max(1920, crop![2] * 2)))
@@ -768,6 +800,8 @@ function CameraRig({ plan, mini }: { plan: Plan; mini?: boolean }) {
   const first = useRef(true)
   const probe = useDecor(s => s.probe)
   const mode = useStore(s => s.mode)
+  const roaming = useRoam(s => s.on) && !mini
+  const wasRoaming = useRef(false)
   const section = useDecor(s => s.section3d) && mode === 'decor' && !mini
   const bb = probe && mode === 'decor' && !mini ? probe.box : planBounds(plan)
   const key = (bb ? bb.map(v => Math.round(v)).join(',') : '') + ':' + levelsOf(plan).length
@@ -778,6 +812,13 @@ function CameraRig({ plan, mini }: { plan: Plan; mini?: boolean }) {
     const c = camera as THREE.PerspectiveCamera
     const w = size.width, h = size.height
     if (!w || !h) return
+    // 漫游时相机归 RoamRig；退出时从人眼的位置飞回预设：目标点先放到眼前（OrbitControls 一更新就会朝向目标点，放远了画面会闪一下）
+    if (roaming) { wasRoaming.current = true; goal.current = null; return }
+    if (wasRoaming.current) {
+      wasRoaming.current = false
+      const ctl = controls.current
+      if (ctl) ctl.target.copy(camera.position).addScaledVector(camera.getWorldDirection(new THREE.Vector3()), 3)
+    }
     // 让模型居中在面板没挡住的区域
     c.setViewOffset(w, h, -(pad.left - pad.right) / 2, -(pad.top - pad.bottom) / 2, w, h)
     c.updateProjectionMatrix()
@@ -792,7 +833,7 @@ function CameraRig({ plan, mini }: { plan: Plan; mini?: boolean }) {
     const bw = M(bb[2] - bb[0]), bh = M(bb[3] - bb[1])
     const aw = Math.max(60, w - pad.left - pad.right), ah = Math.max(60, h - pad.top - pad.bottom)
     // 可用区域对应的视角：竖向按高度比例缩，横向先算整幅横向视角再按宽度比例缩
-    const vf = THREE.MathUtils.degToRad(c.fov)
+    const vf = THREE.MathUtils.degToRad(ORBIT_FOV)
     const hfFull = 2 * Math.atan(Math.tan(vf / 2) * (w / h))
     const fitAngle = Math.min(vf * (ah / h), hfFull * (aw / w))
     // 多层：模型变高，取景半径算上总高度，目标点抬到中间偏下
@@ -809,7 +850,7 @@ function CameraRig({ plan, mini }: { plan: Plan; mini?: boolean }) {
       controls.current?.update()
       first.current = false
     } else goal.current = { pos, target }
-  }, [cam, nonce, key, size.width, size.height, mini, pad.left, pad.right, pad.top, pad.bottom, probe?.id, probe?.az, probe?.el, section])
+  }, [cam, nonce, key, size.width, size.height, mini, pad.left, pad.right, pad.top, pad.bottom, probe?.id, probe?.az, probe?.el, section, roaming])
 
   // e2e：相机仰角（度）（只读；世界坐标 → 屏幕坐标用已有的 __world2screen）
   useEffect(() => {
@@ -829,8 +870,14 @@ function CameraRig({ plan, mini }: { plan: Plan; mini?: boolean }) {
   }, [camera, size.width, size.height, mini])
 
   useFrame((_, dt) => {
+    const c = camera as THREE.PerspectiveCamera
+    // 漫游退出后视角缓回模型视角
+    if (!roaming && Math.abs(c.fov - ORBIT_FOV) > 0.001) {
+      c.fov = Math.abs(c.fov - ORBIT_FOV) < 0.05 ? ORBIT_FOV : c.fov + (ORBIT_FOV - c.fov) * (1 - Math.exp(-dt * 6.5))
+      c.updateProjectionMatrix()
+    }
     const g = goal.current, ctl = controls.current
-    if (!g || !ctl) return
+    if (roaming || !g || !ctl) return
     const f = 1 - Math.exp(-dt * 6.5)
     camera.position.lerp(g.pos, f)
     ctl.target.lerp(g.target, f)
@@ -839,7 +886,7 @@ function CameraRig({ plan, mini }: { plan: Plan; mini?: boolean }) {
   })
 
   return (
-    <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={0.12} minPolarAngle={0.02} maxPolarAngle={1.5}
+    <OrbitControls ref={controls} makeDefault enabled={!roaming} enableDamping dampingFactor={0.12} minPolarAngle={0.02} maxPolarAngle={1.5}
       minDistance={probe && mode === 'decor' ? 1.2 : 2.5} maxDistance={80} screenSpacePanning enablePan={!mini} enableZoom={!mini} rotateSpeed={0.7}
       onStart={() => { goal.current = null }} />
   )
@@ -853,6 +900,7 @@ function useSpots(): Spot[] {
   const mode = useStore(s => s.mode), sel = useStore(s => s.sel), qOpen = useStore(s => s.qOpen), layers = useStore(s => s.layers), hover = useStore(s => s.hover), lang = useStore(s => s.lang)
   const plan3d = usePlan3d()
   const section = useDecor(s => s.section3d) && mode === 'decor'
+  const hideNames = useDecor(s => !s.roomNames) && mode === 'decor'
   if (!view || !plan3d) return []
   const { openQuestion, select } = useStore.getState()
   const { diff } = view, plan = plan3d
@@ -880,7 +928,7 @@ function useSpots(): Spot[] {
       </div>
     ) })
   }
-  for (const r of plan.rooms.filter(r => r.floorOffset)) {
+  if (!hideNames) for (const r of plan.rooms.filter(r => r.floorOffset)) {
     const p = labelPoint(r.poly)
     out.push({ key: 'p' + r.id, pass: true, pos: [M(p[0]), (r.floorOffset ?? 0) + 0.06 + elev(plan, r), M(p[1])], node: (
       <div className="num whitespace-nowrap rounded-full bg-white/85 px-2 py-0.5 text-[10.5px] font-bold text-ink-600 ring-1 ring-ink-900/5 backdrop-blur-md">{r.name} {(r.floorOffset ?? 0) > 0 ? '+' : ''}{(r.floorOffset ?? 0).toFixed(2)}</div>

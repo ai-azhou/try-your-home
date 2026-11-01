@@ -1,7 +1,7 @@
 import tryMark from '../../assets/try-mark.svg?raw'
 import { DropdownMenu, Popover } from 'radix-ui'
 import { motion } from 'motion/react'
-import { ArrowLeftRight, ArrowUpDown, Box, ChevronDown, CircleQuestionMark, ClipboardPaste, Download, FileBraces, FileJson2, FilePlus2, ImageUp, Languages, Layers, ListChecks, MessageSquareText, Save, Sofa, Sparkles, Upload } from 'lucide-react'
+import { ArrowLeftRight, ArrowUpDown, Box, ChevronDown, CircleQuestionMark, ClipboardPaste, Download, FileBraces, FileJson2, FilePlus2, ImageUp, Languages, Layers, ListChecks, MessageSquareText, Save, Sofa, Sparkles, Upload, Type } from 'lucide-react'
 import { useStore, useT, useView, type Layers as L } from '../store'
 import { useDecor } from '../decor/dstore'
 import { Glass, Pill, RoundButton, Segmented, Switch, Slider, Tip } from '../kit'
@@ -80,7 +80,7 @@ export function LayersPopover({ children }: { children: React.ReactNode }) {
   const underlay = useStore(s => underlayOf(s.base, s.level))
   const { toggleLayer, setPanel } = useStore.getState()
   // 装修态的「3D 顶面和梁」管的是吊顶和顶灯：单独记、默认关（见 dstore overhead3d）
-  const decorMode = useStore(s => s.mode === 'decor'), overhead3d = useDecor(s => s.overhead3d)
+  const decorMode = useStore(s => s.mode === 'decor'), overhead3d = useDecor(s => s.overhead3d), roomNames = useDecor(s => s.roomNames)
   const row = (k: keyof L, label: string, swatch: React.ReactNode) => (
     <div className="flex h-11 items-center gap-3 rounded-[14px] px-2.5">
       <span className="grid size-7 place-items-center rounded-full bg-ink-100 text-ink-600">{swatch}</span>
@@ -97,6 +97,14 @@ export function LayersPopover({ children }: { children: React.ReactNode }) {
           {row('underlay', t.layers.underlay, <ImageUp size={14} />)}
           {underlay?.visible && (
             <div className="px-2.5 pb-2" data-testid="underlay-opacity"><Slider value={underlay.opacity} onChange={v => setUnderlayView({ opacity: v })} onCommit={commitUnderlayView} icon={<ImageUp size={15} />} /></div>
+          )}
+          {/* 摆家具时想看干净的平面：房间名可以关，只影响画布（导出照旧写）。这一格只在装修里有 */}
+          {decorMode && (
+            <div className="flex h-11 items-center gap-3 rounded-[14px] px-2.5" data-testid="layer-room-names">
+              <span className="grid size-7 place-items-center rounded-full bg-ink-100 text-ink-600"><Type size={14} /></span>
+              <span className="flex-1 text-[13.5px] font-medium text-ink-800">{t.layers.roomNames}<span className="kbd ml-2">L</span></span>
+              <Switch on={roomNames} onChange={v => useDecor.getState().set({ roomNames: v })} label={t.layers.roomNames} />
+            </div>
           )}
           {row('dims', t.layers.dims, <span className="num text-[10px] font-bold">1.2</span>)}
           {row('certainty', t.layers.certainty, <span className="size-2.5 rounded-full border-[1.5px] border-dashed border-lemon-600" />)}

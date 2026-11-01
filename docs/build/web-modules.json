@@ -966,6 +966,10 @@
       "renderedLength": 649
     },
     {
+      "id": "node_modules/lucide-react/dist/esm/icons/footprints.mjs",
+      "renderedLength": 747
+    },
+    {
       "id": "node_modules/lucide-react/dist/esm/icons/hourglass.mjs",
       "renderedLength": 654
     },
@@ -1028,6 +1032,14 @@
     {
       "id": "node_modules/lucide-react/dist/esm/icons/mouse-pointer-click.mjs",
       "renderedLength": 765
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/move-horizontal.mjs",
+      "renderedLength": 505
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/move-vertical.mjs",
+      "renderedLength": 495
     },
     {
       "id": "node_modules/lucide-react/dist/esm/icons/paint-roller.mjs",
@@ -1115,7 +1127,7 @@
     },
     {
       "id": "node_modules/lucide-react/dist/esm/icons/trash.mjs",
-      "renderedLength": 645
+      "renderedLength": 649
     },
     {
       "id": "node_modules/lucide-react/dist/esm/icons/triangle-alert.mjs",
@@ -1128,6 +1140,10 @@
     {
       "id": "node_modules/lucide-react/dist/esm/icons/triangles-centerline-dashed-vertical.mjs",
       "renderedLength": 942
+    },
+    {
+      "id": "node_modules/lucide-react/dist/esm/icons/type.mjs",
+      "renderedLength": 469
     },
     {
       "id": "node_modules/lucide-react/dist/esm/icons/undo-2.mjs",
@@ -1155,7 +1171,7 @@
     },
     {
       "id": "node_modules/lucide-react/dist/esm/lucide-react.mjs",
-      "renderedLength": 1645
+      "renderedLength": 1727
     },
     {
       "id": "node_modules/lucide-react/dist/esm/shared/src/build/buildLucideIconForReact.mjs",
@@ -1323,7 +1339,7 @@
     },
     {
       "id": "node_modules/motion-dom/dist/es/animation/utils/default-transitions.mjs",
-      "renderedLength": 732
+      "renderedLength": 736
     },
     {
       "id": "node_modules/motion-dom/dist/es/animation/utils/get-value-transition.mjs",
@@ -2295,7 +2311,7 @@
     },
     {
       "id": "src/core/changes.ts",
-      "renderedLength": 15326
+      "renderedLength": 15589
     },
     {
       "id": "src/core/decor/cabinets.ts",
@@ -2323,7 +2339,7 @@
     },
     {
       "id": "src/core/decor/floor-fill.ts",
-      "renderedLength": 10124
+      "renderedLength": 10109
     },
     {
       "id": "src/core/decor/furniture.ts",
@@ -2375,7 +2391,7 @@
     },
     {
       "id": "src/core/decor/wall-skins.ts",
-      "renderedLength": 5858
+      "renderedLength": 5875
     },
     {
       "id": "src/core/edit.ts",
@@ -2483,7 +2499,7 @@
     },
     {
       "id": "src/three/ao.ts",
-      "renderedLength": 7754
+      "renderedLength": 7768
     },
     {
       "id": "src/three/decor-pick.ts",
@@ -2495,7 +2511,7 @@
     },
     {
       "id": "src/three/DecorOverlay3D.tsx",
-      "renderedLength": 8805
+      "renderedLength": 9103
     },
     {
       "id": "src/three/geometry.ts",
@@ -2514,8 +2530,16 @@
       "renderedLength": 8325
     },
     {
+      "id": "src/three/roam.ts",
+      "renderedLength": 6685
+    },
+    {
+      "id": "src/three/RoamRig.tsx",
+      "renderedLength": 11982
+    },
+    {
       "id": "src/three/Scene3D.tsx",
-      "renderedLength": 54446
+      "renderedLength": 56373
     },
     {
       "id": "src/three/snapshot.ts",
@@ -2523,11 +2547,11 @@
     },
     {
       "id": "src/ui/actions.ts",
-      "renderedLength": 32402
+      "renderedLength": 32486
     },
     {
       "id": "src/ui/App.tsx",
-      "renderedLength": 13942
+      "renderedLength": 14553
     },
     {
       "id": "src/ui/canvas2d/labels.ts",
@@ -2535,11 +2559,15 @@
     },
     {
       "id": "src/ui/canvas2d/PlanCanvas.tsx",
-      "renderedLength": 61127
+      "renderedLength": 61545
     },
     {
       "id": "src/ui/canvas2d/PlanLayers.tsx",
-      "renderedLength": 43958
+      "renderedLength": 43978
+    },
+    {
+      "id": "src/ui/canvas2d/RoamMarker.tsx",
+      "renderedLength": 1341
     },
     {
       "id": "src/ui/canvas2d/style.ts",
@@ -2563,7 +2591,7 @@
     },
     {
       "id": "src/ui/decor/Cards.tsx",
-      "renderedLength": 107389
+      "renderedLength": 107315
     },
     {
       "id": "src/ui/decor/Chrome.tsx",
@@ -2571,7 +2599,7 @@
     },
     {
       "id": "src/ui/decor/dstore.ts",
-      "renderedLength": 1415
+      "renderedLength": 1434
     },
     {
       "id": "src/ui/decor/elev-model.ts",
@@ -2591,7 +2619,7 @@
     },
     {
       "id": "src/ui/decor/model.ts",
-      "renderedLength": 19614
+      "renderedLength": 20063
     },
     {
       "id": "src/ui/decor/nudge.ts",
@@ -2635,7 +2663,7 @@
     },
     {
       "id": "src/ui/export/GlobalExport.tsx",
-      "renderedLength": 12755
+      "renderedLength": 12800
     },
     {
       "id": "src/ui/export/model.ts",
@@ -2667,7 +2695,7 @@
     },
     {
       "id": "src/ui/i18n.ts",
-      "renderedLength": 40103
+      "renderedLength": 41930
     },
     {
       "id": "src/ui/kit/extra-icons.tsx",
@@ -2675,7 +2703,7 @@
     },
     {
       "id": "src/ui/kit/index.tsx",
-      "renderedLength": 19386
+      "renderedLength": 19401
     },
     {
       "id": "src/ui/layout.ts",
@@ -2691,7 +2719,7 @@
     },
     {
       "id": "src/ui/model.ts",
-      "renderedLength": 2204
+      "renderedLength": 2430
     },
     {
       "id": "src/ui/panels/AgentSheet.tsx",
@@ -2730,20 +2758,24 @@
       "renderedLength": 24440
     },
     {
+      "id": "src/ui/panels/RoamHud.tsx",
+      "renderedLength": 7253
+    },
+    {
       "id": "src/ui/panels/SimpleNote.tsx",
       "renderedLength": 7416
     },
     {
       "id": "src/ui/panels/Stage.tsx",
-      "renderedLength": 4834
+      "renderedLength": 4907
     },
     {
       "id": "src/ui/panels/ToolRail.tsx",
-      "renderedLength": 21514
+      "renderedLength": 22384
     },
     {
       "id": "src/ui/panels/TopBar.tsx",
-      "renderedLength": 25400
+      "renderedLength": 26398
     },
     {
       "id": "src/ui/render-plan.ts",
@@ -2754,8 +2786,12 @@
       "renderedLength": 1215
     },
     {
+      "id": "src/ui/roam.ts",
+      "renderedLength": 1795
+    },
+    {
       "id": "src/ui/store.ts",
-      "renderedLength": 17391
+      "renderedLength": 17676
     },
     {
       "id": "src/ui/underlay-art.ts",

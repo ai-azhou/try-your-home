@@ -6,7 +6,7 @@
 
 # try-your-home
 
-**v0.13.0 preview** — a local browser tool for editing floor-plan structure, comparing renovation ideas, and previewing interior layouts. An Agent can now furnish the plan too, including drawing an item from your dimensions or a photo; its proposals show in lavender for you to confirm. [中文完整说明](README.md)
+**v0.14.0 preview** — a local browser tool for editing floor-plan structure, comparing renovation ideas, and previewing interior layouts. An Agent can now furnish the plan too, including drawing an item from your dimensions or a photo; its proposals show in lavender for you to confirm. In 3D you can walk through the rooms at a human eye height and field of view. [中文完整说明](README.md)
 
 Edit walls, openings, rooms and levels; inspect a 3D model; arrange materials, furniture and cabinetry; export plan JSON, images, models and a renovation PDF. This is **not a construction drawing or a basis for structural or demolition decisions**. Dimensions and material quantities need independent verification.
 
@@ -18,7 +18,7 @@ No clone and no Node are needed for normal use: `try-your-home.html` at the repo
 2. **Double-click** it in a modern WebGL browser. It makes no network requests.
 3. **Load a plan**: paste the code a web chat gave you with “粘贴方案 / Paste plan”, or open / drag in a plan JSON from your Agent. Or open the built-in example.
 4. **Add the drawing as underlay**: an embedded underlay shows up directly; if it says the underlay is missing, use “重新导入 / Re-import” with the same image; otherwise import it under “底图 / Underlay” and align with two-point scale.
-5. **Inspect 3D, try renovations and interiors** (interiors are still in progress).
+5. **Inspect 3D (or walk through it with “漫游 / Walk”), try renovations and interiors** (interiors are still in progress).
 6. **Export** from the global “导出 / Export” button: renovation PDF, plan JSON, or a PNG of the current 3D view.
 
 Browser autosave is local to that browser; export important plans as JSON backups. Live sync with an Agent (local service mode) needs Node: clone, build, then `node scripts/serve.mjs <plan-directory> [port]` (below).

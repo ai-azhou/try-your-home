@@ -59,6 +59,8 @@ interface DState {
    * 结构态的同名图层默认开、管的是顶面轮廓，所以分开记；这份只影响界面，导出 PNG 不带（和 render 一致）。
    */
   overhead3d: boolean
+  /** 装修态显示房间名（默认开）。只影响画布，导出的图和 PDF 照旧写房间名 */
+  roomNames: boolean
   /** 透明背景导出时窗户：实心浅灰（默认，生图输入轮廓更干净）/ 半透明 */
   exportGlass: 'solid' | 'clear'
   /** 导出 PNG 时要不要把待确认的也画进去（默认不画，和 render 一致） */
@@ -102,6 +104,7 @@ export const useDecor = create<DState & DActions>()(set => ({
   look3d: 'flat',
   section3d: false,
   overhead3d: false,
+  roomNames: true,
   exportGlass: 'solid',
   exportPending: false,
   exportView: null,

@@ -22,12 +22,16 @@ export interface WallSkin {
   /** Non-indexed triangles, Y-up metres, absolute elevation; normals face out of the wall. */
   positions: number[]; normals: number[]
 }
-export interface WallSkinOptions extends FinishPreview { face?: FaceRef; level?: string; maxSegment?: number; offset?: number }
+export interface WallSkinOptions extends FinishPreview {
+  face?: FaceRef; level?: string; maxSegment?: number; offset?: number
+  /** 已经算好的 resolveSurfaces(plan, 同样的预览参数).walls：一次取很多面时不用每次重算 */
+  resolved?: ReturnType<typeof resolveSurfaces>['walls']
+}
 /** Continuous material skins, independent of the wall/sill/lintel solid partition. Niches are cut out. */
 export function wallSkins(plan: Plan, opts: WallSkinOptions = {}): WallSkin[] {
   const step = opts.maxSegment ?? 150
   if (!(step > 0) || !Number.isFinite(step) || !Number.isFinite(opts.offset ?? 0)) throw new Error('墙面皮分段长度必须是有限正数，偏移必须有限')
-  const resolved = resolveSurfaces(plan, opts).walls, seen = new Set<string>(), result: WallSkin[] = []
+  const resolved = opts.resolved ?? resolveSurfaces(plan, opts).walls, seen = new Set<string>(), result: WallSkin[] = []
   const cuts = plan.decor ? embedsOf(plan, plan.decor).filter(e => {
     const item = decorItems(plan.decor!).find(i => i.id === e.id)!
     return !checkEmbed(plan, plan.decor!, item as Parameters<typeof checkEmbed>[2]).some(i => i.level === 'error')

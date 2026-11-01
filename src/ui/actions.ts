@@ -2,6 +2,7 @@
  * 界面动作：把用户操作翻成 core 的 Change / 函数调用，再交给 store.edit。
  * 文件（打开 / 导出 / 底图）、本地自动保存、本地服务模式的轮询也在这里。
  */
+import { keepRoamDuring } from './roam'
 import type { Change, Level, Opening, Plan, Room, Underlay, Wall } from '@/core/types'
 import { DEFAULTS, PROTECTED_KINDS } from '@/core/types'
 import { projectToWall, planBounds, polygonArea } from '@/core/geometry'
@@ -316,8 +317,11 @@ export function openPlanText(text: string, source: Source, opts: { keepView?: bo
   if (source.file && (source.kind === 'served' || !plan.meta?.planFile)) plan.meta = { ...plan.meta, planFile: source.file }
   const prev = st()
   const keep = opts.keepView ? { mode: prev.mode, main: prev.main, sel: prev.sel } : null
-  prev.loadPlan(plan, source, r.report)
-  if (keep) useStore.setState({ mode: keep.mode, main: keep.main, sel: keep.sel.filter(ref => findEl(plan, ref)), fitNonce: prev.fitNonce, camNonce: prev.camNonce })
+  const apply = () => {
+    prev.loadPlan(plan, source, r.report)
+    if (keep) useStore.setState({ mode: keep.mode, main: keep.main, sel: keep.sel.filter(ref => findEl(plan, ref)), fitNonce: prev.fitNonce, camNonce: prev.camNonce })
+  }
+  if (keep) keepRoamDuring(apply); else apply()
   const n = r.report.approximations.length
   // 简版（D7）：不弹「已转换旧格式」，改展开「简版方案」说明条 + 提示数量
   if (r.report.source === 'simple') {

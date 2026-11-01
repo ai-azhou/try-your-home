@@ -40,6 +40,14 @@ export function elementLabel(plan: Plan, ref: Ref, lang: 'zh' | 'en' = 'zh'): st
 export interface Diff { added: Set<string>; removed: Ref[]; modified: Set<string>; pending: Change[] }
 export interface View { plan: Plan; base: Plan; results: ChangeResult[]; diff: Diff | null }
 
+/** 两份方案除了装修层全是同一批引用：结构没变（摆家具、刷漆、改柜子只换 decor，别的字段原样带过来） */
+export function sameStructure(a: Plan, b: Plan): boolean {
+  if (a === b) return true
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof Plan>
+  for (const k of keys) if (k !== 'decor' && a[k] !== b[k]) return false
+  return true
+}
+
 export function computeView(base: Plan, mode: Mode): View {
   if (mode === 'original') return { plan: base, base, results: [], diff: null }
   const { plan, results } = applyChanges(base, base.changes)

@@ -20,7 +20,7 @@ import { Pill as KPill, RoundButton, Switch, Tag, Tip } from '../kit'
 import { Actions, Field, Header, MiniSeg, Num, Visual } from '../panels/Inspector'
 import { cn } from '@/lib/utils'
 import { useDecor, type DSel } from './dstore'
-import { doorFinishOf, doorName, elevRoomAt, finishColor, finishMaterialName, indoorSide, itemRoom, itemTitle, openElevAt, openCabinetAt, overheadOf, dirWord, allStyles, changedFields, commitDecor, confirmPending, decorIssues, faceFinish, faceLabel, faceRoom, faceSurfaces, findItem, floorFinish, matOf, materialUses, nextPending, pendingItems, rejectPending, removeItem, roleMat, selKey, selOfItem, styleOf, useDecorPlan, WALL_ZH, type AnyItem, type AnyKind, type DecorIssues } from './model'
+import { doorFinishOf, doorName, elevRoomAt, finishColor, finishMaterialName, indoorSide, itemRoom, itemTitle, openElevAt, openCabinetAt, overheadOf, dirWord, allStyles, changedFields, commitDecor, confirmPending, faceFinish, faceLabel, faceRoom, faceSurfaces, findItem, floorFinish, matOf, materialUses, nextPending, pendingItems, rejectPending, removeItem, roleMat, selKey, selOfItem, styleOf, useDecorPlan, WALL_ZH, type AnyItem, type AnyKind, type DecorIssues, useDecorIssues } from './model'
 import { ComponentPreview, FURN_CATS, FURN_LIB, SymbolPreview, furnTones } from './furniture'
 import { takeOutFurniture } from './actions'
 import { furniturePose } from '@/core/decor/furniture'
@@ -47,7 +47,7 @@ export function decorCardKey(s: { styleCard: boolean; tool: string; sel: DSel | 
 export function DecorCard() {
   const dp = useDecorPlan()
   const styleCard = useDecor(s => s.styleCard), tool = useDecor(s => s.tool), sel = useDecor(s => s.sel)
-  const issues = useMemo(() => dp?.decor ? decorIssues(dp.plan, dp.base) : null, [dp])
+  const issues = useDecorIssues()
   if (!dp) return null
   if (!dp.decor || styleCard) return <StyleCard />
   const { plan, decor } = dp

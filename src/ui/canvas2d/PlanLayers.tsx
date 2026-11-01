@@ -30,6 +30,8 @@ export interface LayerProps {
   labels: { sqm: string; ceiling: string; entry: string; platform: string }
   /** 房间标签排布（canvas2d/labels：避让问题针、互不压字、放不下改悬停显示） */
   roomLabels?: Map<string, RoomLabelLayout> | null
+  /** 装修态可以把房间名关掉（「显示」里的开关、L） */
+  hideRoomNames?: boolean
   /** 问题针位置（平面 mm）：入户标签要让开 */
   pins?: Vec2[]
   /** 测距时不画选中构件的尺寸胶囊（免得和测距胶囊叠在一起） */
@@ -449,7 +451,7 @@ export const PlanLayers = memo(function PlanLayers(p: LayerProps) {
       {!mini && sel.length === 1 && !p.hideSelDims && <SelectionDims plan={sel[0].type === 'wall' && removedWalls.some(w => w.id === sel[0].id) ? base : plan} sel={sel[0]} k={k} />}
 
       {/* 房间名最后画（带同色光晕，压过尺寸线和选中线）：排布见 canvas2d/labels；放不下的悬停浮签再后，压在最上面 */}
-      {!mini && [false, true].map(top => plan.rooms.filter(r => !!p.roomLabels?.get(r.id)?.hover === top).map(r => (
+      {!mini && !p.hideRoomNames && [false, true].map(top => plan.rooms.filter(r => !!p.roomLabels?.get(r.id)?.hover === top).map(r => (
         <RoomLabel key={`lb-${r.id}`} r={r} plan={plan} k={k} selected={isSel(r.id)} hovered={hover?.id === r.id} tone={compare ? (diff!.modified.has(r.id) ? 'cobalt' : 'muted') : 'ink'}
           labels={labels} tag={compare && diff!.modified.has(r.id) ? (p.lang === 'zh' ? '改' : 'Δ') : undefined} lay={p.roomLabels?.get(r.id)} />
       )))}

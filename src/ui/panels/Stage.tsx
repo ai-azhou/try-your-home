@@ -13,6 +13,7 @@ import { Tip } from '../kit'
 import { cn } from '@/lib/utils'
 import { useDecor } from '../decor/dstore'
 import { ElevationCanvas } from '../decor/ElevationCanvas'
+import { useRoam } from '../roam'
 
 function useViewport() {
   const [s, setS] = useState({ w: window.innerWidth, h: window.innerHeight })
@@ -33,6 +34,7 @@ export function Stage() {
   // 装修态的立面 / 柜体编辑：主画布是立面，画中画永远是平面（标出看的是哪面墙）；3D 层留着不重建，只是藏起来
   const mode = useStore(s => s.mode), dCanvas = useDecor(s => s.canvas)
   const elev = mode === 'decor' && dCanvas.k !== 'plan' && main === '2d'
+  const roaming = useRoam(s => s.on)
 
   const layer = (which: '2d' | '3d') => {
     const isMain = !elev && main === which
@@ -42,7 +44,7 @@ export function Stage() {
         data-pip={isMain ? undefined : which} className={cn('absolute overflow-hidden', isMain ? 'z-0' : 'z-30')}
         style={isMain ? undefined : { boxShadow: 'var(--glass-edge), var(--glass-ring), var(--shadow-lift)' }}>
         {/* 画中画本身是一块玻璃：底下的画布和柔光透过来，里面的平面 / 3D 照常画 */}
-        {!isMain && <div className="glass absolute inset-0" />}
+        {!isMain && <div className={cn(roaming ? 'glass-strong' : 'glass', 'absolute inset-0')} />}
         {which === '2d' ? <PlanCanvas mini={!isMain} /> : <Scene3D mini={!isMain} />}
         {!isMain && (
           <>

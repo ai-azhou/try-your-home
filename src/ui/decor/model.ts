@@ -156,9 +156,19 @@ export function faceLabel(plan: Plan, face: FaceRef) {
 export const WALL_ZH: Record<string, string> = { exterior: '外墙', bearing: '承重墙', partition: '隔墙', glass: '玻璃隔断', half: '矮墙', 'half-glass': '矮墙' }
 
 /* ───────── 读写 ───────── */
-/** 装修态画的是改造后的结构，装修层取 base.decor；core 的函数从 plan.decor 读，所以拼一份 */
+/**
+ * 装修态画的是改造后的结构，装修层取 base.decor；core 的函数从 plan.decor 读，所以拼一份。
+ * 同样的输入必须拿到同一个对象：下游的缓存（decorIssues、useMemo）都按对象身份比。
+ * 每次新拼一份的话缓存永远不中，缩放、平移、鼠标移动每一下都把全屋校验重算一遍（真实方案约 85 ms 一次）。
+ */
+const decorPlans = new WeakMap<Plan, { decor: Decor; out: Plan }>()
 export function decorPlanOf(viewPlan: Plan, decor: Decor | undefined): Plan {
-  return decor ? { ...viewPlan, decor } : viewPlan
+  if (!decor || viewPlan.decor === decor) return viewPlan
+  const hit = decorPlans.get(viewPlan)
+  if (hit?.decor === decor) return hit.out
+  const out = { ...viewPlan, decor }
+  decorPlans.set(viewPlan, { decor, out })
+  return out
 }
 export function useDecorPlan(): { plan: Plan; decor: Decor | undefined; base: Plan } | null {
   const view = useView()
@@ -249,9 +259,11 @@ export { embedsOf, embedFootprint }
 
 /* ───────── 问题：没地方挂、受保护墙、几何上的硬约束 ───────── */
 export interface DecorIssues { all: DecorIssue[]; orphans: DecorIssue[]; protected: DecorIssue[]; byId: Map<string, DecorIssue[]> }
-let issueCache: { plan: Plan | null; base: Plan | null; out: DecorIssues } = { plan: null, base: null, out: { all: [], orphans: [], protected: [], byId: new Map() } }
+/** 按方案各记一份：多层方案里主画布看当前层视图、卡片看整份，只记一份会互相挤掉 */
+const issueCache = new WeakMap<Plan, { base: Plan; out: DecorIssues }>()
 export function decorIssues(plan: Plan, base: Plan): DecorIssues {
-  if (issueCache.plan === plan && issueCache.base === base) return issueCache.out
+  const hit = issueCache.get(plan)
+  if (hit?.base === base) return hit.out
   let all: DecorIssue[] = []
   try { all = validateDecor(plan, plan.decor, base) } catch (e) { all = [{ id: 'decor', code: 'invalid', level: 'error', text: e instanceof Error ? e.message : String(e) }] }
   // 「没地方挂了」只用 core decorStatus 判断（base + 已确认改造 → placed / moved / missing）。
@@ -273,12 +285,20 @@ export function decorIssues(plan: Plan, base: Plan): DecorIssues {
   const byId = new Map<string, DecorIssue[]>()
   for (const i of all) byId.set(i.id, [...(byId.get(i.id) ?? []), i])
   const out = { all, byId, orphans: missing, protected: all.filter(i => i.code === 'protected') }
-  issueCache = { plan, base, out }
+  issueCache.set(plan, { base, out })
   return out
 }
+/** 正在拖、正在用方向键挪：一件东西连着动，每一下都会换一份装修。这时不用算全屋校验（净距、放不放得下有专门的实时提示），松手再算 */
+export const decorMoving = (d: { dragging: string | null; nudging: string | null }) => !!(d.dragging || d.nudging)
+let lastIssues: DecorIssues | null = null
+/** 界面上显示的问题：平时等于 decorIssues；连续挪动时沿用挪动前的结果（真实方案全屋校验一次约 45 ms） */
+export function shownIssues(plan: Plan, base: Plan): DecorIssues {
+  if (lastIssues && decorMoving(useDecor.getState())) return lastIssues
+  return lastIssues = decorIssues(plan, base)
+}
 export function useDecorIssues(): DecorIssues | null {
-  const dp = useDecorPlan()
-  return useMemo(() => dp?.decor ? decorIssues(dp.plan, dp.base) : null, [dp])
+  const dp = useDecorPlan(), moving = useDecor(decorMoving)
+  return useMemo(() => dp?.decor ? shownIssues(dp.plan, dp.base) : null, [dp, moving])
 }
 
 /**

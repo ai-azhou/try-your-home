@@ -7,7 +7,7 @@ import { applyChanges } from '@/core/changes'
 import { bakeChange } from '@/core/edit'
 import type { ImportReport } from '@/core/legacy'
 import { dicts, type Lang } from './i18n'
-import { computeView, elementLabel, findAny, type Mode, type Ref, type View } from './model'
+import { computeView, elementLabel, findAny, sameStructure, type Mode, type Ref, type View } from './model'
 import { curLevelId, underlayOf } from './levels-ui'
 
 export type { Mode, Ref, View }
@@ -442,7 +442,11 @@ export const useStore = create<State & Actions>()((set, get) => ({
 /** 当前模式下画布显示的方案：原始 = base；改造 / 对比 = base 叠 changes 重放后的结果（core applyChanges）。单条缓存，所有组件共用一次重放 */
 let viewCache: { base: Plan | null; mode: Mode; view: View | null } = { base: null, mode: 'original', view: null }
 function viewOf(base: Plan | null, mode: Mode): View | null {
-  if (viewCache.base !== base || viewCache.mode !== mode) viewCache = { base, mode, view: base ? computeView(base, mode) : null }
+  if (viewCache.base === base && viewCache.mode === mode) return viewCache.view
+  const prev = viewCache
+  // 只改了装修层：结构不用重放，重放结果（墙、房间……）的引用不变，下游按它们缓存的几何都不用重算
+  const reuse = base && prev.base && prev.view && prev.mode === mode && sameStructure(prev.base, base)
+  viewCache = { base, mode, view: !base ? null : reuse ? { ...prev.view!, base, plan: mode === 'original' ? base : { ...prev.view!.plan, decor: base.decor } } : computeView(base, mode) }
   return viewCache.view
 }
 export function useView(): View | null {

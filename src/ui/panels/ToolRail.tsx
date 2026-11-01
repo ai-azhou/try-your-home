@@ -7,7 +7,7 @@ import { useLayoutEffect, useState, type ReactNode } from 'react'
 import { Popover } from 'radix-ui'
 import type { OpeningKind } from '@/core/types'
 import { motion } from 'motion/react'
-import { Columns3, Inbox, PaintRoller, ScanEye, Sofa, Wallpaper } from 'lucide-react'
+import { Columns3, Footprints, Inbox, PaintRoller, ScanEye, Sofa, Wallpaper } from 'lucide-react'
 import { useDecor, type DTool } from '../decor/dstore'
 import { DecorToolHint } from '../decor/Chrome'
 import { openElevAt } from '../decor/model'
@@ -18,6 +18,7 @@ import { addLevel } from '../actions'
 import { shoot3d } from '../export/GlobalExport'
 import { ExtraIcon } from '../kit/extra-icons'
 import { PIP, useIsMobile } from '../layout'
+import { enterRoam, exitRoam, useRoam } from '../roam'
 import { cn } from '@/lib/utils'
 
 const TOOLS: { id: Exclude<Tool, 'column' | 'shaft' | 'stair' | 'void'>; icon: ReactNode; key: string }[] = [
@@ -59,6 +60,7 @@ export function ToolRail() {
   const style3d = useStore(s => s.style3d)
   const { setTool, setCam, toggleLayer, fit, setStyle3d } = useStore.getState()
   const is3d = main === '3d'
+  const roaming = useRoam(s => s.on)
 
   const mode = useStore(s => s.mode)
   const dTool = useDecor(s => s.tool), dCanvas = useDecor(s => s.canvas), dSel = useDecor(s => s.sel), probe = useDecor(s => s.probe?.id), look3d = useDecor(s => s.look3d), section3d = useDecor(s => s.section3d)
@@ -86,17 +88,20 @@ export function ToolRail() {
   const items = mode === 'decor' && !is3d ? decorItems() : is3d
     ? [
         // 对准期间视角按钮都不亮（相机不在任何一个预设视角上）；点一个 = 退出对准、切到那个视角
-        ...CAMS.map(c => <Item key={c.id} testId={`cam-${c.id}`} on={!(mode === 'decor' && probe) && cam === c.id} icon={c.icon} label={t.tool[c.id]} kbd={c.key} onClick={() => setCam(c.id)} mobile={mobile} />),
+        ...CAMS.map(c => <Item key={c.id} testId={`cam-${c.id}`} on={!roaming && !(mode === 'decor' && probe) && cam === c.id} icon={c.icon} label={t.tool[c.id]} kbd={c.key} onClick={() => setCam(c.id)} mobile={mobile} />),
+        // 漫游：站进屋里用人眼看。和上面三个视角同一组，点别的视角 = 退出
+        <Item key="roam" testId="cam-roam" on={roaming} icon={<Footprints size={19} strokeWidth={2.1} />} label={t.tool.roam} kbd="0" onClick={() => roaming ? exitRoam() : enterRoam()} mobile={mobile}
+          tip={<span className="block max-w-[240px] whitespace-normal leading-snug"><b className="font-semibold">{t.tool.roam}</b><br />{t.roam.tip}</span>} />,
         <Sep key="s" mobile={mobile} />,
         ...(mode === 'decor'
           // 装修态：「白模」关着 = 平涂（默认，墙地按材料铺平涂色），开着 = 纯白模；两种都能导出 PNG。旁边一格 1.1 m 水平剖切
           ? [<Item key="clay" testId="look-clay" on={look3d === 'clay'} icon={<Palette size={19} strokeWidth={2.1} />} label={look3d === 'clay' ? '白模' : '平涂'} onClick={() => useDecor.getState().set({ look3d: look3d === 'clay' ? 'flat' : 'clay' })} mobile={mobile} />,
-            <Item key="sect" testId="section-3d" on={section3d} icon={<Scissors size={19} strokeWidth={2.1} />} label="剖开看"
+            ...(roaming ? [] : [<Item key="sect" testId="section-3d" on={section3d} icon={<Scissors size={19} strokeWidth={2.1} />} label="剖开看"
               // 带字 + 一句白话（D6 B7：本人是装修小白，只有图标时找了半天、也不知道有什么用）
-              tip={<span className="block max-w-[240px] whitespace-normal leading-snug"><b className="font-semibold">剖开看</b><br />像在腰的高度把房子横着切开往下看：柜子嵌进墙里多少、哪里挖了洞，从外面看不到，切开就能看到</span>} onClick={() => useDecor.getState().set({ section3d: !section3d })} mobile={mobile} />]
+              tip={<span className="block max-w-[240px] whitespace-normal leading-snug"><b className="font-semibold">剖开看</b><br />像在腰的高度把房子横着切开往下看：柜子嵌进墙里多少、哪里挖了洞，从外面看不到，切开就能看到</span>} onClick={() => useDecor.getState().set({ section3d: !section3d })} mobile={mobile} />])]
           : [<Item key="clay" testId="style-clay" on={style3d === 'clay'} icon={<Palette size={19} strokeWidth={2.1} />} label={t.style3d.clay} onClick={() => setStyle3d(style3d === 'clay' ? 'struct' : 'clay')} mobile={mobile} />,
-            ...(mobile ? [] : [<Item key="ceil" on={layers.ceilings && style3d !== 'clay'} icon={<Layers2 size={19} strokeWidth={2.1} />} label={t.tool.ceilings} onClick={() => toggleLayer('ceilings')} mobile={mobile} />])]),
-        <Item key="reset" on={false} icon={<Focus size={19} strokeWidth={2.1} />} label={t.tool.reset} kbd="F" onClick={fit} mobile={mobile} />,
+            ...(mobile || roaming ? [] : [<Item key="ceil" on={layers.ceilings && style3d !== 'clay'} icon={<Layers2 size={19} strokeWidth={2.1} />} label={t.tool.ceilings} onClick={() => toggleLayer('ceilings')} mobile={mobile} />])]),
+        ...(roaming ? [] : [<Item key="reset" on={false} icon={<Focus size={19} strokeWidth={2.1} />} label={t.tool.reset} kbd="F" onClick={fit} mobile={mobile} />]),
         <ExportShot key="shot" mobile={mobile} />,
         // P1–P3 探针从工具栏收掉（D6）：只留网址参数 ?probe=p1|p2|p3 给 e2e 和开发；用户用 3D 里选中构件旁边的「对准」
       ]
@@ -106,9 +111,11 @@ export function ToolRail() {
         <Item key={x.id} on={tool === x.id} icon={x.icon} label={t.tool[x.id]} kbd={x.key} onClick={() => setTool(x.id)} mobile={mobile} />,
       ])
 
-  const top = useLeftColumn(mobile, is3d, `${mode}:${dCanvas.k}`)
+  const top = useLeftColumn(mobile, is3d, `${mode}:${dCanvas.k}:${roaming}`)
 
   if (mobile) {
+    // 手机上漫游的设置卡占底部（里面有退出），工具坞让开
+    if (roaming) return null
     return (
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-40 flex justify-center px-3 pb-[max(12px,env(safe-area-inset-bottom))]">
         <Glass data-float className="pointer-events-auto flex w-full max-w-[420px] items-center justify-between rounded-[26px] px-1.5 py-1.5">{items}</Glass>
@@ -118,7 +125,7 @@ export function ToolRail() {
   return (
     <motion.div initial={{ x: -16, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ type: 'spring', stiffness: 380, damping: 30, delay: 0.08 }}
       className="absolute left-5 z-30" style={{ top }}>
-      <Glass data-float data-rail className="flex flex-col items-center gap-0.5 rounded-[30px] px-1 py-2">{items}</Glass>
+      <Glass strong={roaming} data-float data-rail className="flex flex-col items-center gap-0.5 rounded-[30px] px-1 py-2">{items}</Glass>
     </motion.div>
   )
 }

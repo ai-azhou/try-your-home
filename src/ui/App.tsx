@@ -29,11 +29,13 @@ import { applyStyle, enterDecor, rotateFurniture, showProbe } from './decor/acti
 import { nudgeSelected } from './decor/nudge'
 import { removeItem, getDecorPlan, openElevAt, pruneDecorUI, refreshCache, rehostAfterStructure } from './decor/model'
 import { stepFace } from './decor/Chrome'
+import { RoamHud } from './panels/RoamHud'
+import { enterRoam, exitRoam, useRoam } from './roam'
 
 /**
  * 截图和演示用的 URL 参数（docs/design.md §9）：
  * ?state=empty|wall|opening|room|beam|question|renovation|compare|agent|draw|layers
- * &view=3d &mode=original|renovation|compare &sel=<构件id> &q=<问题id> &cam=iso|top|eye &lang=en &layers=underlay,certainty
+ * &view=3d &mode=original|renovation|compare &sel=<构件id> &q=<问题id> &cam=iso|top|eye|roam &lang=en &layers=underlay,certainty
  */
 // 只读的调试 / e2e 钩子：状态、当前视图、序列化。不改任何东西
 if (typeof window !== 'undefined') Object.assign(window, { __fss: { store: useStore, getView, serialize: serializePlan, planBounds, buildSolids, arcParams }, __decorUI: () => useDecor.getState() })
@@ -88,7 +90,8 @@ function applyUrlState(p: URLSearchParams) {
 function applyLook(p: URLSearchParams) {
   const s = useStore.getState()
   if (p.get('view') === '3d') s.setMain('3d')
-  if (p.get('cam')) s.setCam(p.get('cam') as Cam)
+  if (p.get('cam') === 'roam') enterRoam()
+  else if (p.get('cam')) s.setCam(p.get('cam') as Cam)
   if (p.get('style') === 'clay') s.setStyle3d('clay')
   const on = (p.get('layers') ?? '').split(',').filter(l => l in useStore.getState().layers)
   if (on.length) useStore.setState(st => ({ layers: { ...st.layers, ...Object.fromEntries(on.map(l => [l, true])) } }))
@@ -113,6 +116,7 @@ function decorKey(e: KeyboardEvent, k: string): boolean {
   const s = useStore.getState(), D = useDecor.getState()
   if (s.agentOpen || s.confirm) return false
   const plan = D.canvas.k === 'plan'
+  if (k === 'l') { D.set({ roomNames: !D.roomNames }); return true }
   const tools: Record<string, Parameters<typeof D.setTool>[0]> = plan ? { v: 'select', m: 'material', f: 'furniture', c: 'cabinet' } : { v: 'select', p: 'panel', n: 'cut', c: 'cabinet', m: 'material' }
   if (s.main === '2d' && tools[k]) { D.setTool(tools[k]); return true }
   if (k === 'e' && plan && s.main === '2d') { if (D.sel?.k === 'face') openElevAt(D.sel.face, { s: D.sel.s }); else D.setTool('elevpick'); return true }
@@ -198,11 +202,19 @@ function useShortcuts() {
       // 菜单、滑块这类控件自己用方向键：焦点在它们上面就不抢
       if (arrow && el instanceof Element && el.closest('[role=menu], [role=listbox], [role=slider], [role=radiogroup], [role=tablist]')) return
       if (e.repeat && k !== '=' && k !== '-' && !arrow) return
+      const cams: Record<string, Cam> = { '7': 'iso', '8': 'top', '9': 'eye' }
+      // 漫游：走路的键在 RoamRig；这里只留退出的路，其余快捷键（工具、切模式、删除）一律不响应：漫游只看不改
+      if (useRoam.getState().on) {
+        if (k === 'escape' || k === '0') exitRoam()
+        else if (cams[k]) s.setCam(cams[k])
+        else if (k === 'tab') { e.preventDefault(); s.swapMain() }
+        return
+      }
       if (s.mode === 'decor' && decorKey(e, k)) return
       const tools: Record<string, Tool> = { v: 'select', w: 'wall', d: 'opening', b: 'beam', r: 'room', u: 'underlay' }
       if (tools[k] && s.main === '2d') { s.setTool(tools[k]); return }
-      const cams: Record<string, Cam> = { '7': 'iso', '8': 'top', '9': 'eye' }
       if (cams[k]) { s.setCam(cams[k]); return }
+      if (k === '0') { enterRoam(); return }
       if (k === '1') s.setMode('original')
       else if (k === '2') s.setMode('renovation')
       else if (k === '3') s.setMode('compare')
@@ -253,7 +265,7 @@ function useDropFiles() {
 export default function App() {
   const base = useStore(s => s.base), mode = useStore(s => s.mode), dragOver = useStore(s => s.dragOver)
   const mobile = useIsMobile()
-  const booting = useStore(s => s.booting)
+  const booting = useStore(s => s.booting), roaming = useRoam(s => s.on)
   useEffect(() => { boot() }, [])
   useEffect(() => startAutosave(), [])
   useShortcuts()
@@ -267,20 +279,22 @@ export default function App() {
           {booting ? null : base ? (
             <>
               <Stage />
-              {!mobile && <TitleBlock />}
+              {/* 漫游只留视角工具、画中画和设置卡，其余让开，画面尽量完整 */}
+              {!mobile && !roaming && <TitleBlock />}
               <ToolRail />
-              <ToolHint />
-              <RightColumn />
-              <NextStep />
-              {!mobile && <ZoomBar />}
+              {roaming && <RoamHud />}
+              {!roaming && <ToolHint />}
+              {!roaming && <RightColumn />}
+              {!roaming && <NextStep />}
+              {!mobile && !roaming && <ZoomBar />}
               <Compass />
-              <SimpleBanner />
-              {mobile && <div className="pointer-events-none absolute left-[64px] top-[124px] z-30"><LevelSwitch /></div>}
-              {!mobile && <QuestionPopover />}
+              {!roaming && <SimpleBanner />}
+              {mobile && !roaming && <div className="pointer-events-none absolute left-[64px] top-[124px] z-30"><LevelSwitch /></div>}
+              {!mobile && !roaming && <QuestionPopover />}
               {dragOver && <div className="pointer-events-none absolute inset-3 z-[70] rounded-[36px] border-2 border-dashed border-mint-400 bg-mint-50/40 backdrop-blur-[2px]" />}
             </>
           ) : <EmptyState />}
-          <TopBar />
+          {!roaming && <TopBar />}
           <AgentSheet />
           <ChatSheet />
           <FloatingConfirm />

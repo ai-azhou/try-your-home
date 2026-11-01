@@ -11,6 +11,7 @@ import { Popover } from 'radix-ui'
 import { Check, Download, FileBraces, FileDown, ImageDown } from 'lucide-react'
 import { useStore, useT } from '../store'
 import { useDecor } from '../decor/dstore'
+import { useRoam } from '../roam'
 import { exportPlan, safeName } from '../actions'
 import { dicts, fmt } from '../i18n'
 import { pendingCount } from '@/core/decor/resolve'
@@ -22,7 +23,7 @@ import { openExportPanel } from './entry'
 export function shoot3d(bg: 'white' | 'transparent', aspect: 'view' | '16:9' = 'view') {
   const s = useStore.getState(), D = useDecor.getState(), zh = s.lang === 'zh'
   const t = { iso: zh ? '斜视' : 'iso', top: zh ? '俯视' : 'top', eye: zh ? '平视' : 'eye' }
-  const camName = s.mode === 'decor' && D.probe ? (zh ? '对准' : 'aim') : t[s.cam]
+  const camName = useRoam.getState().on ? (zh ? '漫游' : 'roam') : s.mode === 'decor' && D.probe ? (zh ? '对准' : 'aim') : t[s.cam]
   const look = s.mode === 'decor' ? (D.look3d === 'clay' ? (zh ? '装修白模' : 'decor-clay') : (zh ? '装修平涂' : 'decor-flat')) : s.style3d === 'clay' ? (zh ? '白模' : 'clay') : (zh ? '结构色' : 'structure')
   const name = `${safeName(s.base?.title ?? 'plan')}-${look}${s.mode === 'decor' && D.section3d ? (zh ? '-剖切' : '-section') : ''}-${camName}${aspect === '16:9' ? '-16x9' : ''}.png`
   // 装修态：有待确认的时候，图里默认只有已确认的（和 render 一致）；Scene3D 按 exportView 重画一遍再拍，拍完换回来

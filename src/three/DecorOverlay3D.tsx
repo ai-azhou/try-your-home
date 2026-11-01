@@ -12,6 +12,7 @@ import type { Plan, Vec2 } from '@/core/types'
 import type { Decor } from '@/core/decor/types'
 import type { DecorSolid } from '@/core/decor/solids'
 import { wallSkins } from '@/core/decor/wall-skins'
+import { resolveSurfaces } from '@/core/decor/surfaces'
 import { faceAxis } from '@/core/decor/faces'
 import { levelOf } from '@/core/levels'
 import { effectiveWallHeight } from '@/core/geometry'
@@ -20,7 +21,7 @@ import { fixturePieces } from './pieces'
 import type { Solid } from '@/core/solids'
 import { Pin, Projector, type Anchor } from './Overlay3D'
 import { useDecor, type DSel } from '@/ui/decor/dstore'
-import { elevRoomAt, faceSideName, findItem, footprintOf, selKey, useShownDecor } from '@/ui/decor/model'
+import { decorPlanOf, elevRoomAt, faceSideName, findItem, footprintOf, selKey, useShownDecor } from '@/ui/decor/model'
 import { aimAt } from '@/ui/decor/actions'
 import { useStore } from '@/ui/store'
 import { usePlan3d } from './Scene3D'
@@ -28,11 +29,19 @@ import { usePlan3d } from './Scene3D'
 const MINT = new THREE.MeshBasicMaterial({ color: '#55d3a5', transparent: true, opacity: 0.34, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
 const MINT_HOVER = new THREE.MeshBasicMaterial({ color: '#55d3a5', transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 })
 
+/** 全屋墙面的解析结果：鼠标划过一面面墙时只算一次（真实方案一次约 60 ms），方案或装修变了才重算 */
+const resolvedWalls = new WeakMap<Plan, ReturnType<typeof resolveSurfaces>['walls']>()
+function wallsResolved(plan: Plan) {
+  let walls = resolvedWalls.get(plan)
+  if (!walls) { walls = resolveSurfaces(plan).walls; resolvedWalls.set(plan, walls) }
+  return walls
+}
 /** 这面墙这一侧、这间房那一段的墙面皮（离墙面 4 mm） */
 function faceGeos(plan: Plan, decor: Decor | undefined, s: Extract<DSel, { k: 'face' }>): THREE.BufferGeometry[] {
   try {
     const room = elevRoomAt(plan, s.face, { s: s.s })
-    const skins = wallSkins(decor ? { ...plan, decor } : plan, { face: s.face, offset: 4 })
+    const full = decor ? decorPlanOf(plan, decor) : plan
+    const skins = wallSkins(full, { face: s.face, offset: 4, resolved: wallsResolved(full) })
     const mine = skins.filter(k => !room || k.room === room)
     return (mine.length ? mine : skins).filter(k => k.positions.length >= 9).map(k => {
       const g = new THREE.BufferGeometry()

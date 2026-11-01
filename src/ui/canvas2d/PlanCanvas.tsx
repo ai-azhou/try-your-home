@@ -30,11 +30,13 @@ import { freeRect, useIsMobile } from '../layout'
 import { findEl } from '../model'
 import { fmt } from '../i18n'
 import { layoutRoomLabels, pinPositions, type RoomLabelLayout } from './labels'
+import { RoamMarker } from './RoamMarker'
+import { roamGoto, useRoam } from '../roam'
 import type { FaceRef } from '@/core/decor/types'
 import { panelSpan } from '@/core/decor/panels'
 import { useDecor } from '../decor/dstore'
 import { DecorOver, DecorThresholds, DecorUnder, thresholdIds } from '../decor/PlanDecor'
-import { decorIssues, decorPlanOf, faceNear, findItem, footprintOf, getDecorPlan, openCabinetAt, openElevAt, shownDecor, tempDecor } from '../decor/model'
+import { decorIssues, decorPlanOf, shownIssues, faceNear, findItem, footprintOf, getDecorPlan, openCabinetAt, openElevAt, shownDecor, tempDecor } from '../decor/model'
 import { clearances, clearancesOf, decorHit, fitCheck, snapFurniture } from '../decor/plan-ctl'
 import { addCabinet, addFurniture, paintFace, paintFloor, patchFurniture } from '../decor/actions'
 import { DecorPins, DragClearance, CabinetDraft } from '../decor/PlanOverlays'
@@ -140,6 +142,7 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
   const dSel = useDecor(s => s.sel), dHover = useDecor(s => s.hover), dPreview = useDecor(s => s.preview), dKeep = useDecor(s => s.keepOverrides)
   const dCanvas = useDecor(s => s.canvas), dDragging = useDecor(s => s.dragging), dNudging = useDecor(s => s.nudging), dFamily = useDecor(s => s.cabFamily), dTool = useDecor(s => s.tool)
   const editable = !mini && mode !== 'compare'
+  const roomNames = useDecor(s => s.roomNames), roaming = useRoam(s => s.on)
   // ⌥ / Alt 悬停测距（Figma 式）：按住时记下悬停到的另一面墙；松开就消失
   const [alt, setAlt] = useState(false)
   const [altTarget, setAltTarget] = useState<string | null>(null)
@@ -170,7 +173,10 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
     const b = boundsRef.current ?? [0, 0, 10000, 8000]
     const bw = Math.max(1, b[2] - b[0]), bh = Math.max(1, b[3] - b[1])
     if (mini) {
-      const pad = 14, k = Math.min((size.w - 2 * pad) / bw, (size.h - 2 * pad) / bh)
+      const pad = 14
+      // 画中画切换时的弹簧动画、窗口来回拉宽时容器会短暂压到很小：放不下就留着上一次的取景，不算出负的缩放
+      if (size.w <= 2 * pad || size.h <= 2 * pad) return
+      const k = Math.min((size.w - 2 * pad) / bw, (size.h - 2 * pad) / bh)
       setXf({ k, x: size.w / 2 - (b[0] + bw / 2) * k, y: size.h / 2 - (b[1] + bh / 2) * k })
       return
     }
@@ -360,6 +366,8 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
 
   const onDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === 'mouse') return
+    // 漫游时画中画是地图：点哪走到哪，不选构件
+    if (mini && roaming) { const q = toPlan(local(e)); roamGoto(q[0] / 1000, q[1] / 1000); return }
     const s = local(e)
     ptrs.current.set(e.pointerId, s)
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
@@ -505,6 +513,7 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
   }
 
   const onUp = (e: React.PointerEvent) => {
+    if (mini && roaming) return // 按下时已经跳过去了，松手不再选构件
     const d = g.current
     ptrs.current.delete(e.pointerId)
     if (ptrs.current.size > 0) return
@@ -689,7 +698,7 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
     const decor = shownDecor(baseDecor, dPreview)
     if (!decor) return null
     const dplan = decorPlanOf(plan, decor)
-    const issues = decorIssues(dplan, view.base)
+    const issues = shownIssues(dplan, view.base)
     const styleId = dPreview ?? decor.style
     const props = { plan: dplan, base: basePlan!, decor, k: xf.k, pid, styleId, keep: dPreview ? dKeep : true, sel: dSel, hover: dHover, issues, mini, focusFace: mini && dCanvas.k !== 'plan' ? dCanvas.face : null }
     const dragF = dDragging && !dDragging.startsWith('cab:') ? decor.furniture.find(f => f.id === dDragging) : null
@@ -733,8 +742,9 @@ export function PlanCanvas({ mini }: { mini?: boolean }) {
             <PlanLayers plan={plan} base={basePlan!} diff={view.diff} hideSelDims={!!measured} mode={mode} k={xf.k} pid={pid} sel={dmode ? NO_SEL : sel} hover={dmode ? null : hover}
               decorUnder={decorLayers?.under} decorOver={decorLayers?.over} decorThresholds={decorLayers?.thresholds}
               layers={layers} mini={mini} certainty={certainty} lang={lang}
-              labels={{ sqm: t.sqm, ceiling: lang === 'zh' ? '层高' : 'H', entry: lang === 'zh' ? '入户' : 'IN', platform: t.prop.floorOffset }} roomLabels={roomLabels} pins={pinList} />
+              labels={{ sqm: t.sqm, ceiling: lang === 'zh' ? '层高' : 'H', entry: lang === 'zh' ? '入户' : 'IN', platform: t.prop.floorOffset }} roomLabels={roomLabels} hideRoomNames={mode === 'decor' && !roomNames} pins={pinList} />
           </g>
+          {mini && roaming && <RoamMarker k={xf.k} />}
           {!mini && tool === 'opening' && preview?.opening && <OpeningPreview plan={plan} o={preview.opening} k={xf.k} />}
           {!mini && tool === 'opening' && preview?.error && preview.at && <circle cx={preview.at[0]} cy={preview.at[1]} r={px(7)} fill="rgb(232 96 79 / 0.2)" stroke={C.coral500} strokeWidth={px(1.6)} pointerEvents="none" />}
           {/* 其他楼层：墙体轮廓淡显在上面（虚线 + 极淡填充），对位用，不接收点击 */}

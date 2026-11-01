@@ -66,14 +66,25 @@ function checkElement(plan: Plan, type: ElementType, item: any): string | undefi
     if (!['straight', 'L', 'U', 'spiral'].includes(item.kind)) return '楼梯类型不认识'
   }
 }
+/**
+ * 重放用的拷贝：底图（内嵌图片，常有 MB 级）和装修层既不参与重放也不会被改，共用同一份，只拷结构。
+ * 每条改动都要拷一次才能失败回滚，整份拷的话一次重放要把底图复制几十遍；键的顺序不变，写回文件不产生无关差异。
+ */
+const SHARED_KEYS = new Set(['underlay', 'levelUnderlays', 'decor'])
+function cloneStructure(plan: Plan): Plan {
+  const out: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(plan)) out[k] = SHARED_KEYS.has(k) ? v : structuredClone(v)
+  return out as unknown as Plan
+}
+
 export function applyChanges(base: Plan, changes: Change[]): { plan: Plan; results: ChangeResult[] } {
-  let plan = structuredClone(base)
+  let plan = cloneStructure(base)
   const results: ChangeResult[] = [], protectedIds = new Set(base.walls.filter(w => PROTECTED_KINDS.includes(w.kind) || w.evidence?.certainty === 'unknown').map(w => w.id))
   const isProtected = (w: Wall | undefined) => !!w && (protectedIds.has(w.id) || PROTECTED_KINDS.includes(w.kind))
   // 承重柱和承重墙同一套规则：拆除要二次确认（按原始结构里的类型记，改成装饰柱再拆也要确认）
   const bearingColumns = new Set((base.columns ?? []).filter(c => c.kind === 'bearing').map(c => c.id))
   for (const change of changes) {
-    const r: ChangeResult = { id: change.id, ok: false, affected: [], removed: [] }, next = structuredClone(plan)
+    const r: ChangeResult = { id: change.id, ok: false, affected: [], removed: [] }, next = cloneStructure(plan)
     try {
       const blocked = change.op === 'remove' ? shaftRemovalError(next, change.target) : undefined
       if (blocked) throw new Error(blocked)
