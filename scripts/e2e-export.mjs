@@ -3,9 +3,10 @@
 // 载入示例方案（自带 5 条改造），再加 10 条凑到 15 条，导出 PDF，断言：
 //   1. 没有改造记录时入口置灰、提示「还没有改造记录」；
 //   2. 文件生成，文件名 <方案标题>-改造清单-<YYYYMMDD>.pdf；
-//   3. PDF 页数 = 封面 + 总览 + core paginate 页数（Node 里用 core 独立复算一遍）；打开「原始结构页」再多 1 页；
+//   3. PDF 页数 = 封面 + 总览 + core paginate 页数 + 文字放不下接的续页（Node 里用 core 独立复算一遍）；打开「原始结构页」再多 1 页；
 //   4. 同一页内图上序号的位置两两间距 ≥ 纸面 10mm；
-//   5. 运行时零网络请求。
+//   5. 运行时零网络请求；
+//   6. 房间名不出房间、不小于 10 px，放不下的进图例，图上字母和图例一一对应；右栏文字不超出栏底（版面按真实像素核对）。
 // 每页整页 PNG 存到 .shots/S2b/（从页面画布直接取，导出前就是这些画布）。只用公开示例数据。
 import puppeteer from 'puppeteer-core'
 import { chromePath } from './browser-path.mjs'
@@ -93,7 +94,15 @@ try {
     await page.waitForFunction(() => !!window.__fss?.store.getState().base)
     const n0 = await page.evaluate(() => window.__fss.store.getState().base.changes.length)
     assert(n0 === 5, `示例方案应自带 5 条改造，实际 ${n0}`)
-    await page.evaluate(extra => { const s = window.__fss.store; const b = s.getState().base; s.setState({ base: { ...b, changes: [...b.changes, ...extra] } }) }, EXTRA)
+    // 压力样例：小房间起超长名字（要进图例），一条改造写超长原话（要接续页）
+    await page.evaluate(extra => {
+      const s = window.__fss.store; const b = s.getState().base
+      const smallest = [...b.rooms].sort((p, q) => Math.abs(polyArea(p.poly)) - Math.abs(polyArea(q.poly)))[0]
+      function polyArea(poly) { return poly.reduce((a, pt, i) => { const n = poly[(i + 1) % poly.length]; return a + pt[0] * n[1] - n[0] * pt[1] }, 0) / 2 }
+      const rooms = b.rooms.map(r => r.id === smallest.id ? { ...r, name: `${r.name}（靠北侧的那一小块地方）` } : r)
+      const long = '这条写得特别长，用来检查右栏放不下时会不会丢字。'.repeat(40)
+      s.setState({ base: { ...b, rooms, changes: [...b.changes, ...extra.map(c => c.id === 'c6' ? { ...c, note: `${c.note}。${long}` } : c)] } })
+    }, EXTRA)
     base = await page.evaluate(() => window.__fss.store.getState().base)
     const bad = await page.evaluate(() => window.__fss.getView().results.filter(r => !r.ok).map(r => `${r.id}${r.needsConfirm ? '(待二次确认)' : ':' + r.error}`))
     await sleep(300)
@@ -119,12 +128,14 @@ try {
   await step('4 页数 = 封面 + 总览 + paginate（Node 里用 core 复算）+ 装修想法几页', page, async () => {
     const pages = paginate(changeFocus(base, base.changes), info.paginateOpts)
     const struct = info.pages.filter(p => !isDecor(p))
+    const conts = struct.filter(p => p.part && p.part[0] > 1).length
+    assert(conts > 0, '压力样例应该接出续页')
     assert(pages.length === info.paginate, `core 复算 paginate ${pages.length} 页 ≠ 页面里 ${info.paginate} 页`)
-    assert(struct.length === 2 + pages.length, `结构页数 ${struct.length} ≠ 2 + ${pages.length}`)
+    assert(struct.length === 2 + pages.length + conts, `结构页数 ${struct.length} ≠ 2 + ${pages.length} + 续页 ${conts}`)
     assert(info.pages[0].kind === 'cover' && info.pages[1].kind === 'overview' && struct.slice(2).every(p => p.kind === 'detail'), '页序不对')
     assert(info.pages.findIndex(isDecor) === struct.length, '装修页应接在结构页后面')
     const views = pages.map(p => p.view).join(' ')
-    return `paginate ${pages.length} 页：${views}`
+    return `paginate ${pages.length} 页：${views}；文字接出续页 ${conts} 页`
   })
 
   await step('5 同一页内序号两两间距 ≥ 10mm', page, async () => {
@@ -166,6 +177,45 @@ try {
     return `装修 ${d.items.length} 项（${nums[0]}–${nums.at(-1)}），${kinds.length} 页：${kinds.join(' ')}；需要专业确认 ${pro.length} 项`
   })
 
+  await step('5c 房间名不出房间、字号 ≥ 10，放不下的进图例且一一对应', page, async () => {
+    const inPoly = (p, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const [xi, yi] = poly[i], [xj, yj] = poly[j]; if ((yi > p[1]) !== (yj > p[1]) && p[0] < (xj - xi) * (p[1] - yi) / (yj - yi) + xi) c = !c } return c }
+    let names = 0, keyed = new Set(), withFacts = 0
+    info.pages.forEach((p, i) => {
+      if (!p.facts) return
+      withFacts++
+      for (const l of p.facts.labels) {
+        if (l.size) {
+          names++
+          assert(l.size >= 10, `第 ${i + 1} 页「${l.name}」字号 ${l.size} < 10`)
+          const [x0, y0, x1, y1] = l.box
+          for (const c of [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]) assert(inPoly(c, l.poly), `第 ${i + 1} 页「${l.name}」出了房间：${l.box.map(v => v.toFixed(0))}`)
+        } else {
+          assert(l.key, `第 ${i + 1} 页「${l.name}」进了图例却没有字母`)
+          keyed.add(l.name)
+          assert(p.facts.legend.some(e => e.startsWith(`${l.key} ${l.name}`)), `第 ${i + 1} 页字母 ${l.key}（${l.name}）图例里没有：${p.facts.legend}`)
+        }
+      }
+      for (const e of p.facts.legend) assert(p.facts.labels.some(l => !l.size && e.startsWith(`${l.key} ${l.name}`)), `第 ${i + 1} 页图例「${e}」图上没有对应字母`)
+      // 同一页同一个字母不指两间房
+      const m = new Map(); for (const l of p.facts.labels) if (l.key) { assert(!m.has(l.key) || m.get(l.key) === l.name, `第 ${i + 1} 页字母 ${l.key} 指了两间房`); m.set(l.key, l.name) }
+      // 序号不压房间名
+      for (const b of p.badges.flat()) for (const l of p.facts.labels) if (l.size) {
+        const dx = Math.max(l.box[0] - b.x, 0, b.x - l.box[2]), dy = Math.max(l.box[1] - b.y, 0, b.y - l.box[3])
+        assert(Math.hypot(dx, dy) >= 11.5, `第 ${i + 1} 页序号 ${b.n} 压到「${l.name}」`)
+      }
+    })
+    assert(withFacts > 3, '没拿到版面数据')
+    assert([...keyed].some(n => /靠北侧/.test(n)), `超长名字应该进图例：${[...keyed]}`)
+    return `核对 ${withFacts} 页、${names} 个房间名；进图例：${[...keyed].join('、')}`
+  })
+
+  await step('5d 右栏文字不超出栏底', page, async () => {
+    let n = 0
+    info.pages.forEach((p, i) => { if (p.facts?.textBottom != null) { n++; assert(p.facts.textBottom <= p.facts.textLimit + 0.5, `第 ${i + 1} 页写到 ${p.facts.textBottom.toFixed(0)}，栏底 ${p.facts.textLimit}`) } })
+    assert(n > 0, '没拿到右栏数据')
+    return `${n} 页`
+  })
+
   await step('6 每页存 PNG', page, async () => {
     for (const f of fs.readdirSync(out).filter(f => /^page-\d+\.png$/.test(f))) fs.rmSync(path.join(out, f))
     for (let i = 0; i < info.pages.length; i++) {
@@ -200,7 +250,8 @@ try {
     await waitReady(page)
     const i2 = await page.evaluate(() => ({ ...window.__fssExport, png: undefined }))
     assert(i2.opts.original && !i2.opts.threeD, '开关没生效')
-    assert(i2.pages.filter(p => !isDecor(p)).length === 3 + info.paginate, `结构页数 ${i2.pages.filter(p => !isDecor(p)).length} ≠ 3 + ${info.paginate}`)
+    const conts2 = i2.pages.filter(p => !isDecor(p) && p.part && p.part[0] > 1).length
+    assert(i2.pages.filter(p => !isDecor(p)).length === 3 + info.paginate + conts2, `结构页数 ${i2.pages.filter(p => !isDecor(p)).length} ≠ 3 + ${info.paginate} + 续页 ${conts2}`)
     assert(i2.pages[2].kind === 'original', '第 3 页不是原始结构页')
     for (const f of fs.readdirSync(out).filter(f => /^alt-page-\d+\.png$/.test(f))) fs.rmSync(path.join(out, f))
     for (let i = 0; i < i2.pages.length; i++) {

@@ -53,7 +53,7 @@ function expose(r: Rendered | null) {
   ;(window as unknown as Record<string, unknown>).__fssExport = {
     open: openExport,
     minGapPx: MIN_GAP_PX,
-    pages: r ? r.sheets.map(s => ({ kind: s.kind, title: s.title, badges: s.badges, regions: !!s.regions })) : [],
+    pages: r ? r.sheets.map(s => ({ kind: s.kind, title: s.title, badges: s.badges, regions: !!s.regions, facts: s.facts ?? null, part: s.part ?? null })) : [],
     paginate: r ? r.doc.pages.length : 0,
     paginateOpts: r ? r.doc.paginateOpts : null,
     opts: r ? r.doc.opts : null,

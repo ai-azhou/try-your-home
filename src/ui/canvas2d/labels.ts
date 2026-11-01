@@ -139,7 +139,7 @@ function candidates(r: Room, k: number): Vec2[] {
   return [lp, ...pts.slice(0, 160)]
 }
 
-function boxInRoom(b: [number, number, number, number], poly: Vec2[], m: number): boolean {
+export function boxInRoom(b: [number, number, number, number], poly: Vec2[], m: number): boolean {
   const [x0, y0, x1, y1] = [b[0] - m, b[1] - m, b[2] + m, b[3] + m]
   const xm = (x0 + x1) / 2, ym = (y0 + y1) / 2
   for (const p of [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [xm, y0], [xm, y1], [x0, ym], [x1, ym]] as Vec2[]) if (!pointInPolygon(p, poly)) return false
@@ -147,7 +147,7 @@ function boxInRoom(b: [number, number, number, number], poly: Vec2[], m: number)
   return !poly.some(p => p[0] > x0 && p[0] < x1 && p[1] > y0 && p[1] < y1)
 }
 
-function circleHitsBox(c: Vec2, r: number, b: [number, number, number, number]) {
+export function circleHitsBox(c: Vec2, r: number, b: [number, number, number, number]) {
   const dx = Math.max(b[0] - c[0], 0, c[0] - b[2]), dy = Math.max(b[1] - c[1], 0, c[1] - b[3])
   return dx * dx + dy * dy < r * r
 }

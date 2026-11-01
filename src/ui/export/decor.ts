@@ -22,10 +22,12 @@ import { decorIssues, footprintOf, faceLabel, overheadIds, WALL_ZH, type ItemKin
 import { panelSpan } from '@/core/decor/panels'
 import { elevationModel, type ElevModel } from '../decor/elev-model'
 import { furnitureName } from '../decor/furniture'
-import { K, NUM, badge, chip, lockIcon, newPage, panel, para, pattern, rrect, text, vdim, type Ctx } from './canvas'
+import { HEAD_RIGHT_Y, K, NUM, T, badge, chip, clampLines, lines, lockIcon, measure, newPage, pageHead, panel, pattern, rrect, text, vdim, wrap, type Ctx, type Tok } from './canvas'
 import { boxOf, drawPlan, fitFrame, frameFor, polyPath, type Rect, type Xf } from './plan-draw'
 import { layoutBadges, type BadgeIn } from './badges'
-import { BADGE, BODY, DETAIL, MIN_GAP_PX, PAGE, PANEL_PAD, type ExportDoc } from './model'
+import { BADGE, BODY, DETAIL, GUTTER, MIN_GAP_PX, PAGE, PANEL_PAD, span, type ExportDoc } from './model'
+import { drawPlanLegends, drawRoomLabels, factsOf, fitPlans, type Circle, type PlanSlot, type SheetFacts } from './room-labels'
+import { BAR, GUTTER_L, alertRun, drawCol, flow, type Atom, type FlowCol, type Run } from './textflow'
 
 /* ───────── 数据 ───────── */
 export interface DecorExportItem {
@@ -49,7 +51,7 @@ export interface DecorExportItem {
 }
 export interface DecorRoomBlock { room: string; name: string; lines: string[]; items: DecorExportItem[]; face?: FaceRef }
 export type DecorSheetKind = 'decor-overview' | 'decor-room' | 'decor-materials' | 'decor-pro'
-export interface DecorSheet { kind: DecorSheetKind; block?: DecorRoomBlock; items?: DecorExportItem[]; part?: [number, number] }
+export interface DecorSheet { kind: DecorSheetKind; block?: DecorRoomBlock; items?: DecorExportItem[]; part?: [number, number]; col?: FlowCol<DecorExportItem> }
 export interface DecorPart { plan: Plan; decor: Decor; style: string; items: DecorExportItem[]; blocks: DecorRoomBlock[]; sheets: DecorSheet[]; pro: DecorExportItem[] }
 
 const FAMILY = { tall: '高柜', base: '地柜', wall: '吊柜' }
@@ -200,10 +202,10 @@ const S = {
 }
 
 /** 平面：地面铺样色（打印更浅一档），装修构件画在结构上面 */
-function drawDecorPlan(ctx: Ctx, part: DecorPart, x: Xf, r: Rect, o: { strong?: Set<string>; labels?: boolean; labelWithin?: Rect } = {}) {
+function drawDecorPlan(ctx: Ctx, part: DecorPart, x: Xf, r: Rect, o: { strong?: Set<string> } = {}) {
   const { plan, decor } = part
   const fills = new Map(plan.rooms.map(rm => { try { return [rm.id, planTone(resolveFinish(plan, { floor: rm.id }, { room: rm }).material.color, 0.012)] as const } catch { return [rm.id, K.paper] as const } }))
-  drawPlan(ctx, plan, x, r, { tone: 'normal', labels: o.labels !== false, floorFill: id => fills.get(id), labelWithin: o.labelWithin })
+  drawPlan(ctx, plan, x, r, { tone: 'normal', floorFill: id => fills.get(id) })
   ctx.save(); ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, 10); ctx.clip()
   const faint = (id: string) => o.strong && !o.strong.has(id)
   // 墙面换材料：贴着墙面一条色带
@@ -461,57 +463,49 @@ function fadeEdges(ctx: Ctx, r: Rect, band: number) {
 }
 
 function header(ctx: Ctx, doc: ExportDoc, title: string) {
-  text(ctx, `${doc.base.title} · ${doc.t.docName} · ${S.title}`, PAGE.margin + 36, 52, { size: 11.5, weight: 600, color: K.ink500 })
-  rrect(ctx, PAGE.margin, 40, 26, 26, 8); ctx.fillStyle = '#efe3d2'; ctx.fill()
-  text(ctx, '装', PAGE.margin + 13, 58, { size: 13, weight: 700, color: '#6b5338', align: 'center' })
-  text(ctx, title, PAGE.margin + 36, 80, { size: 22, weight: 650, color: K.ink, letter: -0.2 })
-  ctx.fillStyle = K.ink100; ctx.fillRect(PAGE.margin, 98, PAGE.w - 2 * PAGE.margin, 1)
+  const mark = (x: number, y: number, sz: number) => {
+    rrect(ctx, x, y, sz, sz, 8); ctx.fillStyle = '#efe3d2'; ctx.fill()
+    text(ctx, '装', x + sz / 2, y + sz / 2 + 4.7, { size: 13, weight: 600, color: '#6b5338', align: 'center' })
+  }
   // 页眉右边：口吻
-  text(ctx, S.disclaimer, PAGE.w - PAGE.margin, 80, { size: 11.5, weight: 650, color: K.ink700, align: 'right' })
+  const right = { ...T.caption, weight: 600, color: K.ink700 }
+  pageHead(ctx, { mark, kicker: `${doc.base.title} · ${doc.t.docName} · ${S.title}`, title, rightW: measure(ctx, S.disclaimer, right) })
+  lines(ctx, [S.disclaimer], PAGE.w - PAGE.margin, HEAD_RIGHT_Y - right.lh / 2, right, 'right')
 }
 
-/** 右栏一项：序号 + 标题 + 几行事实 + 原话 + 受保护事实 */
-function itemBlock(ctx: Ctx, it: DecorExportItem, x: number, y: number, w: number, size: number, dry: boolean): number {
-  const tx = x + 34, tw = w - 34
-  if (!dry) badge(ctx, x + 12, y + 10, it.number, { d: 24 })
-  let yy = y + 4 + size * 0.95
-  yy = para(ctx, it.title, tx, yy, tw, size * 1.4, { size: size + 0.5, weight: 650, color: K.ink }, 2, dry).y
+/* ───────── 右栏文字：和结构页同一套（textflow） ───────── */
+const WARN: Tok = { ...T.caption, weight: 600, color: '#7a6510' }
+const PENDING: Tok = { ...T.caption, weight: 700, color: K.lav }
+/** 一项拆成块：标题 + 几行事实一块，原话和提示一块 */
+function itemAtoms(ctx: Ctx, it: DecorExportItem, tw: number): Atom[] {
+  const head: Run[] = [{ kind: 'text', tok: T.title, lines: wrap(ctx, it.title, tw, T.title), gap: 0 }]
   // 待确认：明确写出来，和已确认的分开读
-  if (it.status === 'pending') yy = para(ctx, S.pendingItem, tx, yy, tw, size * 1.4, { size: size - 1, weight: 700, color: K.lav }, 2, dry).y
-  for (const ln of it.lines) yy = para(ctx, ln, tx, yy, tw, size * 1.4, { size: size - 1, weight: 500, color: K.ink700 }, 3, dry).y
-  if (it.note) {
-    const top = yy - size + 2
-    const r = para(ctx, `「${it.note}」`, tx + 10, yy + 2, tw - 10, size * 1.45, { size: size - 1, weight: 450, color: K.ink700 }, 3, dry)
-    if (!dry) { ctx.fillStyle = it.by === 'agent' ? K.lav : K.ink300; ctx.fillRect(tx, top, 2.5, r.y - top - size * 0.5) }
-    yy = r.y + 2
-  }
-  if (it.orphan) yy = para(ctx, '墙在改造里拆掉了，这一项现在没地方挂（先留着，画在原来的位置）', tx, yy, tw, size * 1.4, { size: size - 1.5, weight: 600, color: '#7a6510' }, 2, dry).y
-  if (it.protect) {
-    const h = para(ctx, it.protect, tx + 24, 0, tw - 32, size * 1.4, { size: size - 1.5, weight: 600 }, 3, true).lines * size * 1.4 + 12
-    if (!dry) {
-      rrect(ctx, tx, yy - 4, tw, h, 9); ctx.fillStyle = K.ink50; ctx.fill(); ctx.strokeStyle = K.ink300; ctx.lineWidth = 1; ctx.stroke()
-      lockIcon(ctx, tx + 12, yy + 2 + size * 0.6, 0.9)
-      para(ctx, it.protect, tx + 24, yy + 2 + size * 0.95, tw - 32, size * 1.4, { size: size - 1.5, weight: 600, color: K.ink800 }, 3)
-    }
-    yy += h + 2
-  }
-  return yy - y
+  if (it.status === 'pending') head.push({ kind: 'text', tok: PENDING, lines: wrap(ctx, S.pendingItem, tw, PENDING), gap: 2 })
+  it.lines.forEach((ln, i) => head.push({ kind: 'text', tok: T.body, lines: wrap(ctx, ln, tw, T.body), gap: i ? 0 : 4 }))
+  const rest: Run[] = []
+  if (it.note) rest.push({ kind: 'text', tok: T.body, lines: wrap(ctx, it.note, tw - BAR, T.body), gap: 0, bar: it.by === 'agent' ? K.lav : K.ink300, indent: BAR })
+  if (it.orphan) rest.push({ kind: 'text', tok: WARN, lines: wrap(ctx, '墙在改造里拆掉了，这一项现在没地方挂（先留着，画在原来的位置）', tw, WARN), gap: 6 })
+  if (it.protect) rest.push(alertRun(ctx, it.protect, tw, 8))
+  return rest.length ? [{ runs: head }, { runs: rest }] : [{ runs: head }]
 }
-function column(ctx: Ctx, items: DecorExportItem[], r: Rect, lead: string[] = []) {
-  let size = 13
-  const height = (sz: number) => lead.length * sz * 1.5 + (lead.length ? 10 : 0) + items.reduce((a, it) => a + itemBlock(ctx, it, r.x, 0, r.w, sz, true) + 12, 0)
-  while (size > 10 && height(size) > r.h) size -= 0.5
-  let y = r.y
-  for (const ln of lead) { y = para(ctx, ln, r.x, y + size, r.w, size * 1.45, { size: size - 0.5, weight: 600, color: K.ink800 }, 2).y - size * 0.6 }
-  if (lead.length) { y += 6; ctx.fillStyle = K.ink100; ctx.fillRect(r.x, y, r.w, 1); y += 8 }
-  for (const [i, it] of items.entries()) {
-    const h = itemBlock(ctx, it, r.x, y, r.w, size, true)
-    if (y + h > r.y + r.h + 6) { text(ctx, '……', r.x + 34, y + 12, { size: 12, color: K.ink500 }); break }
-    itemBlock(ctx, it, r.x, y, r.w, size, false)
-    y += h + 12
-    if (i < items.length - 1) { ctx.fillStyle = K.ink100; ctx.fillRect(r.x + 34, y - 7, r.w - 34, 1) }
-  }
+const proRect = (): Rect => ({ x: BODY.x + span(7) + GUTTER, y: BODY.y, w: BODY.w - span(7) - GUTTER, h: BODY.h - 48 })
+const sheetCol = (ds: DecorSheet): Rect => (ds.kind === 'decor-pro' ? proRect() : DETAIL.col)
+
+/** 量真实文字排右栏；放不下就接下一张同样的页（decor-room、decor-pro），其余页原样 */
+export function flowDecorSheet(ctx: Ctx, doc: ExportDoc, ds: DecorSheet): DecorSheet[] {
+  if (!ds.items || (ds.kind !== 'decor-room' && ds.kind !== 'decor-pro')) return [ds]
+  const r = sheetCol(ds), leadStr = ds.kind === 'decor-pro' ? ['下面这几处在方案里是承重墙或外墙。这里只写事实，能不能做、能挖多深，要专业人员到现场确认。'] : ds.part?.[0] === 1 ? [`风格：${doc.decor?.style}`, ...(ds.block?.lines ?? [])] : []
+  const lead: Run[] = leadStr.map(l => ({ kind: 'text', tok: T.strong, lines: wrap(ctx, l, r.w, T.strong), gap: 0 }))
+  const cols = flow(ds.items.map(it => ({ item: it, number: it.number, atoms: itemAtoms(ctx, it, r.w - GUTTER_L) })), lead, r.h)
+  return cols.map((col, i) => ({ ...ds, col, items: col.blocks.map(b => b.item), part: ds.kind === 'decor-pro' ? (cols.length > 1 ? [i + 1, cols.length] : undefined) : ds.part }))
 }
+/** 拆页之后，同一间房的几页重新编「第几 / 共几」 */
+export function renumberDecorParts(sheets: DecorSheet[]) {
+  const by = new Map<DecorRoomBlock, DecorSheet[]>()
+  for (const s of sheets) if (s.kind === 'decor-room' && s.block) by.set(s.block, [...(by.get(s.block) ?? []), s])
+  for (const list of by.values()) list.forEach((s, i) => { s.part = [i + 1, list.length] })
+}
+const circles = (ms: { x: number; y: number }[]): Circle[] => ms.map(m => ({ c: [m.x, m.y], r: BADGE.d / 2 + 3 }))
 function placeBadges(ctx: Ctx, items: BadgeIn[], bounds: Rect, out: { n: number | string; x: number; y: number }[][]) {
   const lay = layoutBadges(items, bounds, MIN_GAP_PX, BADGE.d / 2)
   for (const p of lay.placed) badge(ctx, p.x, p.y, p.n, { anchor: p.anchor, d: BADGE.d })
@@ -519,7 +513,7 @@ function placeBadges(ctx: Ctx, items: BadgeIn[], bounds: Rect, out: { n: number 
   return lay
 }
 
-export interface DecorRendered { canvas: HTMLCanvasElement; title: string; badges: { n: number | string; x: number; y: number }[][]; regions?: boolean }
+export interface DecorRendered { canvas: HTMLCanvasElement; title: string; badges: { n: number | string; x: number; y: number }[][]; regions?: boolean; facts?: SheetFacts }
 type Foot = (ctx: Ctx, index: number, extra?: string) => void
 
 export function renderDecorSheet(doc: ExportDoc, part: DecorPart, sheet: DecorSheet, index: number, footer: Foot): DecorRendered {
@@ -532,45 +526,48 @@ export function renderDecorSheet(doc: ExportDoc, part: DecorPart, sheet: DecorSh
 function overview(doc: ExportDoc, part: DecorPart, index: number, footer: Foot): DecorRendered {
   const { canvas, ctx } = newPage()
   header(ctx, doc, '装修总览')
-  const imgW = 690, badges: DecorRendered['badges'] = []
-  panel(ctx, BODY.x, BODY.y, imgW, BODY.h, `风格 · ${part.style}`, { tone: 'ink', right: '地面铺样色；柜子、造型、墙面换色标序号' })
-  const r = inner(BODY.x, BODY.y, imgW, BODY.h)
+  const imgW = span(8), badges: DecorRendered['badges'] = []
   const bb = planBounds(part.plan) ?? [0, 0, 1, 1]
-  const x = fitFrame(frameFor(bb, r, 500), r)
-  drawDecorPlan(ctx, part, x, r)
+  const key = doc.t.roomKey
+  const itemMarks = (x: Xf): BadgeIn[] => part.items.map(it => ({ n: it.number, anchor: x.P(it.anchor) as [number, number] }))
   // 序号推不开就只标房间（和结构总览同一个规则）
-  const trial = layoutBadges(part.items.map(it => ({ n: it.number, anchor: x.P(it.anchor) })), r, MIN_GAP_PX, BADGE.d / 2)
-  const regions = !trial.ok || trial.maxShift > 46
-  if (!regions) placeBadges(ctx, part.items.map(it => ({ n: it.number, anchor: x.P(it.anchor) as [number, number] })), r, badges)
-  else {
-    const marks: BadgeIn[] = []
-    for (const b of part.blocks) {
-      const rm = part.plan.rooms.find(q => q.id === b.room); if (!rm) continue
-      const p = x.P(labelPoint(rm.poly))
-      marks.push({ n: `${b.items[0]?.number ?? ''}–${b.items.at(-1)?.number ?? ''}`, anchor: [p[0], p[1] - 22] })
-    }
-    placeBadges(ctx, marks, r, badges)
-  }
-  // 右栏：每间房一行
-  const cx = BODY.x + imgW + 22, cw = BODY.w - imgW - 22
-  let y = BODY.y + 18
-  text(ctx, '按房间', cx, y, { size: 13, weight: 650, color: K.ink }); y += 10
-  for (const b of part.blocks) {
-    y += 14
-    text(ctx, b.name, cx, y + 4, { size: 12.5, weight: 650, color: K.ink800 })
-    const nums = b.items.length ? (b.items.length > 1 ? `${b.items[0].number}–${b.items.at(-1)!.number}` : `${b.items[0].number}`) : ''
-    text(ctx, `${nums}${b.items[0]?.page ? ` · 见第 ${b.items[0].page} 页` : ''}`, cx + cw, y + 4, { size: 10.5, weight: 600, color: K.ink500, align: 'right' })
-    const what = [...b.lines.map(l => l.replace(/（.*）/, '')), ...b.items.map(i => i.title)].join('、')
-    y = para(ctx, what, cx, y + 22, cw, 16, { size: 11, weight: 500, color: K.ink600 }, 2).y - 6
-    ctx.fillStyle = K.ink100; ctx.fillRect(cx, y + 4, cw, 1)
-  }
-  y += 22
-  const free = part.decor.furniture.filter(f => !f.in).length
-  y = para(ctx, `家具 ${free} 件不编号，尺寸见「用到的材料 · 家具尺寸」页。`, cx, y, cw, 16, { size: 11, weight: 500, color: K.ink500 }, 2).y
+  const crowded = (x: Xf, r: Rect) => { const l = layoutBadges(itemMarks(x), r, MIN_GAP_PX, BADGE.d / 2); return !l.ok || l.maxShift > 46 }
+  const roomMarks = (x: Xf): BadgeIn[] => part.blocks.flatMap(b => {
+    const rm = part.plan.rooms.find(q => q.id === b.room); if (!rm) return []
+    const p = x.P(labelPoint(rm.poly))
+    return [{ n: `${b.items[0]?.number ?? ''}–${b.items.at(-1)?.number ?? ''}`, anchor: [p[0], p[1] - 22] as [number, number] }]
+  })
+  const r0 = inner(BODY.x, BODY.y, imgW, BODY.h)
+  const fitted = fitPlans(ctx, [{
+    plan: part.plan, area: strip => ({ ...r0, h: r0.h - strip }), fit: rr => fitFrame(frameFor(bb, rr, 500), rr),
+    avoid: (x, rr) => circles(layoutBadges(crowded(x, rr) ? roomMarks(x) : itemMarks(x), rr, MIN_GAP_PX, BADGE.d / 2).placed),
+  }], key), f = fitted[0]
+  panel(ctx, BODY.x, BODY.y, imgW, BODY.h, `风格 · ${part.style}`, { tone: 'ink', right: '地面铺样色；柜子、造型、墙面换色标序号' })
+  drawDecorPlan(ctx, part, f.x, f.r)
+  drawRoomLabels(ctx, f.labels, 'normal')
+  const regions = crowded(f.x, f.r)
+  placeBadges(ctx, regions ? roomMarks(f.x) : itemMarks(f.x), f.r, badges)
+  drawPlanLegends(ctx, fitted, key)
+  // 右栏：每间房一行。房间多时先把说明压成一行，再不够就只留房间名
+  const col = DETAIL.col, free = part.decor.furniture.filter(x => !x.in).length
+  const whatOf = (b: DecorRoomBlock) => [...b.lines.map(l => l.replace(/（.*）/, '')), ...b.items.map(i => i.title)].join('、')
   const waiting = pendingCount(part.decor)
-  if (waiting) para(ctx, `其中 ${waiting} 条是 Agent 提议，还没确认：图上淡紫斜纹，右栏写着「待确认」。`, cx, y + 4, cw, 16, { size: 11, weight: 700, color: K.lav }, 3)
+  const foot = wrap(ctx, `家具 ${free} 件不编号，尺寸见「用到的材料 · 家具尺寸」页。${waiting ? `其中 ${waiting} 条还没确认：图上淡紫斜纹，右栏写着「待确认」。` : ''}`, col.w, T.caption)
+  const room = col.h - 28 - foot.length * T.caption.lh - 12
+  const rowsAt = (n: number) => part.blocks.map(b => { const w = n ? clampLines(ctx, whatOf(b), col.w, T.caption, n) : []; return { b, w, h: T.strong.lh + w.length * T.caption.lh + 13 } })
+  const rows = [2, 1, 0].map(rowsAt).find(rs => rs.reduce((a, q) => a + q.h, 0) <= room) ?? rowsAt(0)
+  let y = lines(ctx, ['按房间'], col.x, col.y, T.h2) + 8
+  for (const { b, w, h } of rows) {
+    const nums = b.items.length ? (b.items.length > 1 ? `${b.items[0].number}–${b.items.at(-1)!.number}` : `${b.items[0].number}`) : ''
+    lines(ctx, [b.name], col.x, y + 6, T.strong)
+    lines(ctx, [`${nums}${b.items[0]?.page ? ` · 见第 ${b.items[0].page} 页` : ''}`], col.x + col.w, y + 7.5, T.caption, 'right')
+    lines(ctx, w, col.x, y + 6 + T.strong.lh, T.caption)
+    y += h
+    ctx.fillStyle = K.ink100; ctx.fillRect(col.x, y - 1, col.w, 1)
+  }
+  lines(ctx, foot, col.x, y + 12, T.caption)
   footer(ctx, index)
-  return { canvas, title: '装修总览', badges, regions }
+  return { canvas, title: '装修总览', badges, regions, facts: factsOf(fitted) }
 }
 
 function roomSheet(doc: ExportDoc, part: DecorPart, sheet: DecorSheet, index: number, footer: Foot): DecorRendered {
@@ -582,18 +579,26 @@ function roomSheet(doc: ExportDoc, part: DecorPart, sheet: DecorSheet, index: nu
   const elevItems = b.face ? items.filter(i => i.face && i.face.wall === b.face!.wall && i.face.side === b.face!.side) : []
   const twoViews = !!b.face && elevItems.length > 0
   const planH = twoViews ? Math.round((img.h - gap) * 0.48) : img.h
-  // 平面局部：这间房（连本页构件）外扩一圈（RING），外圈后半段淡到白，框里其余留白；取景边上的半截房间名不写
-  panel(ctx, img.x, img.y, img.w, planH, '平面局部', { tone: 'ink', right: '剖切 1.1 m 往下看' })
-  const pr = inner(img.x, img.y, img.w, planH)
+  // 平面局部：这间房（连本页构件）外扩一圈（RING），外圈后半段淡到白，框里其余留白；名字只写在没淡掉的那部分里
   const room = part.plan.rooms.find(r => r.id === b.room)
   const fb = room ? boxOf([...room.poly, ...items.flatMap(i => [[i.bbox[0], i.bbox[1]], [i.bbox[2], i.bbox[3]]] as Vec2[])]) : boxOf(items.flatMap(i => [[i.bbox[0], i.bbox[1]], [i.bbox[2], i.bbox[3]]] as Vec2[]))
   const win: Box = [fb[0] - RING, fb[1] - RING, fb[2] + RING, fb[3] + RING]
-  const x = fitFrame(win, pr)
-  const A = x.P([win[0], win[1]]), B = x.P([win[2], win[3]]), wr: Rect = { x: A[0], y: A[1], w: B[0] - A[0], h: B[1] - A[1] }
-  const band = (RING - RING_SOLID) * x.s, solid: Rect = { x: wr.x + band, y: wr.y + band, w: wr.w - 2 * band, h: wr.h - 2 * band }
-  drawDecorPlan(ctx, part, x, wr, { strong, labelWithin: solid })
-  fadeEdges(ctx, wr, band)
-  placeBadges(ctx, items.map(it => ({ n: it.number, anchor: x.P(it.anchor) as [number, number] })), wr, badges)
+  const winRect = (x: Xf): Rect => { const A = x.P([win[0], win[1]]), B = x.P([win[2], win[3]]); return { x: A[0], y: A[1], w: B[0] - A[0], h: B[1] - A[1] } }
+  const solidRect = (x: Xf): Rect => { const w = winRect(x), band = (RING - RING_SOLID) * x.s; return { x: w.x + band, y: w.y + band, w: w.w - 2 * band, h: w.h - 2 * band } }
+  const marksOf = (x: Xf): BadgeIn[] => items.map(it => ({ n: it.number, anchor: x.P(it.anchor) as [number, number] }))
+  const r0 = inner(img.x, img.y, img.w, planH)
+  const slot: PlanSlot = {
+    plan: part.plan, area: strip => ({ ...r0, h: r0.h - strip }), fit: rr => fitFrame(win, rr), clip: solidRect,
+    avoid: x => circles(layoutBadges(marksOf(x), winRect(x), MIN_GAP_PX, BADGE.d / 2).placed),
+  }
+  const fitted = fitPlans(ctx, [slot], doc.t.roomKey), f = fitted[0]
+  panel(ctx, img.x, img.y, img.w, planH, '平面局部', { tone: 'ink', right: '剖切 1.1 m 往下看' })
+  const wr = winRect(f.x)
+  drawDecorPlan(ctx, part, f.x, wr, { strong })
+  fadeEdges(ctx, wr, (RING - RING_SOLID) * f.x.s)
+  drawRoomLabels(ctx, f.labels, 'normal')
+  placeBadges(ctx, marksOf(f.x), wr, badges)
+  drawPlanLegends(ctx, fitted, doc.t.roomKey)
   // 立面：这间房里挂东西最多的那面墙
   if (twoViews) {
     const ey = img.y + planH + gap, eh = img.h - planH - gap
@@ -601,75 +606,97 @@ function roomSheet(doc: ExportDoc, part: DecorPart, sheet: DecorSheet, index: nu
     const er = inner(img.x, ey, img.w, eh)
     const e = drawDecorElevation(ctx, part, doc.base, b.face!, er, b.room, strong)
     if (e) {
-      text(ctx, e.label, img.x + img.w - 14, ey + 26, { size: 10.5, weight: 600, color: K.ink500, align: 'right' })
+      lines(ctx, [e.label], img.x + img.w - 16, ey + 13, T.caption, 'right')
       // 本页每一项只要在立面取景段里露出来就标（序号限在图里，不压尺寸）
       const pins = items.map(it => ({ n: it.number, anchor: e.anchor(it.id) })).filter(p => p.anchor) as BadgeIn[]
       placeBadges(ctx, pins, e.bounds, badges)
     }
   }
-  column(ctx, items, DETAIL.col, sheet.part?.[0] === 1 ? [`风格：${part.style}`, ...b.lines] : [])
+  const col = DETAIL.col, textBottom = drawCol(ctx, sheet.col!, col.x, col.y, col.w, doc.t.continued)
   footer(ctx, index)
-  return { canvas, title: b.name, badges }
+  return { canvas, title: b.name, badges, facts: { ...factsOf(fitted), textBottom, textLimit: col.y + col.h } }
 }
 
 function materials(doc: ExportDoc, part: DecorPart, index: number, footer: Foot): DecorRendered {
   const { canvas, ctx } = newPage()
   header(ctx, doc, '用到的材料 · 家具尺寸')
-  const leftW = 620
+  const leftW = span(7), pad = PANEL_PAD.x
   let q: ReturnType<typeof materialTakeoff> = []
   try { q = materialTakeoff(part.plan).filter(m => m.area > 0.05 || m.count) } catch { q = [] }
   q.sort((a, b) => b.area - a.area)
   panel(ctx, BODY.x, BODY.y, leftW, BODY.h, '材料', { tone: 'ink', right: S.rough })
-  const rowH = Math.min(48, (BODY.h - 60) / Math.max(1, q.length))
-  let y = BODY.y + 50
-  for (const m of q) {
-    rrect(ctx, BODY.x + 16, y, 30, 30, 9); ctx.fillStyle = m.material.color; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.lineWidth = 1; ctx.stroke()
-    text(ctx, m.material.name, BODY.x + 58, y + 13, { size: 12.5, weight: 650, color: K.ink800 })
-    para(ctx, m.where.join('、'), BODY.x + 58, y + 29, leftW - 58 - 130, 14, { size: 10.5, weight: 500, color: K.ink500 }, 1)
-    const right = m.area > 0.05 ? `约 ${m.area.toFixed(1)} ㎡` : `${m.count} 组柜子`
-    text(ctx, right, BODY.x + leftW - 16, y + 20, { size: 12.5, weight: 650, family: NUM, color: K.ink800, align: 'right' })
-    y += rowH
-    ctx.fillStyle = K.ink100; ctx.fillRect(BODY.x + 58, y - 8, leftW - 74, 1)
-  }
-  // 粗估只算已确认的（core materialTakeoff 走 confirmedDecor，和 Agent 那边的 decor 命令一致）
   const waiting = pendingCount(part.decor)
-  if (waiting) text(ctx, `另有 ${waiting} 条待确认未计入`, BODY.x + 16, BODY.y + BODY.h - 34, { size: 11, weight: 700, color: K.lav })
-  para(ctx, '面积按各片真实面积扣掉门窗洞、造型遮挡算的，不含损耗；只用来对量级，不是用料或报价。品牌、色号自己记。', BODY.x + 16, BODY.y + BODY.h - 26, leftW - 32, 15, { size: 10.5, weight: 500, color: K.ink500 }, 2)
-  // 家具尺寸表
-  const cx = BODY.x + leftW + 18, cw = BODY.w - leftW - 18
-  panel(ctx, cx, BODY.y, cw, BODY.h, '家具尺寸', { tone: 'plain', right: '宽 × 深 mm · 高 m' })
-  const fs = part.decor.furniture.filter(f => !isFlatFurniture(part.decor, f))
-  const fh = Math.min(30, (BODY.h - 60) / Math.max(1, fs.length))
-  y = BODY.y + 52
-  for (const f of fs) {
-    const name = furnitureName(part.decor, f)
-    text(ctx, f.status === 'pending' ? `${name} · 待确认` : name, cx + 16, y, { size: Math.min(12, fh * 0.48), weight: 600, color: f.status === 'pending' ? K.lav : K.ink800 })
-    text(ctx, `${mm(f.size[0])} × ${mm(f.size[1])} · ${f.height.toFixed(2)}${f.in ? ' · 放在洞里' : ''}`, cx + cw - 16, y, { size: Math.min(11.5, fh * 0.46), weight: 600, family: NUM, color: K.ink600, align: 'right' })
-    y += fh
+  const note = wrap(ctx, `${waiting ? `另有 ${waiting} 条待确认未计入。` : ''}面积按各片真实面积扣掉门窗洞、造型遮挡算的，不含损耗；只用来对量级，不是用料或报价。品牌、色号自己记。`, leftW - 2 * pad, T.caption)
+  const noteH = note.length * T.caption.lh, listTop = BODY.y + PANEL_PAD.top + 4, listH = BODY.h - PANEL_PAD.top - 4 - noteH - PANEL_PAD.bottom - 12
+  // 「用在哪」放得下就写全；地方不够先压成每条一行，再不够只留小色块 + 名字 + 面积，不叠字
+  const swatch = 28, tx0 = BODY.x + pad + swatch + 12, whereW = BODY.x + leftW - pad - tx0 - 100
+  const rowsAt = (maxLines: number) => q.map(m => { const w = maxLines ? clampLines(ctx, m.where.join('、'), whereW, T.caption, maxLines) : []; return { m, w, h: T.strong.lh + w.length * T.caption.lh + 16 } })
+  const rows = [99, 1, 0].map(rowsAt).find(rs => rs.reduce((a, r) => a + r.h, 0) <= listH) ?? rowsAt(0)
+  const squeeze = Math.min(1, listH / Math.max(1, rows.reduce((a, r) => a + r.h, 0)))
+  let y = listTop
+  for (const { m, w, h } of rows) {
+    const rowH = h * squeeze, right = BODY.x + leftW - pad, cy = y + (rowH - 1) / 2, sw = Math.min(swatch, rowH - 8)
+    rrect(ctx, BODY.x + pad + (swatch - sw) / 2, cy - sw / 2, sw, sw, 8); ctx.fillStyle = m.material.color; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.lineWidth = 1; ctx.stroke()
+    const amount = m.area > 0.05 ? `约 ${m.area.toFixed(1)} ㎡` : `${m.count} 组柜子`
+    const top = cy - (T.strong.lh + w.length * T.caption.lh) / 2
+    lines(ctx, [m.material.name], tx0, top, T.strong)
+    lines(ctx, w, tx0, top + T.strong.lh, T.caption)
+    lines(ctx, [amount], right, cy - T.strong.lh / 2, { ...T.strong, family: NUM }, 'right')
+    y += rowH
+    ctx.fillStyle = K.ink100; ctx.fillRect(tx0, y - 1, right - tx0, 1)
   }
+  lines(ctx, note, BODY.x + pad, BODY.y + BODY.h - PANEL_PAD.bottom - noteH, T.caption)
+  // 家具尺寸表：三列，数字右对齐
+  const cx = BODY.x + leftW + GUTTER, cw = BODY.w - leftW - GUTTER
+  panel(ctx, cx, BODY.y, cw, BODY.h, '家具尺寸', { tone: 'plain' })
+  const fs = part.decor.furniture.filter(f => !isFlatFurniture(part.decor, f))
+  const c1 = cx + cw - pad, c0 = c1 - 44, rowF = 26, top = BODY.y + PANEL_PAD.top + 4
+  const fit = Math.max(1, Math.floor((BODY.h - PANEL_PAD.top - 4 - PANEL_PAD.bottom - 20 - T.caption.lh) / rowF))
+  lines(ctx, ['名称'], cx + pad, top, T.caption)
+  lines(ctx, ['宽 × 深 mm'], c0, top, T.caption, 'right')
+  lines(ctx, ['高 m'], c1, top, T.caption, 'right')
+  y = top + 20
+  ctx.fillStyle = K.ink200; ctx.fillRect(cx + pad, y - 1, cw - 2 * pad, 1)
+  const num: Tok = { ...T.body, weight: 500, family: NUM }
+  for (const f of fs.slice(0, fit)) {
+    const name = f.status === 'pending' ? `${furnitureName(part.decor, f)} · 待确认` : furnitureName(part.decor, f)
+    const size = `${mm(f.size[0])} × ${mm(f.size[1])}`
+    lines(ctx, clampLines(ctx, `${name}${f.in ? '（放在洞里）' : ''}`, c0 - measure(ctx, size, num) - 12 - cx - pad, T.body, 1), cx + pad, y + (rowF - T.body.lh) / 2, T.body)
+    lines(ctx, [size], c0, y + (rowF - T.body.lh) / 2, num, 'right')
+    lines(ctx, [f.height.toFixed(2)], c1, y + (rowF - T.body.lh) / 2, num, 'right')
+    y += rowF
+    ctx.fillStyle = K.ink100; ctx.fillRect(cx + pad, y - 1, cw - 2 * pad, 1)
+  }
+  if (fs.length > fit) lines(ctx, [`还有 ${fs.length - fit} 件，见工具里的家具清单`], cx + pad, y + 4, T.caption)
   footer(ctx, index)
   return { canvas, title: '用到的材料', badges: [] }
 }
 
 function proSheet(doc: ExportDoc, part: DecorPart, sheet: DecorSheet, index: number, footer: Foot): DecorRendered {
   const { canvas, ctx } = newPage()
-  header(ctx, doc, '需要专业确认 · 装修')
+  header(ctx, doc, `需要专业确认 · 装修${sheet.part && sheet.part[1] > 1 ? `（${sheet.part[0]} / ${sheet.part[1]}）` : ''}`)
   const items = sheet.items!, badges: DecorRendered['badges'] = []
-  const imgW = 600
-  panel(ctx, BODY.x, BODY.y, imgW, BODY.h - 40, '位置', { tone: 'ink', right: '受保护的墙上的嵌入、挖洞' })
-  const r = inner(BODY.x, BODY.y, imgW, BODY.h - 40)
+  const imgW = span(7), ph = BODY.h - 48
   const bb = planBounds(part.plan) ?? [0, 0, 1, 1]
-  const x = fitFrame(frameFor(bb, r, 500), r)
-  drawDecorPlan(ctx, part, x, r, { strong: new Set(items.map(i => i.id)) })
-  placeBadges(ctx, items.map(it => ({ n: it.number, anchor: x.P(it.anchor) as [number, number] })), r, badges)
-  column(ctx, items, { x: BODY.x + imgW + 24, y: BODY.y, w: BODY.w - imgW - 24, h: BODY.h - 40 }, ['下面这几处在方案里是承重墙或外墙。这里只写事实，能不能做、能挖多深，要专业人员到现场确认。'])
-  // 页脚上方一行：墙里可能有水电管线
-  const fy = BODY.y + BODY.h - 26
-  rrect(ctx, BODY.x, fy - 14, BODY.w, 32, 10); ctx.fillStyle = K.ink50; ctx.fill(); ctx.strokeStyle = K.ink300; ctx.lineWidth = 1; ctx.stroke()
-  lockIcon(ctx, BODY.x + 18, fy + 2, 0.95)
-  text(ctx, S.pipes, BODY.x + 32, fy + 6, { size: 12.5, weight: 650, color: K.ink800 })
-  footer(ctx, index, S.pipes)
-  return { canvas, title: '需要专业确认', badges }
+  const marksOf = (x: Xf): BadgeIn[] => items.map(it => ({ n: it.number, anchor: x.P(it.anchor) as [number, number] }))
+  const r0 = inner(BODY.x, BODY.y, imgW, ph)
+  const fitted = fitPlans(ctx, [{
+    plan: part.plan, area: strip => ({ ...r0, h: r0.h - strip }), fit: rr => fitFrame(frameFor(bb, rr, 500), rr),
+    avoid: (x, rr) => circles(layoutBadges(marksOf(x), rr, MIN_GAP_PX, BADGE.d / 2).placed),
+  }], doc.t.roomKey), f = fitted[0]
+  panel(ctx, BODY.x, BODY.y, imgW, ph, '位置', { tone: 'ink', right: '受保护的墙上的嵌入、挖洞' })
+  drawDecorPlan(ctx, part, f.x, f.r, { strong: new Set(items.map(i => i.id)) })
+  drawRoomLabels(ctx, f.labels, 'normal')
+  placeBadges(ctx, marksOf(f.x), f.r, badges)
+  drawPlanLegends(ctx, fitted, doc.t.roomKey)
+  const col = proRect(), textBottom = drawCol(ctx, sheet.col!, col.x, col.y, col.w, doc.t.continued)
+  // 内容区最下面一条：墙里可能有水电管线
+  const fy = BODY.y + BODY.h - 32
+  rrect(ctx, BODY.x, fy, BODY.w, 32, 8); ctx.fillStyle = K.ink50; ctx.fill(); ctx.strokeStyle = K.ink200; ctx.lineWidth = 1; ctx.stroke()
+  lockIcon(ctx, BODY.x + 16, fy + 16, 0.95)
+  lines(ctx, [S.pipes], BODY.x + 30, fy + (32 - T.strong.lh) / 2, T.strong)
+  footer(ctx, index)
+  return { canvas, title: '需要专业确认', badges, facts: { ...factsOf(fitted), textBottom, textLimit: col.y + col.h } }
 }
 
 export const DECOR_STRINGS = S

@@ -5,7 +5,7 @@
  */
 import clipping from 'polygon-clipping'
 import type { Box, Change, Opening, Plan, Vec2, Wall, WallKind } from '@/core/types'
-import { beamFootprint, columnFootprint, labelPoint, openingSpan, pointAt, polygonArea, sliceWall, wallFootprint } from '@/core/geometry'
+import { beamFootprint, columnFootprint, openingSpan, pointAt, sliceWall, wallFootprint } from '@/core/geometry'
 import { wallOutlines } from '@/core/walls'
 import { openingPath, openingSymbol } from '@/core/opening-symbol'
 import { onLevel } from '@/core/levels'
@@ -131,18 +131,14 @@ export function drawOpening(ctx: Ctx, x: Xf, plan: Plan, o: Opening, color: stri
 
 export interface DrawPlanOpts {
   tone?: Tone
-  /** 房间名 */
-  labels?: boolean
   /** 总宽总深 */
   dims?: boolean
   level?: string
   /** 装修页：每间房的地面填色（缺省白底） */
   floorFill?: (roomId: string) => string | undefined
-  /** 装修房间页的平面局部：房间名整个落在这个框里才写（取景边上的半截字不写）；缺省全写 */
-  labelWithin?: Rect
 }
 
-/** 画一张平面（不含改造标记） */
+/** 画一张平面（不含改造标记、不含房间名：房间名压在标记上面，由 room-labels 另外画） */
 export function drawPlan(ctx: Ctx, plan: Plan, x: Xf, clip: Rect | null, o: DrawPlanOpts = {}) {
   const tone = o.tone ?? 'normal'
   const p = o.level ? onLevel(plan, o.level) : plan
@@ -188,7 +184,6 @@ export function drawPlan(ctx: Ctx, plan: Plan, x: Xf, clip: Rect | null, o: Draw
     ctx.fillStyle = 'rgba(22,25,30,0.03)'; ctx.fill()
     ctx.setLineDash([5, 3.5]); ctx.strokeStyle = tone === 'normal' ? K.ink500 : K.ink300; ctx.lineWidth = 0.9; ctx.stroke(); ctx.setLineDash([])
   }
-  if (o.labels !== false) roomLabels(ctx, p, x, tone, o.labelWithin)
   ctx.restore()
   if (o.dims) totalDims(ctx, p, x)
 }
@@ -202,29 +197,6 @@ function drawStair(ctx: Ctx, x: Xf, st: { poly?: Vec2[]; path?: Vec2[]; width?: 
     ctx.strokeStyle = tone === 'normal' ? K.ink : K.ink300; ctx.lineWidth = 1; ctx.stroke()
     const end = x.P(path[path.length - 1]), prev = x.P(path[path.length - 2]), a = Math.atan2(end[1] - prev[1], end[0] - prev[0])
     ctx.beginPath(); ctx.moveTo(end[0], end[1]); ctx.lineTo(end[0] - 7 * Math.cos(a - 0.45), end[1] - 7 * Math.sin(a - 0.45)); ctx.moveTo(end[0], end[1]); ctx.lineTo(end[0] - 7 * Math.cos(a + 0.45), end[1] - 7 * Math.sin(a + 0.45)); ctx.stroke()
-  }
-}
-
-function roomLabels(ctx: Ctx, p: Plan, x: Xf, tone: Tone, within?: Rect) {
-  for (const r of p.rooms) {
-    if (r.poly.length < 3) continue
-    const areaPx = polygonArea(r.poly) * x.s * x.s
-    if (areaPx < 900) continue
-    const at = x.P(labelPoint(r.poly))
-    const size = Math.max(9, Math.min(12.5, Math.sqrt(areaPx) / 7))
-    ctx.save()
-    ctx.font = `600 ${size}px ${'"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif'}`
-    if (within) {
-      const hw = ctx.measureText(r.name).width / 2 + 2, below = (r.floorOffset ?? 0) !== 0 && areaPx > 1600 ? 16 : 3
-      if (at[0] - hw < within.x || at[0] + hw > within.x + within.w || at[1] - size * 0.75 < within.y || at[1] + size * 0.35 + below > within.y + within.h) { ctx.restore(); continue }
-    }
-    ctx.textAlign = 'center'
-    ctx.lineWidth = 3.5; ctx.strokeStyle = (r.floorOffset ?? 0) > 0 ? '#f7f8f9' : K.paper; ctx.lineJoin = 'round'
-    ctx.strokeText(r.name, at[0], at[1] + size * 0.35)
-    ctx.fillStyle = tone === 'normal' ? K.ink700 : K.ink400
-    ctx.fillText(r.name, at[0], at[1] + size * 0.35)
-    if ((r.floorOffset ?? 0) !== 0 && areaPx > 1600) text(ctx, `${(r.floorOffset ?? 0) > 0 ? '+' : ''}${(r.floorOffset ?? 0).toFixed(2)} m`, at[0], at[1] + size * 0.35 + 12, { size: 9, weight: 650, family: NUM, align: 'center', color: K.ink500 })
-    ctx.restore()
   }
 }
 

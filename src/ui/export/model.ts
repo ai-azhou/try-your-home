@@ -10,17 +10,21 @@ import { planBounds, roomsBesideWall } from '@/core/geometry'
 import { levelsOf } from '@/core/levels'
 import { exportStrings, fill, type ExportStrings } from './strings'
 import { buildDecorPart, type DecorPart, type DecorSheet, type DecorSheetKind } from './decor'
+import { PAGE } from './canvas'
+import type { FlowCol } from './textflow'
 import type { Lang } from '../i18n'
 
-/** A4 横版，按 CSS 像素排（1 px = 297/1123 mm），画布按 2 倍像素 */
-export const PAGE = { w: 1123, h: 794, scale: 2, margin: 40 } as const
+export { PAGE }
 export const MM_PER_PX = 297 / PAGE.w
-/** 内容区：页眉下、页脚上 */
-export const BODY = { x: PAGE.margin, y: 112, w: PAGE.w - 2 * PAGE.margin, h: 794 - 112 - 66 } as const
-/** 细节页：左图右文 */
-export const DETAIL = { img: { x: BODY.x, y: BODY.y, w: 716, h: BODY.h }, col: { x: BODY.x + 716 + 24, y: BODY.y, w: BODY.w - 716 - 24, h: BODY.h } } as const
+/** 内容区：页眉下、页脚上（上下各留 16） */
+export const BODY = { x: PAGE.margin, y: 112, w: PAGE.w - 2 * PAGE.margin, h: 616 } as const
+/** 12 栏栅格：所有页的图和文字都落在栏上。GUTTER = 栏间距，span(n) = 占 n 栏的宽 */
+export const GUTTER = 24
+export const span = (n: number) => Math.round(n * (BODY.w - 11 * GUTTER) / 12 + (n - 1) * GUTTER)
+/** 细节页：左图 8 栏、右文 4 栏 */
+export const DETAIL = { img: { x: BODY.x, y: BODY.y, w: span(8), h: BODY.h }, col: { x: BODY.x + span(8) + GUTTER, y: BODY.y, w: BODY.w - span(8) - GUTTER, h: BODY.h } } as const
 /** 图框里的留白：上方放「改之前 / 改之后」标签 */
-export const PANEL_PAD = { x: 14, top: 40, bottom: 14 } as const
+export const PANEL_PAD = { x: 16, top: 40, bottom: 16 } as const
 /** 序号圆的直径（px）和两两最小间距（纸面 10mm，和 core paginate 默认一致） */
 export const BADGE = { d: 24, minGapMm: 10 } as const
 export const MIN_GAP_PX = BADGE.minGapMm / MM_PER_PX
@@ -50,8 +54,12 @@ export interface ExportItem {
   /** 这条在哪一页细讲（PDF 页码，从 1 起） */
   page: number
 }
-export type SheetKind = 'cover' | 'overview' | 'original' | 'detail' | DecorSheetKind
-export interface Sheet { kind: SheetKind; page?: Page; items?: ExportItem[]; decor?: DecorSheet }
+export type SheetKind = 'cover' | 'overview' | 'overview-list' | 'original' | 'detail' | DecorSheetKind
+/**
+ * col = 右栏排好的文字（flowSheets 在有画布时量出来；放不下就拆成好几张同样的页，part = 第几张 / 共几张）。
+ * list = 总览目录这一页列哪几条（放不下的接到 overview-list 页），listLines = 每条最多几行摘要。
+ */
+export interface Sheet { kind: SheetKind; page?: Page; items?: ExportItem[]; decor?: DecorSheet; col?: FlowCol<ExportItem>; part?: [number, number]; list?: ExportItem[]; listLines?: number }
 /** decor：包含「装修想法」一节（有装修层时默认开） */
 /** structure = 「结构改造」一节（D6 B8：全局导出里和「装修想法」分别勾选；默认开） */
 export interface ExportOptions { original: boolean; threeD: boolean; decor?: boolean; structure?: boolean }

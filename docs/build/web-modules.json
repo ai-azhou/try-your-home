@@ -843,7 +843,7 @@
     },
     {
       "id": "node_modules/jspdf/dist/jspdf.es.min.js",
-      "renderedLength": 473755
+      "renderedLength": 473773
     },
     {
       "id": "node_modules/lucide-react/dist/esm/context.mjs",
@@ -2387,7 +2387,7 @@
     },
     {
       "id": "src/core/decor/validate.ts",
-      "renderedLength": 20392
+      "renderedLength": 20400
     },
     {
       "id": "src/core/decor/wall-skins.ts",
@@ -2531,7 +2531,7 @@
     },
     {
       "id": "src/three/roam.ts",
-      "renderedLength": 6685
+      "renderedLength": 6704
     },
     {
       "id": "src/three/RoamRig.tsx",
@@ -2555,11 +2555,11 @@
     },
     {
       "id": "src/ui/canvas2d/labels.ts",
-      "renderedLength": 6022
+      "renderedLength": 6203
     },
     {
       "id": "src/ui/canvas2d/PlanCanvas.tsx",
-      "renderedLength": 61545
+      "renderedLength": 61547
     },
     {
       "id": "src/ui/canvas2d/PlanLayers.tsx",
@@ -2643,11 +2643,11 @@
     },
     {
       "id": "src/ui/export/canvas.ts",
-      "renderedLength": 8237
+      "renderedLength": 9823
     },
     {
       "id": "src/ui/export/decor.ts",
-      "renderedLength": 38083
+      "renderedLength": 40399
     },
     {
       "id": "src/ui/export/elev-draw.ts",
@@ -2659,7 +2659,7 @@
     },
     {
       "id": "src/ui/export/ExportPanel.tsx",
-      "renderedLength": 16492
+      "renderedLength": 16544
     },
     {
       "id": "src/ui/export/GlobalExport.tsx",
@@ -2667,23 +2667,31 @@
     },
     {
       "id": "src/ui/export/model.ts",
-      "renderedLength": 10198
+      "renderedLength": 10255
     },
     {
       "id": "src/ui/export/pages.ts",
-      "renderedLength": 29568
+      "renderedLength": 33242
     },
     {
       "id": "src/ui/export/pdf.ts",
-      "renderedLength": 1782
+      "renderedLength": 1800
     },
     {
       "id": "src/ui/export/plan-draw.ts",
-      "renderedLength": 19651
+      "renderedLength": 18260
+    },
+    {
+      "id": "src/ui/export/room-labels.ts",
+      "renderedLength": 10503
     },
     {
       "id": "src/ui/export/strings.ts",
-      "renderedLength": 5910
+      "renderedLength": 6043
+    },
+    {
+      "id": "src/ui/export/textflow.ts",
+      "renderedLength": 3950
     },
     {
       "id": "src/ui/file-link.ts",

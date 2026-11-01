@@ -2,7 +2,8 @@
  * 整页画成一张图的基础件：A4 横版画布（2 倍像素）、字体、换行、胶囊、序号圆、斜纹。
  * 打印友好：白底、不用玻璃和光晕；拆 / 加 / 改除了颜色还靠线型区分（虚线 + 斜纹 / 实心 / 实线框）。
  */
-import { PAGE } from './model'
+/** A4 横版，按 CSS 像素排（1 px = 297/1123 mm），画布按 2 倍像素 */
+export const PAGE = { w: 1123, h: 794, scale: 2, margin: 40 } as const
 
 export const SANS = '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, sans-serif'
 export const NUM = '"Manrope Variable", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif'
@@ -40,6 +41,21 @@ export const K = {
 
 export type Ctx = CanvasRenderingContext2D
 
+/**
+ * 字阶：全部页面只用这几档（页面 px，1 px = 0.75 pt），同一类文字每页一样大；放不下就翻页，不缩字号。
+ * 最小 10.5 px ≈ 8 pt，打印还看得清。lh = 行高，排版都按行盒的顶算（lines）。
+ */
+export const T = {
+  h1: { size: 22, lh: 28, weight: 600, color: K.ink },
+  h2: { size: 14, lh: 20, weight: 600, color: K.ink },
+  title: { size: 13, lh: 20, weight: 600, color: K.ink },
+  body: { size: 12, lh: 19, weight: 400, color: K.ink700 },
+  strong: { size: 12, lh: 19, weight: 600, color: K.ink800 },
+  caption: { size: 11, lh: 16, weight: 500, color: K.ink500 },
+  micro: { size: 10.5, lh: 14, weight: 500, color: K.ink500 },
+} as const
+export type Tok = { size: number; lh: number; weight: number; color: string; family?: string }
+
 export function newPage(): { canvas: HTMLCanvasElement; ctx: Ctx } {
   const canvas = document.createElement('canvas')
   canvas.width = PAGE.w * PAGE.scale
@@ -76,23 +92,47 @@ export function measure(ctx: Ctx, str: string, s: TextStyle): number {
   return w
 }
 
-/** 行首不放的标点（简单避头） */
+/** 行首不放的标点、行尾不放的开括号（避头尾） */
 const NO_START = /^[，。、；：！？）」』》〉,.;:!?)\]}%·…—]/
-/** 中文按字、拉丁和数字按词断行 */
+const NO_END = /[（「『《〈(\[{]$/
+const WORD = "A-Za-z0-9.,\\-+/×→~%°'\"\\u00a0"
+const TOKEN = new RegExp(`[${WORD}]+|\\s+|.`, 'gu'), LAST_TOKEN = new RegExp(`(?:[${WORD}]+|.)$`, 'u')
+/** 中文按字、拉丁和数字按词断行；避头尾时把上一行的字带下来，所有行都不超过 maxW */
 export function wrap(ctx: Ctx, str: string, maxW: number, s: TextStyle): string[] {
   font(ctx, s)
-  const tokens = str.match(/[A-Za-z0-9.\-+/×→~%°'"\u00a0]+|\s+|./gu) ?? []
+  const fits = (v: string) => ctx.measureText(v).width <= maxW
+  // 一个词比整行还长（长编号、长英文）：只能逐字断
+  const glued = str.replace(/(\d) (mm|m|㎡)(?![A-Za-z])/g, '$1\u00a0$2') // 数字和单位不分行
+  const tokens = (glued.match(TOKEN) ?? []).flatMap(tok => (fits(tok) ? [tok] : [...tok]))
   const lines: string[] = []
   let line = ''
   for (const tok of tokens) {
     const next = line + tok
-    if (ctx.measureText(next).width <= maxW || !line.trim()) { line = next; continue }
-    if (NO_START.test(tok)) { line = next; continue }
-    lines.push(line.trimEnd())
-    line = tok.trimStart()
+    if (fits(next) || !line.trim()) { line = next; continue }
+    let carry = ''
+    if (NO_START.test(tok)) { carry = line.match(LAST_TOKEN)?.[0] ?? ''; line = line.slice(0, line.length - carry.length) }
+    while (NO_END.test(line.trimEnd())) { const t = line.trimEnd(), ch = t.slice(-1); carry = ch + carry; line = t.slice(0, -1) }
+    if (line.trim()) lines.push(line.trimEnd())
+    line = (carry + tok).trimStart()
   }
   if (line.trim()) lines.push(line.trimEnd())
   return lines
+}
+/** 按行盒画几行：top 是第一行行盒的顶，文字在行盒里垂直居中 */
+export function lines(ctx: Ctx, strs: string[], x: number, top: number, t: Tok, align: CanvasTextAlign = 'left') {
+  strs.forEach((l, i) => text(ctx, l, x, top + i * t.lh + t.lh / 2 + t.size * 0.36, { size: t.size, weight: t.weight, color: t.color, family: t.family, align }))
+  return top + strs.length * t.lh
+}
+/** 按宽度换行，超过 maxLines 行时末尾加省略号（只给摘要、目录这类「详情在别处」的文字用） */
+export function clampLines(ctx: Ctx, str: string, maxW: number, t: Tok, maxLines = 99): string[] {
+  const all = wrap(ctx, str, maxW, t)
+  if (all.length <= maxLines) return all
+  const out = all.slice(0, maxLines)
+  let last = out[maxLines - 1]
+  font(ctx, t)
+  while (last.length > 1 && ctx.measureText(`${last}…`).width > maxW) last = last.slice(0, -1)
+  out[maxLines - 1] = `${last}…`
+  return out
 }
 /** 段落：返回画完后的 y（下一行的基线位置之前） */
 export function para(ctx: Ctx, str: string, x: number, y: number, maxW: number, lh: number, s: TextStyle, maxLines = 99, dry = false): { y: number; lines: number } {
@@ -115,7 +155,7 @@ export function rrect(ctx: Ctx, x: number, y: number, w: number, h: number, r: n
 
 /** 小胶囊标签：返回宽度 */
 export function chip(ctx: Ctx, x: number, y: number, label: string, o: { fill?: string; stroke?: string; color?: string; dashed?: boolean; size?: number; weight?: number; h?: number; icon?: (cx: number, cy: number) => void; dry?: boolean } = {}): number {
-  const size = o.size ?? 11, h = o.h ?? 20, padX = 8, iconW = o.icon ? 13 : 0
+  const size = o.size ?? 11, h = o.h ?? 20, padX = 8, iconW = o.icon ? 12 : 0
   const w = measure(ctx, label, { size, weight: o.weight ?? 600 }) + padX * 2 + iconW
   if (o.dry) return w
   rrect(ctx, x, y, w, h, h / 2)
@@ -217,5 +257,16 @@ export function panel(ctx: Ctx, x: number, y: number, w: number, h: number, labe
     const ink = o.tone === 'ink'
     chip(ctx, x + 12, y + 11, label, { fill: ink ? K.ink : K.ink50, color: ink ? K.paper : K.ink700, size: 11.5, weight: 650, h: 21, stroke: ink ? undefined : K.ink200 })
   }
-  if (o.right) text(ctx, o.right, x + w - 14, y + 26, { size: 10.5, weight: 600, color: K.ink500, align: 'right' })
+  if (o.right) lines(ctx, [o.right], x + w - 16, y + 13, T.caption, 'right')
 }
+
+/** 页眉：左边标识 + 文档名 + 页标题，右边一块（图例或口吻）；标题放不下就省略，不压右边 */
+export function pageHead(ctx: Ctx, o: { mark: (x: number, y: number, s: number) => void; kicker: string; title: string; rightW?: number }) {
+  const x = PAGE.margin + 36, maxW = PAGE.w - PAGE.margin - x - (o.rightW ? o.rightW + 24 : 0)
+  o.mark(PAGE.margin, 40, 26)
+  lines(ctx, clampLines(ctx, o.kicker, maxW, T.caption, 1), x, 38, T.caption)
+  lines(ctx, clampLines(ctx, o.title, maxW, T.h1, 1), x, 56, T.h1)
+  ctx.fillStyle = K.ink100; ctx.fillRect(PAGE.margin, 96, PAGE.w - 2 * PAGE.margin, 1)
+}
+/** 页眉右边那块的垂直中线：和页标题同一行 */
+export const HEAD_RIGHT_Y = 70

@@ -6,7 +6,7 @@ import { jsPDF } from 'jspdf'
 import type { Plan } from '@/core/types'
 import { SnapshotRenderer } from '@/three/snapshot'
 import { buildDoc, fileName, type ExportDoc, type ExportOptions } from './model'
-import { makeRenderCtx, renderSheet, type RenderedSheet } from './pages'
+import { flowSheets, makeRenderCtx, renderSheet, type RenderedSheet } from './pages'
 import type { Lang } from '../i18n'
 
 export interface Rendered { doc: ExportDoc; sheets: RenderedSheet[] }
@@ -24,6 +24,7 @@ export async function fontsReady() {
 export async function renderAll(base: Plan, opts: ExportOptions, lang: Lang, live: Plan | null, onPage?: (i: number, n: number) => void, signal?: { cancelled: boolean }): Promise<Rendered> {
   await fontsReady()
   const doc = buildDoc(base, opts, lang)
+  flowSheets(doc)
   const need3d = opts.threeD
   let snap: SnapshotRenderer | null = null
   if (need3d) { try { snap = new SnapshotRenderer() } catch { snap = null } }
